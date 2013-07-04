@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merger>
+
+    <dataSet config="main" >
+        <source path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets" >
+            <file
+                name="fonts/ROBOTO-BLACK.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-BLACK.TTF" />
+            <file
+                name="fonts/ROBOTOSLAB-REGULAR.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTOSLAB-REGULAR.TTF" />
+            <file
+                name="fonts/ROBOTO-MEDIUMITALIC.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-MEDIUMITALIC.TTF" />
+            <file
+                name="fonts/ROBOTO-BOLDCONDENSEDITALIC.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-BOLDCONDENSEDITALIC.TTF" />
+            <file
+                name="fonts/ROBOTO-BOLD.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-BOLD.TTF" />
+            <file
+                name="fonts/ROBOTO-ITALIC.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-ITALIC.TTF" />
+            <file
+                name="fonts/ROBOTO-MEDIUM.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-MEDIUM.TTF" />
+            <file
+                name="fonts/ROBOTO-THINITALIC.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-THINITALIC.TTF" />
+            <file
+                name="fonts/ROBOTO-BOLDITALIC.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-BOLDITALIC.TTF" />
+            <file
+                name="fonts/ROBOTOSLAB-THIN.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTOSLAB-THIN.TTF" />
+            <file
+                name="fonts/ROBOTO-CONDENSED.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-CONDENSED.TTF" />
+            <file
+                name="fonts/ROBOTO-LIGHTITALIC.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-LIGHTITALIC.TTF" />
+            <file
+                name="fonts/ROBOTO-THIN.ttf"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-THIN.ttf" />
+            <file
+                name="fonts/ROBOTOSLAB-LIGHT.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTOSLAB-LIGHT.TTF" />
+            <file
+                name="fonts/ROBOTO-BLACKITALIC.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-BLACKITALIC.TTF" />
+            <file
+                name="fonts/ROBOTOSLAB-BOLD.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTOSLAB-BOLD.TTF" />
+            <file
+                name="fonts/ROBOTO-LIGHT.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-LIGHT.TTF" />
+            <file
+                name="fonts/ROBOTO-BOLDCONDENSED.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-BOLDCONDENSED.TTF" />
+            <file
+                name="fonts/ROBOTO-CONDENSEDITALIC.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-CONDENSEDITALIC.TTF" />
+            <file
+                name="fonts/ROBOTO-REGULAR.TTF"
+                path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\main\assets\fonts\ROBOTO-REGULAR.TTF" />
+        </source>
+    </dataSet>
+    <dataSet config="debug" >
+        <source path="C:\Users\Steven\Documents\3dsMax\OhMyProject\OhMy\src\debug\assets" />
+    </dataSet>
+
+</merger>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Oh My</string>
+    <string name="action_settings">Settings</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="splash_tv_title">Oh My, Pretty Please!</string>
+    <string name="splash_et_pass">Password</string>
+    <string name="splash_et_name">First name</string>
+    <string name="splash_et_email">Email</string>
+    <string name="forgot_password">Forgot password?</string>
+    <string name="website">ohmyprettyplease.com</string>
+    <string name="login">Login</string>
+    <string name="error_incorrect_password">Incorrect password</string>
+    <string name="login_progress_signing_in">Signing in...</string>
+    <string name="error_invalid_email">Invalid Email</string>
+    <string name="error_field_required">Field Required</string>
+    <string name="error_invalid_password">Invalid Password</string>
+</resources>
