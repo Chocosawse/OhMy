@@ -83,7 +83,7 @@ public class LoginActivity extends Activity {
         // Set fonts for UI references
         Typeface rbli = Typeface.createFromAsset(getAssets(), "fonts/ROBOTO-LIGHTITALIC.TTF");
         Typeface rblr = Typeface.createFromAsset(getAssets(), "fonts/ROBOTO-LIGHT.TTF");
-        //Typeface rbsb = Typeface.createFromAsset(getAssets(), "fonts/ROBOTOSLAB-BOLD.TTF");
+        Typeface rbsb = Typeface.createFromAsset(getAssets(), "fonts/ROBOTOSLAB-BOLD.TTF");
         //Typeface rbsr = Typeface.createFromAsset(getAssets(), "fonts/ROBOTOSLAB-REGULAR.TTF");
         TextView tv = (TextView) findViewById(R.id.splash_title);
             tv.setTypeface(rbli);
