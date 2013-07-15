@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        xmlns:android="http://schemas.android.com/apk/res/android">
+    <android.support.v4.widget.DrawerLayout
+            android:id="@+id/drawer_layout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+        <!-- The main content view -->
+        <!-- The navigation drawer -->
+        <ListView android:id="@+id/left_drawer"
+                  android:layout_width="240dp"
+                  android:layout_height="match_parent"
+                  android:layout_gravity="start"
+                  android:choiceMode="singleChoice"
+                  android:divider="@android:color/transparent"
+                  android:dividerHeight="0dp"
+                  android:background="#111"/>
+        <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:id="@+id/scrollView"
+                android:layout_alignParentLeft="true"
+                android:layout_marginLeft="0dp"
+                android:layout_alignParentTop="true"
+                android:layout_marginTop="0dp">
+
+            <LinearLayout
+                    android:orientation="vertical"
+                    android:layout_width="fill_parent"
+                    android:layout_height="fill_parent"
+                    android:layout_alignParentLeft="true"
+                    android:layout_alignParentTop="true"
+                    android:focusable="false"
+                    android:clickable="false"
+                    android:showDividers="middle"
+                    android:padding="0dp"
+                    >
+
+                <FrameLayout
+                        android:layout_width="fill_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@drawable/card"
+                        android:layout_margin="5dp">
+
+                    <ImageView
+                            android:layout_width="fill_parent"
+                            android:layout_height="wrap_content"
+                            android:id="@+id/imageView2"
+                            android:minHeight="200dp"
+                            android:src="@drawable/kate_spade_bag"
+                            android:maxHeight="250dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:layout_margin="5dp"/>
+
+                    <Button
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="?android:attr/textAppearanceMedium"
+                            android:text="Kate Spade Bag\nEnds in 16:05:12 "
+                            android:fontFamily="sans-serif-light"
+                            android:id="@+id/current_text2"
+                            android:layout_gravity="bottom|right"
+                            android:background="#aa000000"
+                            android:minHeight="50dp"
+                            android:layout_marginBottom="20dp"
+                            android:textColor="@color/light_grey"
+                            android:layout_marginLeft="5dp"
+                            android:textStyle="italic"
+                            android:clickable="true"/>
+
+                </FrameLayout>
+
+                <FrameLayout
+                        android:layout_width="fill_parent"
+                        android:layout_height="fill_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/card"
+                        android:layout_margin="5dp">
+
+                    <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:id="@+id/imageView"
+                            android:minHeight="200dp"
+                            android:src="@drawable/wild_fox_jeans"
+                            android:maxHeight="250dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:layout_margin="5dp"/>
+
+                    <Button
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="?android:attr/textAppearanceMedium"
+                            android:text="Wild Fox Jeans\nEnds in 16:05:12 "
+                            android:fontFamily="sans-serif-light"
+                            android:id="@+id/current_text1"
+                            android:layout_gravity="bottom|right"
+                            android:background="#aa000000"
+                            android:minHeight="50dp"
+                            android:layout_marginBottom="20dp"
+                            android:textColor="@color/light_grey"
+                            android:layout_marginLeft="5dp"
+                            android:textStyle="italic"
+                            android:clickable="true"/>
+                </FrameLayout>
+
+                <FrameLayout
+                        android:layout_width="fill_parent"
+                        android:layout_height="fill_parent"
+                        android:layout_weight="1"
+                        android:id="@+id/frameLayout"
+                        android:background="@drawable/card"
+                        android:layout_margin="5dp">
+
+                    <ImageView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:id="@+id/imageView3"
+                            android:minHeight="200dp"
+                            android:src="@drawable/gucci_potato"
+                            android:maxHeight="250dp"
+                            android:adjustViewBounds="true"
+                            android:scaleType="centerCrop"
+                            android:layout_margin="5dp"/>
+
+                    <Button
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="?android:attr/textAppearanceMedium"
+                            android:text="Gucci Potato\nEnds in 16:05:12 "
+                            android:id="@+id/current_text3"
+                            android:fontFamily="sans-serif-light"
+                            android:tag="current"
+                            android:layout_gravity="bottom|right"
+                            android:background="#aa000000"
+                            android:minHeight="50dp"
+                            android:layout_marginBottom="20dp"
+                            android:textColor="@color/light_grey"
+                            android:layout_marginLeft="5dp"
+                            android:textStyle="italic"
+                            android:clickable="true"/>
+
+                </FrameLayout>
+
+            </LinearLayout>
+        </ScrollView>
+    </android.support.v4.widget.DrawerLayout>
+
+
+</RelativeLayout>

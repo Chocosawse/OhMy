@@ -5,6 +5,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
 import android.app.Fragment;
 import android.app.FragmentManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
@@ -55,6 +56,15 @@ public class LoginActivity extends Activity {
     public static final String EXTRA_EMAIL = "com.example.android.authenticatordemo.extra.EMAIL";
 
     /**
+    * The typefaces used in the app
+    */
+    // Set fonts for UI references
+    public static Typeface rbli;
+    public static Typeface rblr;
+    public static Typeface rbsb;
+    //Typeface rbsr = Typeface.createFromAsset(getAssets(), "fonts/ROBOTOSLAB-REGULAR.TTF");
+
+    /**
      * Keep track of the login task to ensure we can cancel it if requested.
      */
     private UserLoginTask mAuthTask = null;
@@ -64,13 +74,6 @@ public class LoginActivity extends Activity {
     private String mEmail;
     private String mPassword;
 
-    // Navigation drawer stuff
-    private String[] mPlanetTitles;
-    private ListView mDrawerList;
-    private DrawerLayout mDrawerLayout;
-    private ActionBarDrawerToggle mDrawerToggle;
-    private CharSequence mTitle;
-
     // UI references.
     private EditText mNameView;
     private EditText mEmailView;
@@ -78,7 +81,7 @@ public class LoginActivity extends Activity {
     private View mLoginFormView;
     private View mLoginStatusView;
     private TextView mLoginStatusMessageView;
-
+    public Context myContext = this;
     public static ActiveUser activeUser;
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -88,44 +91,13 @@ public class LoginActivity extends Activity {
         getActionBar().hide();
         setContentView(R.layout.activity_login);
 
-        mPlanetTitles = getResources().getStringArray(R.array.planets_array);
-        mDrawerList = (ListView) findViewById(R.id.left_drawer);
-        mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
+        rbli = Typeface.createFromAsset(getAssets(), "fonts/ROBOTO-LIGHTITALIC.TTF");
+        rblr = Typeface.createFromAsset(getAssets(), "fonts/ROBOTO-LIGHT.TTF");
+        rbsb = Typeface.createFromAsset(getAssets(), "fonts/ROBOTOSLAB-BOLD.TTF");
 
-        // Set the adapter for the list view
-        mDrawerList.setAdapter(new ArrayAdapter<String>(this,
-                R.layout.drawer_list_item, mPlanetTitles));
-        mDrawerList.setOnItemClickListener(new DrawerItemClickListener());
+        Intent myIntent = new Intent(myContext, BrandActivity.class);
+        startActivity(myIntent);
 
-        // ActionBarDrawerToggle ties together the the proper interactions
-        // between the sliding drawer and the action bar app icon
-        mDrawerToggle = new ActionBarDrawerToggle(
-                this,                  /* host Activity */
-                mDrawerLayout,         /* DrawerLayout object */
-                R.drawable.ic_drawer,  /* nav drawer image to replace 'Up' caret */
-                R.string.drawer_open,  /* "open drawer" description for accessibility */
-                R.string.drawer_close  /* "close drawer" description for accessibility */
-        ) {
-            public void onDrawerClosed(View view) {
-                getActionBar().setTitle(mTitle);
-                invalidateOptionsMenu(); // creates call to onPrepareOptionsMenu()
-            }
-
-            public void onDrawerOpened(View drawerView) {
-                getActionBar().setTitle("Hurdur");
-                invalidateOptionsMenu(); // creates call to onPrepareOptionsMenu()
-            }
-        };
-        mDrawerLayout.setDrawerListener(mDrawerToggle);
-
-        getActionBar().setDisplayHomeAsUpEnabled(true);
-        getActionBar().setHomeButtonEnabled(true);
-
-        // Set fonts for UI references
-        Typeface rbli = Typeface.createFromAsset(getAssets(), "fonts/ROBOTO-LIGHTITALIC.TTF");
-        Typeface rblr = Typeface.createFromAsset(getAssets(), "fonts/ROBOTO-LIGHT.TTF");
-        Typeface rbsb = Typeface.createFromAsset(getAssets(), "fonts/ROBOTOSLAB-BOLD.TTF");
-        //Typeface rbsr = Typeface.createFromAsset(getAssets(), "fonts/ROBOTOSLAB-REGULAR.TTF");
         TextView tv = (TextView) findViewById(R.id.splash_title);
             tv.setTypeface(rbli);
         Button lb = (Button) findViewById(R.id.button_login);
@@ -173,31 +145,6 @@ public class LoginActivity extends Activity {
             }
         });
     }//onCreate
-
-    @Override
-    protected void onPostCreate(Bundle savedInstanceState) {
-        super.onPostCreate(savedInstanceState);
-        // Sync the toggle state after onRestoreInstanceState has occurred.
-        mDrawerToggle.syncState();
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        mDrawerToggle.onConfigurationChanged(newConfig);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Pass the event to ActionBarDrawerToggle, if it returns
-        // true, then it has handled the app icon touch event
-        if (mDrawerToggle.onOptionsItemSelected(item)) {
-            return true;
-        }
-        // Handle your other action bar items...
-
-        return super.onOptionsItemSelected(item);
-    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -312,39 +259,6 @@ public class LoginActivity extends Activity {
         }
     }
 
-    private class DrawerItemClickListener implements ListView.OnItemClickListener {
-        @Override
-        public void onItemClick(AdapterView parent, View view, int position, long id) {
-            selectItem(position);
-        }
-    }
-
-    /** Swaps fragments in the main content view */
-    private void selectItem(int position) {
-        // Create a new fragment and specify the planet to show based on position
-        Fragment fragment = new PlanetFragment();
-        Bundle args = new Bundle();
-        args.putInt(PlanetFragment.ARG_PLANET_NUMBER, position);
-        fragment.setArguments(args);
-
-        // Insert the fragment by replacing any existing fragment
-        FragmentManager fragmentManager = getFragmentManager();
-        fragmentManager.beginTransaction()
-                .replace(R.id.content_frame, fragment)
-                .commit();
-
-        // Highlight the selected item, update the title, and close the drawer
-        mDrawerList.setItemChecked(position, true);
-        setTitle(mPlanetTitles[position]);
-        mDrawerLayout.closeDrawer(mDrawerList);
-    }
-
-    @Override
-    public void setTitle(CharSequence title) {
-        mTitle = title;
-        getActionBar().setTitle(mTitle);
-    }
-
     /**
      * Represents an asynchronous login/registration task used to authenticate
      * the user.
@@ -380,6 +294,8 @@ public class LoginActivity extends Activity {
             showProgress(false);
 
             if (success) {
+                Intent myIntent = new Intent(myContext, BrandActivity.class);
+                startActivity(myIntent);
                 finish();
             } else {
                 mPasswordView.setError(getString(R.string.error_incorrect_password));
@@ -411,30 +327,5 @@ public class LoginActivity extends Activity {
         Intent i = new Intent(Intent.ACTION_VIEW);
         i.setData(Uri.parse(url));
         startActivity(i);
-    }
-
-    /**
-     * Fragment that appears in the "content_frame", shows a planet
-     */
-    public static class PlanetFragment extends Fragment {
-        public static final String ARG_PLANET_NUMBER = "planet_number";
-
-        public PlanetFragment() {
-            // Empty constructor required for fragment subclasses
-        }
-
-        @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                                 Bundle savedInstanceState) {
-            View rootView = inflater.inflate(R.layout.fragment_planet, container, false);
-            int i = getArguments().getInt(ARG_PLANET_NUMBER);
-            String planet = getResources().getStringArray(R.array.planets_array)[i];
-
-            int imageId = getResources().getIdentifier(planet.toLowerCase(Locale.getDefault()),
-                    "drawable", getActivity().getPackageName());
-            //((ImageView) rootView.findViewById(R.id.image)).setImageResource(imageId);
-            getActivity().setTitle(planet);
-            return rootView;
-        }
     }
 }

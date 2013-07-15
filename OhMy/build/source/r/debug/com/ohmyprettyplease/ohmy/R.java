@@ -17,41 +17,93 @@ public final class R {
         public static final int dark_grey=0x7f050000;
         public static final int light_grey=0x7f050001;
         public static final int mauve=0x7f050002;
+        public static final int pressed_navy=0x7f050003;
     }
     public static final class dimen {
         public static final int activity_horizontal_margin=0x7f060000;
         public static final int activity_vertical_margin=0x7f060001;
     }
     public static final class drawable {
-        public static final int drawer_shadow=0x7f020000;
-        public static final int ic_drawer=0x7f020001;
-        public static final int ic_launcher=0x7f020002;
+        public static final int ab_background_textured_navy=0x7f020000;
+        public static final int ab_bottom_solid_navy=0x7f020001;
+        public static final int ab_solid_navy=0x7f020002;
+        public static final int ab_stacked_solid_navy=0x7f020003;
+        public static final int ab_texture_tile_navy=0x7f020004;
+        public static final int ab_transparent_navy=0x7f020005;
+        public static final int btn_cab_done_default_navy=0x7f020006;
+        public static final int btn_cab_done_focused_navy=0x7f020007;
+        public static final int btn_cab_done_navy=0x7f020008;
+        public static final int btn_cab_done_pressed_navy=0x7f020009;
+        public static final int cab_background_bottom_navy=0x7f02000a;
+        public static final int cab_background_top_navy=0x7f02000b;
+        public static final int card=0x7f02000c;
+        public static final int cards=0x7f02000d;
+        public static final int divider_10=0x7f02000e;
+        public static final int dolce_vita_shoes=0x7f02000f;
+        public static final int drawer_shadow=0x7f020010;
+        public static final int free_people_dress=0x7f020011;
+        public static final int gucci_potato=0x7f020012;
+        public static final int ic_drawer=0x7f020013;
+        public static final int ic_launcher=0x7f020014;
+        public static final int kate_spade_bag=0x7f020015;
+        public static final int list_focused_navy=0x7f020016;
+        public static final int menu_dropdown_panel_navy=0x7f020017;
+        public static final int pressed_background_navy=0x7f020018;
+        public static final int progress_bg_navy=0x7f020019;
+        public static final int progress_horizontal_navy=0x7f02001a;
+        public static final int progress_primary_navy=0x7f02001b;
+        public static final int progress_secondary_navy=0x7f02001c;
+        public static final int selectable_background_navy=0x7f02001d;
+        public static final int spinner_ab_default_navy=0x7f02001e;
+        public static final int spinner_ab_disabled_navy=0x7f02001f;
+        public static final int spinner_ab_focused_navy=0x7f020020;
+        public static final int spinner_ab_pressed_navy=0x7f020021;
+        public static final int spinner_background_ab_navy=0x7f020022;
+        public static final int tab_indicator_ab_navy=0x7f020023;
+        public static final int tab_selected_focused_navy=0x7f020024;
+        public static final int tab_selected_navy=0x7f020025;
+        public static final int tab_selected_pressed_navy=0x7f020026;
+        public static final int tab_unselected_focused_navy=0x7f020027;
+        public static final int tab_unselected_navy=0x7f020028;
+        public static final int tab_unselected_pressed_navy=0x7f020029;
+        public static final int versace_shirt=0x7f02002a;
+        public static final int wild_fox_jeans=0x7f02002b;
     }
     public static final class id {
-        public static final int action_settings=0x7f070010;
-        public static final int button_forgot=0x7f07000c;
-        public static final int button_login=0x7f070009;
-        public static final int container=0x7f070001;
-        public static final int content_frame=0x7f070005;
-        public static final int drawer_layout=0x7f070004;
-        public static final int image=0x7f07000f;
-        public static final int left_drawer=0x7f07000d;
+        public static final int action_settings=0x7f070018;
+        public static final int button_forgot=0x7f07000d;
+        public static final int button_login=0x7f07000a;
+        public static final int content_frame=0x7f070006;
+        public static final int current_text1=0x7f070011;
+        public static final int current_text2=0x7f070013;
+        public static final int current_text3=0x7f070016;
+        public static final int drawer_layout=0x7f070002;
+        public static final int frameLayout=0x7f070014;
+        public static final int image=0x7f070017;
+        public static final int imageView=0x7f070010;
+        public static final int imageView2=0x7f070012;
+        public static final int imageView3=0x7f070015;
+        public static final int left_drawer=0x7f070003;
         public static final int login_form=0x7f070000;
-        public static final int login_status=0x7f070002;
-        public static final int login_status_message=0x7f070003;
+        public static final int login_status=0x7f070004;
+        public static final int login_status_message=0x7f070005;
+        public static final int pager=0x7f070001;
+        public static final int scrollView=0x7f07000f;
         public static final int section_label=0x7f07000e;
-        public static final int splash_email=0x7f070007;
-        public static final int splash_name=0x7f070008;
-        public static final int splash_password=0x7f070006;
-        public static final int splash_title=0x7f07000b;
-        public static final int textView3=0x7f07000a;
+        public static final int splash_email=0x7f070008;
+        public static final int splash_name=0x7f070009;
+        public static final int splash_password=0x7f070007;
+        public static final int splash_title=0x7f07000c;
+        public static final int textView3=0x7f07000b;
     }
     public static final class layout {
         public static final int activity_brand=0x7f030000;
         public static final int activity_login=0x7f030001;
         public static final int drawer_list_item=0x7f030002;
         public static final int fragment_brand_dummy=0x7f030003;
-        public static final int fragment_planet=0x7f030004;
+        public static final int fragment_current=0x7f030004;
+        public static final int fragment_planet=0x7f030005;
+        public static final int fragment_preorder=0x7f030006;
     }
     public static final class menu {
         public static final int brand=0x7f0a0000;
@@ -83,6 +135,10 @@ public final class R {
         public static final int website=0x7f080016;
     }
     public static final class style {
+        public static final int ActionBar_Solid_Navy=0x7f090000;
+        public static final int ActionBar_Transparent_Navy=0x7f090001;
+        public static final int ActionBarTabStyle_Navy=0x7f090002;
+        public static final int ActionButton_CloseMode_Navy=0x7f090003;
         /** 
             Theme customizations available in newer API levels can go in
             res/values-vXX/styles.xml, while customizations related to
@@ -91,9 +147,15 @@ public final class R {
  API 11 theme customizations can go here. 
  API 14 theme customizations can go here. 
          */
-        public static final int AppBaseTheme=0x7f090000;
+        public static final int AppBaseTheme=0x7f090004;
         /**  All customizations that are NOT specific to a particular API-level can go here. 
          */
-        public static final int AppTheme=0x7f090001;
+        public static final int AppTheme=0x7f090005;
+        public static final int DropDownListView_Navy=0x7f090006;
+        public static final int DropDownNav_Navy=0x7f090007;
+        public static final int PopupMenu_Navy=0x7f090008;
+        public static final int ProgressBar_Navy=0x7f090009;
+        public static final int Theme_Navy=0x7f09000a;
+        public static final int Theme_Navy_Widget=0x7f09000b;
     }
 }

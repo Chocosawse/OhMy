@@ -15,6 +15,7 @@
     <color name="dark_grey">#848484</color>
     <color name="light_grey">#B4B4B4</color>
     <color name="mauve">#915F6D</color>
+    <color name="pressed_navy">#CC003B4F</color>
 
     <dimen name="activity_horizontal_margin">16dp</dimen>
     <dimen name="activity_vertical_margin">16dp</dimen>
@@ -40,10 +41,30 @@
     <string name="splash_et_pass">Password</string>
     <string name="splash_tv_title">Oh My, Pretty Please!</string>
     <string name="title_activity_brand">BrandActivity</string>
-    <string name="title_section1">Section 1</string>
-    <string name="title_section2">Section 2</string>
-    <string name="title_section3">Section 3</string>
+    <string name="title_section1">Dummy Section</string>
+    <string name="title_section2">This Week</string>
+    <string name="title_section3">Pre-order</string>
     <string name="website">ohmyprettyplease.com</string>
+
+    <style name="ActionBar.Solid.Navy" parent="@android:style/Widget.Holo.Light.ActionBar.Solid.Inverse">
+        <item name="android:background">@drawable/ab_solid_navy</item>
+        <item name="android:backgroundStacked">@drawable/ab_stacked_solid_navy</item>
+        <item name="android:backgroundSplit">@drawable/ab_bottom_solid_navy</item>
+        <item name="android:progressBarStyle">@style/ProgressBar.Navy</item>
+    </style>
+
+    <style name="ActionBar.Transparent.Navy" parent="@android:style/Widget.Holo.ActionBar">
+        <item name="android:background">@drawable/ab_transparent_navy</item>
+        <item name="android:progressBarStyle">@style/ProgressBar.Navy</item>
+    </style>
+
+    <style name="ActionBarTabStyle.Navy" parent="@android:style/Widget.Holo.ActionBar.TabView">
+        <item name="android:background">@drawable/tab_indicator_ab_navy</item>
+    </style>
+
+    <style name="ActionButton.CloseMode.Navy" parent="@android:style/Widget.Holo.ActionButton.CloseMode">
+        <item name="android:background">@drawable/btn_cab_done_navy</item>
+    </style>
 
     <style name="AppBaseTheme" parent="android:Theme.Light">
         <!--
@@ -55,6 +76,44 @@
 
     <style name="AppTheme" parent="AppBaseTheme">
         <!-- All customizations that are NOT specific to a particular API-level can go here. -->
+    </style>
+
+    <style name="DropDownListView.Navy" parent="@android:style/Widget.Holo.ListView.DropDown">
+        <item name="android:listSelector">@drawable/selectable_background_navy</item>
+    </style>
+
+    <style name="DropDownNav.Navy" parent="@android:style/Widget.Holo.Spinner">
+        <item name="android:background">@drawable/spinner_background_ab_navy</item>
+        <item name="android:popupBackground">@drawable/menu_dropdown_panel_navy</item>
+        <item name="android:dropDownSelector">@drawable/selectable_background_navy</item>
+    </style>
+
+    <style name="PopupMenu.Navy" parent="@android:style/Widget.Holo.ListPopupWindow">
+        <item name="android:popupBackground">@drawable/menu_dropdown_panel_navy</item>
+    </style>
+
+    <style name="ProgressBar.Navy" parent="@android:style/Widget.Holo.ProgressBar.Horizontal">
+        <item name="android:progressDrawable">@drawable/progress_horizontal_navy</item>
+    </style>
+
+    <style name="Theme.Navy" parent="@android:style/Theme.Holo.Light.DarkActionBar">
+        <item name="android:actionBarItemBackground">@drawable/selectable_background_navy</item>
+        <item name="android:popupMenuStyle">@style/PopupMenu.Navy</item>
+        <item name="android:dropDownListViewStyle">@style/DropDownListView.Navy</item>
+        <item name="android:actionBarTabStyle">@style/ActionBarTabStyle.Navy</item>
+        <item name="android:actionDropDownStyle">@style/DropDownNav.Navy</item>
+        <item name="android:actionBarStyle">@style/ActionBar.Solid.Navy</item>
+        <item name="android:actionModeBackground">@drawable/cab_background_top_navy</item>
+        <item name="android:actionModeSplitBackground">@drawable/cab_background_bottom_navy</item>
+        <item name="android:actionModeCloseButtonStyle">@style/ActionButton.CloseMode.Navy</item>
+
+        <!-- Light.DarkActionBar specific -->
+        <item name="android:actionBarWidgetTheme">@style/Theme.Navy.Widget</item>
+    </style>
+
+    <style name="Theme.Navy.Widget" parent="@android:style/Theme.Holo">
+        <item name="android:popupMenuStyle">@style/PopupMenu.Navy</item>
+        <item name="android:dropDownListViewStyle">@style/DropDownListView.Navy</item>
     </style>
 
 </resources>
