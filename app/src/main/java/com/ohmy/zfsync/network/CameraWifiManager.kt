@@ -6,11 +6,14 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiNetworkSpecifier
+import android.util.Log
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+
+private const val TAG = "OhMyWifi"
 
 class CameraWifiException(message: String) : Exception(message)
 
@@ -47,10 +50,12 @@ class CameraWifiManager(context: Context) {
 
                     val callback = object : ConnectivityManager.NetworkCallback() {
                         override fun onAvailable(network: Network) {
+                            Log.d(TAG, "onAvailable network=$network")
                             if (cont.isActive) cont.resume(network)
                         }
 
                         override fun onUnavailable() {
+                            Log.e(TAG, "onUnavailable for SSID \"$ssid\"")
                             if (cont.isActive) {
                                 cont.resumeWithException(CameraWifiException("Could not join Wi-Fi network \"$ssid\""))
                             }
@@ -70,9 +75,12 @@ class CameraWifiManager(context: Context) {
 
     /** The camera's IP address on its own Wi-Fi network, resolved from the default route's gateway. */
     fun getCameraIpAddress(network: Network): String? {
-        val linkProperties = connectivityManager.getLinkProperties(network) ?: return null
-        val defaultRoute = linkProperties.routes.firstOrNull { it.isDefaultRoute }
-        return defaultRoute?.gateway?.hostAddress
+        val linkProperties = connectivityManager.getLinkProperties(network)
+        Log.d(TAG, "linkProperties=$linkProperties")
+        val defaultRoute = linkProperties?.routes?.firstOrNull { it.isDefaultRoute }
+        val ip = defaultRoute?.gateway?.hostAddress
+        Log.d(TAG, "resolved camera IP=$ip from route=$defaultRoute")
+        return ip
     }
 
     fun disconnect() {

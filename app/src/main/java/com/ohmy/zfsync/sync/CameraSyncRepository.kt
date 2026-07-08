@@ -2,6 +2,7 @@ package com.ohmy.zfsync.sync
 
 import android.content.Context
 import android.net.Network
+import android.util.Log
 import com.ohmy.zfsync.model.ConnectionState
 import com.ohmy.zfsync.model.SyncUiState
 import com.ohmy.zfsync.model.SyncedPhoto
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+private const val TAG = "OhMyCameraSync"
 
 /**
  * Owns the whole camera connection lifecycle: joins the camera's Wi-Fi AP, opens a PTP/IP
@@ -84,12 +87,15 @@ class CameraSyncRepository(context: Context) {
     private suspend fun connectPtpIpWithRetry(cameraIp: String, net: Network): PtpIpClient {
         var lastError: Throwable? = null
         repeat(PTP_CONNECT_ATTEMPTS) { attempt ->
+            Log.d(TAG, "PTP/IP connect attempt ${attempt + 1}/$PTP_CONNECT_ATTEMPTS to $cameraIp")
             var client: PtpIpClient? = null
             try {
                 client = PtpIpClient.connect(cameraIp, net)
                 client.handshake()
+                Log.d(TAG, "PTP/IP connect attempt ${attempt + 1} succeeded")
                 return client
             } catch (t: Throwable) {
+                Log.e(TAG, "PTP/IP connect attempt ${attempt + 1} failed: $t")
                 client?.close()
                 lastError = t
                 if (attempt < PTP_CONNECT_ATTEMPTS - 1) delay(PTP_CONNECT_RETRY_DELAY_MS)
