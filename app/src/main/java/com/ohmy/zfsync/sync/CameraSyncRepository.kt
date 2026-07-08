@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,8 +49,7 @@ class CameraSyncRepository(context: Context) {
                 wifiManager.getCameraIpAddress(net) ?: throw CameraWifiException("Could not determine the camera's IP address")
             }
 
-            val client = stage("opening PTP/IP connection") { PtpIpClient.connect(cameraIp, net) }
-            stage("PTP/IP handshake") { client.handshake() }
+            val client = stage("opening PTP/IP connection") { connectPtpIpWithRetry(cameraIp, net) }
             stage("opening PTP session") { client.openSession() }
 
             knownHandles.clear()
@@ -71,6 +71,31 @@ class CameraSyncRepository(context: Context) {
         block()
     } catch (t: Throwable) {
         throw Exception("Failed while $name: ${t.message}", t)
+    }
+
+    /**
+     * Right after the phone's Wi-Fi radio hands back a usable [Network] for the camera's AP, the
+     * camera's own embedded PTP/IP responder can still be a moment away from actually accepting
+     * connections (the IP layer coming up doesn't guarantee its application-level server thread
+     * is ready yet). A cold TCP connect attempted in that window gets accepted and then reset
+     * with zero bytes read. Retrying a few times with a short backoff clears this up without
+     * needing to detect readiness some other way.
+     */
+    private suspend fun connectPtpIpWithRetry(cameraIp: String, net: Network): PtpIpClient {
+        var lastError: Throwable? = null
+        repeat(PTP_CONNECT_ATTEMPTS) { attempt ->
+            var client: PtpIpClient? = null
+            try {
+                client = PtpIpClient.connect(cameraIp, net)
+                client.handshake()
+                return client
+            } catch (t: Throwable) {
+                client?.close()
+                lastError = t
+                if (attempt < PTP_CONNECT_ATTEMPTS - 1) delay(PTP_CONNECT_RETRY_DELAY_MS)
+            }
+        }
+        throw lastError ?: IllegalStateException("Could not connect to camera")
     }
 
     fun setAutoSyncEnabled(enabled: Boolean) {
@@ -132,5 +157,10 @@ class CameraSyncRepository(context: Context) {
         } catch (t: Throwable) {
             _state.update { it.copy(lastError = "Failed to download $handle: ${t.message}") }
         }
+    }
+
+    private companion object {
+        const val PTP_CONNECT_ATTEMPTS = 4
+        const val PTP_CONNECT_RETRY_DELAY_MS = 1_500L
     }
 }
