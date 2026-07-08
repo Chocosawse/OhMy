@@ -1,6 +1,7 @@
 package com.ohmy.zfsync.ptpip
 
 import android.net.Network
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -10,6 +11,8 @@ import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
+
+private const val TAG = "OhMyPtpIp"
 
 data class PtpEvent(val code: Int, val transactionId: Long, val parameters: LongArray)
 
@@ -65,6 +68,7 @@ class PtpIpClient private constructor(
             throw PtpIpProtocolException("Expected Init Command Ack, got packet type ${ack.type}")
         }
         val connectionNumber = PtpByteReader(ack.payload).readU32()
+        Log.d(TAG, "command handshake ok, connectionNumber=$connectionNumber")
 
         // The event connection is only opened now, after the camera hands back a connection
         // number: opening it earlier (in parallel with the command socket) leaves a second TCP
@@ -80,6 +84,7 @@ class PtpIpClient private constructor(
         if (eventAck.type != PtpIpPacketType.INIT_EVENT_ACK) {
             throw PtpIpProtocolException("Expected Init Event Ack, got packet type ${eventAck.type}")
         }
+        Log.d(TAG, "event handshake ok")
     }
 
     /** Starts a background loop reading Event (0x4xxx) packets from the event socket and dispatching them. */
@@ -222,10 +227,12 @@ class PtpIpClient private constructor(
         }
 
         private fun openSocket(host: String, network: Network?): Socket {
+            Log.d(TAG, "connecting TCP socket to $host:$PTP_IP_PORT (network=$network)")
             val socket = Socket()
             network?.bindSocket(socket)
             socket.connect(InetSocketAddress(host, PTP_IP_PORT), 10_000)
             socket.soTimeout = 20_000
+            Log.d(TAG, "TCP connected, localPort=${socket.localPort} remote=${socket.remoteSocketAddress}")
             return socket
         }
 
