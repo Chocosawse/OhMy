@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OhMy Zf Sync</string>
+
+    <string name="connect_title">Connect to your Nikon Zf</string>
+    <string name="connect_instructions">On the camera: Menu → Network → Wi-Fi → turn on, then enter the SSID and password shown on the camera\'s screen below.</string>
+    <string name="connect_ssid_label">Camera Wi-Fi network name (SSID)</string>
+    <string name="connect_password_label">Password</string>
+    <string name="connect_button">Connect</string>
+    <string name="connect_button_connecting">Connecting…</string>
+
+    <string name="sync_connected_to">Connected to %1$s</string>
+    <string name="sync_auto_sync_label">Auto-sync new shots</string>
+    <string name="sync_now_button">Sync now</string>
+    <string name="sync_now_syncing">Syncing…</string>
+    <string name="sync_disconnect_button">Disconnect</string>
+
+    <string name="sync_notification_channel_name">Camera sync</string>
+    <string name="sync_notification_watching">Watching for new shots…</string>
+    <string name="sync_notification_connected">Connected — %1$d photo(s) synced</string>
+
+    <plurals name="sync_photo_count">
+        <item quantity="one">%1$d photo synced this session</item>
+        <item quantity="other">%1$d photos synced this session</item>
+    </plurals>
+</resources>
