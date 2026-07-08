@@ -43,16 +43,17 @@ class CameraSyncRepository(context: Context) {
     suspend fun connect(ssid: String, password: String) {
         _state.update { it.copy(connectionState = ConnectionState.Connecting, lastError = null) }
         try {
-            val net = wifiManager.connect(ssid, password)
-            val cameraIp = wifiManager.getCameraIpAddress(net)
-                ?: throw CameraWifiException("Could not determine the camera's IP address")
+            val net = stage("joining Wi-Fi") { wifiManager.connect(ssid, password) }
+            val cameraIp = stage("resolving camera IP") {
+                wifiManager.getCameraIpAddress(net) ?: throw CameraWifiException("Could not determine the camera's IP address")
+            }
 
-            val client = PtpIpClient.connect(cameraIp, net)
-            client.handshake()
-            client.openSession()
+            val client = stage("opening PTP/IP connection") { PtpIpClient.connect(cameraIp, net) }
+            stage("PTP/IP handshake") { client.handshake() }
+            stage("opening PTP session") { client.openSession() }
 
             knownHandles.clear()
-            knownHandles.addAll(client.getObjectHandles().toList())
+            knownHandles.addAll(stage("listing existing photos") { client.getObjectHandles() }.toList())
 
             network = net
             ptpClient = client
@@ -63,6 +64,13 @@ class CameraSyncRepository(context: Context) {
             disconnect()
             _state.update { it.copy(connectionState = ConnectionState.Error(t.message ?: "Connection failed")) }
         }
+    }
+
+    /** Wraps a connection stage so failures report where in the sequence they happened. */
+    private inline fun <T> stage(name: String, block: () -> T): T = try {
+        block()
+    } catch (t: Throwable) {
+        throw Exception("Failed while $name: ${t.message}", t)
     }
 
     fun setAutoSyncEnabled(enabled: Boolean) {
