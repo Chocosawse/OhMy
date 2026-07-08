@@ -6,9 +6,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiNetworkSpecifier
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -24,49 +22,36 @@ class CameraWifiManager(context: Context) {
         context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private var activeCallback: ConnectivityManager.NetworkCallback? = null
 
-    /**
-     * Uses the 2-argument [ConnectivityManager.requestNetwork] overload deliberately: the
-     * 3-argument (timeout) overload requires the privileged CHANGE_NETWORK_STATE/WRITE_SETTINGS
-     * permission, which a normal third-party app cannot hold. The timeout below is enforced in
-     * app code instead via [withTimeout].
-     */
-    suspend fun connect(ssid: String, password: String, timeoutMs: Long = 30_000): Network {
-        try {
-            return withTimeout(timeoutMs) {
-                suspendCancellableCoroutine { cont ->
-                    val specifier = WifiNetworkSpecifier.Builder()
-                        .setSsid(ssid)
-                        .setWpa2Passphrase(password)
-                        .build()
+    suspend fun connect(ssid: String, password: String, timeoutMs: Int = 30_000): Network =
+        suspendCancellableCoroutine { cont ->
+            val specifier = WifiNetworkSpecifier.Builder()
+                .setSsid(ssid)
+                .setWpa2Passphrase(password)
+                .build()
 
-                    val request = NetworkRequest.Builder()
-                        .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                        .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                        .setNetworkSpecifier(specifier)
-                        .build()
+            val request = NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .setNetworkSpecifier(specifier)
+                .build()
 
-                    val callback = object : ConnectivityManager.NetworkCallback() {
-                        override fun onAvailable(network: Network) {
-                            if (cont.isActive) cont.resume(network)
-                        }
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    if (cont.isActive) cont.resume(network)
+                }
 
-                        override fun onUnavailable() {
-                            if (cont.isActive) {
-                                cont.resumeWithException(CameraWifiException("Could not join Wi-Fi network \"$ssid\""))
-                            }
-                        }
+                override fun onUnavailable() {
+                    if (cont.isActive) {
+                        cont.resumeWithException(CameraWifiException("Could not join Wi-Fi network \"$ssid\""))
                     }
-                    activeCallback = callback
-                    cont.invokeOnCancellation {
-                        runCatching { connectivityManager.unregisterNetworkCallback(callback) }
-                    }
-                    connectivityManager.requestNetwork(request, callback)
                 }
             }
-        } catch (e: TimeoutCancellationException) {
-            throw CameraWifiException("Timed out joining Wi-Fi network \"$ssid\"")
+            activeCallback = callback
+            cont.invokeOnCancellation {
+                runCatching { connectivityManager.unregisterNetworkCallback(callback) }
+            }
+            connectivityManager.requestNetwork(request, callback, timeoutMs)
         }
-    }
 
     /** The camera's IP address on its own Wi-Fi network, resolved from the default route's gateway. */
     fun getCameraIpAddress(network: Network): String? {
