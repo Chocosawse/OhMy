@@ -36,11 +36,13 @@ class PtpIpProtocolException(message: String) : Exception(message)
  */
 class PtpIpClient private constructor(
     private val commandSocket: Socket,
-    private val eventSocket: Socket,
+    private val host: String,
+    private val network: Network?,
 ) {
     private val commandIn = commandSocket.getInputStream()
     private val commandOut = commandSocket.getOutputStream()
-    private val eventIn = eventSocket.getInputStream()
+    private lateinit var eventSocket: Socket
+    private lateinit var eventIn: java.io.InputStream
     private var transactionId = 0L
     @Volatile private var eventLoopJob: Job? = null
 
@@ -64,7 +66,14 @@ class PtpIpClient private constructor(
         }
         val connectionNumber = PtpByteReader(ack.payload).readU32()
 
-        val eventOut = eventSocket.getOutputStream()
+        // The event connection is only opened now, after the camera hands back a connection
+        // number: opening it earlier (in parallel with the command socket) leaves a second TCP
+        // connection sitting idle with no recognized init packet while the command handshake is
+        // still in flight, which some camera Wi-Fi stacks respond to by resetting it.
+        val newEventSocket = openSocket(host, network)
+        eventSocket = newEventSocket
+        eventIn = newEventSocket.getInputStream()
+        val eventOut = newEventSocket.getOutputStream()
         val eventRequest = PtpByteWriter().writeU32(connectionNumber).toByteArray()
         writePtpIpPacket(eventOut, PtpIpPacketType.INIT_EVENT_REQUEST, eventRequest)
         val eventAck = readPtpIpPacket(eventIn)
@@ -142,7 +151,7 @@ class PtpIpClient private constructor(
     fun close() {
         eventLoopJob?.cancel()
         runCatching { commandSocket.close() }
-        runCatching { eventSocket.close() }
+        if (::eventSocket.isInitialized) runCatching { eventSocket.close() }
     }
 
     private fun executeOperation(
@@ -209,14 +218,14 @@ class PtpIpClient private constructor(
     companion object {
         suspend fun connect(host: String, network: Network? = null): PtpIpClient = withContext(Dispatchers.IO) {
             val commandSocket = openSocket(host, network)
-            val eventSocket = openSocket(host, network)
-            PtpIpClient(commandSocket, eventSocket)
+            PtpIpClient(commandSocket, host, network)
         }
 
         private fun openSocket(host: String, network: Network?): Socket {
             val socket = Socket()
             network?.bindSocket(socket)
             socket.connect(InetSocketAddress(host, PTP_IP_PORT), 10_000)
+            socket.soTimeout = 20_000
             return socket
         }
 
