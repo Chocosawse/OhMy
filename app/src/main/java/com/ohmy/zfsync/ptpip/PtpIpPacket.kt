@@ -49,10 +49,17 @@ fun readPtpIpPacket(input: InputStream): PtpIpPacket {
 
 fun writePtpIpPacket(output: OutputStream, type: Int, payload: ByteArray) {
     val totalLength = 8 + payload.size
-    val header = PtpByteWriter().writeU32(totalLength.toLong()).writeU32(type.toLong()).toByteArray()
+    // Header and payload are concatenated and written in a single write() call, deliberately:
+    // two separate writes can land as two separate TCP segments depending on socket buffering,
+    // and a minimal embedded parser that assumes "one read() = one complete packet" (common in
+    // this kind of device firmware) will silently drop a packet split across segments instead of
+    // reassembling it.
+    val packet = ByteArray(totalLength)
+    PtpByteWriter().writeU32(totalLength.toLong()).writeU32(type.toLong()).toByteArray()
+        .copyInto(packet, 0)
+    payload.copyInto(packet, 8)
     Log.d(TAG, ">> send type=$type length=$totalLength payload=${payload.toHexPreview()}")
-    output.write(header)
-    if (payload.isNotEmpty()) output.write(payload)
+    output.write(packet)
     output.flush()
     Log.d(TAG, ">> send type=$type flushed")
 }

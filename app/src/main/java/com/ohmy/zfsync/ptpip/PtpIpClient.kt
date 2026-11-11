@@ -236,6 +236,7 @@ class PtpIpClient private constructor(
             network?.bindSocket(socket)
             socket.connect(InetSocketAddress(host, PTP_IP_PORT), 10_000)
             socket.soTimeout = 20_000
+            socket.tcpNoDelay = true
             Log.d(TAG, "TCP connected, localPort=${socket.localPort} remote=${socket.remoteSocketAddress}")
             return socket
         }
