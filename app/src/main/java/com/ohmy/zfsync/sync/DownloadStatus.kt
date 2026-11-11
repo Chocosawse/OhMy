@@ -3,13 +3,12 @@ package com.ohmy.zfsync.sync
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 
-/** Whether a photo is currently being downloaded from the camera. */
+/** Whether a photo is currently being downloaded from the camera, and how many at once. */
 sealed interface DownloadStatus {
     data object Idle : DownloadStatus
-    data object Downloading : DownloadStatus
+    data class Downloading(val count: Int) : DownloadStatus
 }
 
 /**
@@ -36,12 +35,12 @@ class DownloadStatusTracker {
     }
 
     private fun begin() {
-        activeCount.update { it + 1 }
-        _status.value = DownloadStatus.Downloading
+        val count = activeCount.updateAndGet { it + 1 }
+        _status.value = DownloadStatus.Downloading(count)
     }
 
     private fun end() {
         val remaining = activeCount.updateAndGet { (it - 1).coerceAtLeast(0) }
-        if (remaining == 0) _status.value = DownloadStatus.Idle
+        _status.value = if (remaining == 0) DownloadStatus.Idle else DownloadStatus.Downloading(remaining)
     }
 }

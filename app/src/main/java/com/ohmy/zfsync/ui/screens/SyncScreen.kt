@@ -69,7 +69,10 @@ fun SyncScreen(
                 modifier = Modifier.padding(bottom = 16.dp),
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Text(stringResource(R.string.sync_downloading), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    pluralStringResource(R.plurals.sync_downloading_count, downloadStatus.count, downloadStatus.count),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
         }
 

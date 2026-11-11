@@ -16,7 +16,6 @@
     <string name="sync_now_syncing">Syncing…</string>
     <string name="sync_disconnect_button">Disconnect</string>
     <string name="sync_no_viewer_app">No app available to view this photo</string>
-    <string name="sync_downloading">Downloading new photo…</string>
 
     <string name="sync_notification_channel_name">Camera sync</string>
     <string name="sync_notification_watching">Watching for new shots…</string>
@@ -25,5 +24,10 @@
     <plurals name="sync_photo_count">
         <item quantity="one">%1$d photo synced this session</item>
         <item quantity="other">%1$d photos synced this session</item>
+    </plurals>
+
+    <plurals name="sync_downloading_count">
+        <item quantity="one">Downloading %1$d photo…</item>
+        <item quantity="other">Downloading %1$d photos…</item>
     </plurals>
 </resources>
