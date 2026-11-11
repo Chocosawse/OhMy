@@ -6,6 +6,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.OutputStream
 import java.net.InetSocketAddress
@@ -47,6 +49,15 @@ class PtpIpClient private constructor(
     private lateinit var eventIn: java.io.InputStream
     private var transactionId = 0L
     @Volatile private var eventLoopJob: Job? = null
+
+    /**
+     * PTP/IP's command channel only ever has one outstanding request/response transaction in
+     * flight -- there is no way to tell two interleaved responses apart on the wire. Auto-sync
+     * can trigger multiple downloads concurrently (e.g. a RAW+JPEG pair from one shutter press
+     * fires two ObjectAdded events), so every operation on the command socket must be serialized
+     * through this, or concurrent writers corrupt each other's request/response framing.
+     */
+    private val commandMutex = Mutex()
 
     private fun nextTransactionId(): Long {
         transactionId += 1
@@ -163,13 +174,13 @@ class PtpIpClient private constructor(
         if (::eventSocket.isInitialized) runCatching { eventSocket.close() }
     }
 
-    private fun executeOperation(
+    private suspend fun executeOperation(
         opcode: Int,
         dataPhase: DataPhase,
         params: List<Long>,
         onDataChunk: ((ByteArray) -> Unit)? = null,
         acceptableCodes: Set<Int> = setOf(PtpResponseCode.OK),
-    ): OperationResult {
+    ): OperationResult = commandMutex.withLock {
         val transId = nextTransactionId()
         val requestWriter = PtpByteWriter()
             .writeU32(dataPhase.wireValue)
@@ -197,7 +208,7 @@ class PtpIpClient private constructor(
         if (code !in acceptableCodes) {
             throw PtpIpProtocolException("Operation 0x${opcode.toString(16)} failed with response code 0x${code.toString(16)}")
         }
-        return OperationResult(code, respTransId, respParams, collected?.toByteArray())
+        OperationResult(code, respTransId, respParams, collected?.toByteArray())
     }
 
     private fun readDataPhase(onChunk: (ByteArray) -> Unit) {
