@@ -9,6 +9,7 @@ import com.ohmy.zfsync.model.SyncUiState
 import com.ohmy.zfsync.service.CameraSyncService
 import com.ohmy.zfsync.storage.SavedCameraCredentials
 import com.ohmy.zfsync.sync.CameraSyncRepository
+import com.ohmy.zfsync.sync.DownloadStatus
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -16,6 +17,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val repository: CameraSyncRepository = (application as OhMyApplication).syncRepository
 
     val state: StateFlow<SyncUiState> = repository.state
+    val downloadStatus: StateFlow<DownloadStatus> = repository.downloadStatus
     val savedCredentials: SavedCameraCredentials? = repository.loadSavedCredentials()
 
     fun connect(ssid: String, password: String) {

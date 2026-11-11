@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -35,12 +36,14 @@ import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncUiState
 import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.sync.DownloadStatus
 import java.text.DateFormat
 import java.util.Date
 
 @Composable
 fun SyncScreen(
     state: SyncUiState,
+    downloadStatus: DownloadStatus,
     cameraIp: String,
     onAutoSyncChange: (Boolean) -> Unit,
     onSyncNow: () -> Unit,
@@ -57,6 +60,17 @@ fun SyncScreen(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
+
+        if (downloadStatus is DownloadStatus.Downloading) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 16.dp),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Text(stringResource(R.string.sync_downloading), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

@@ -16,6 +16,7 @@
     <string name="sync_now_syncing">Syncing…</string>
     <string name="sync_disconnect_button">Disconnect</string>
     <string name="sync_no_viewer_app">No app available to view this photo</string>
+    <string name="sync_downloading">Downloading new photo…</string>
 
     <string name="sync_notification_channel_name">Camera sync</string>
     <string name="sync_notification_watching">Watching for new shots…</string>

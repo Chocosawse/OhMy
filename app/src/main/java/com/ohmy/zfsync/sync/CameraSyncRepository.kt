@@ -37,6 +37,7 @@ class CameraSyncRepository(context: Context) {
     private val wifiManager = CameraWifiManager(appContext)
     private val photoSaver = PhotoSaver(appContext)
     private val credentialsStore = CameraCredentialsStore(appContext)
+    private val downloadStatusTracker = DownloadStatusTracker()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var ptpClient: PtpIpClient? = null
@@ -46,6 +47,10 @@ class CameraSyncRepository(context: Context) {
 
     private val _state = MutableStateFlow(SyncUiState())
     val state: StateFlow<SyncUiState> = _state.asStateFlow()
+
+    /** Independent of [state]: whether a photo is being downloaded right now, for anything that
+     *  only cares about that (see [DownloadStatusTracker]). */
+    val downloadStatus: StateFlow<DownloadStatus> = downloadStatusTracker.status
 
     fun loadSavedCredentials(): SavedCameraCredentials? = credentialsStore.load()
 
@@ -150,21 +155,23 @@ class CameraSyncRepository(context: Context) {
     private suspend fun downloadObject(handle: Long) {
         val client = ptpClient ?: return
         try {
-            val info = client.getObjectInfo(handle)
-            if (!info.isJpeg) return
+            downloadStatusTracker.track {
+                val info = client.getObjectInfo(handle)
+                if (!info.isJpeg) return@track
 
-            val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
-            val uri = photoSaver.createPendingImageUri(filename)
-            try {
-                photoSaver.openOutputStream(uri).use { out -> client.getObject(handle, out) }
-                photoSaver.markComplete(uri)
-            } catch (t: Throwable) {
-                photoSaver.deleteIncomplete(uri)
-                throw t
-            }
+                val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
+                val uri = photoSaver.createPendingImageUri(filename)
+                try {
+                    photoSaver.openOutputStream(uri).use { out -> client.getObject(handle, out) }
+                    photoSaver.markComplete(uri)
+                } catch (t: Throwable) {
+                    photoSaver.deleteIncomplete(uri)
+                    throw t
+                }
 
-            _state.update {
-                it.copy(downloadedPhotos = it.downloadedPhotos + SyncedPhoto(filename, System.currentTimeMillis(), uri))
+                _state.update {
+                    it.copy(downloadedPhotos = it.downloadedPhotos + SyncedPhoto(filename, System.currentTimeMillis(), uri))
+                }
             }
         } catch (t: Throwable) {
             _state.update { it.copy(lastError = "Failed to download $handle: ${t.message}") }

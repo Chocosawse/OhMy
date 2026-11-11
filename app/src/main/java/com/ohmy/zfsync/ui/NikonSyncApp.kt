@@ -15,6 +15,7 @@ import com.ohmy.zfsync.ui.screens.SyncScreen
 @Composable
 fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    val downloadStatus by viewModel.downloadStatus.collectAsState()
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -22,6 +23,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
             if (connected != null) {
                 SyncScreen(
                     state = state,
+                    downloadStatus = downloadStatus,
                     cameraIp = connected.cameraIp,
                     onAutoSyncChange = viewModel::setAutoSyncEnabled,
                     onSyncNow = viewModel::syncNow,
