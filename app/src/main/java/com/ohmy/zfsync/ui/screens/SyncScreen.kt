@@ -142,33 +142,18 @@ private fun PhotoRow(photo: SyncedPhoto, onClick: () -> Unit) {
 }
 
 /**
- * ACTION_VIEW on a MediaStore content:// URI is what gallery apps that support album filmstrips
- * (Google Photos chief among them) key off of to show a swipeable view of the photo's whole
- * album rather than a bare single image -- there's no documented Intent extra that forces this;
- * it's each receiving app's own choice. Two things do meaningfully affect which app answers it:
- *
- * 1. MIME type specificity ("image/jpeg" vs "image/*") can steer Android's intent resolution
- *    toward a different registered handler than a more specific type would.
- * 2. Explicitly preferring Google Photos's package when installed, since it's the one widely
- *    available app reliably known to implement album-aware viewing, rather than leaving
- *    resolution to whatever the device currently treats as default.
+ * Always shows the system app picker (rather than going straight to whatever's currently the
+ * resolved default) so the user can choose whichever installed gallery/viewer actually gives
+ * them the album/swipe behavior they want, instead of this app guessing on their behalf.
  */
 private fun openInGallery(context: Context, uri: Uri) {
-    val baseIntent = Intent(Intent.ACTION_VIEW).apply {
+    val intent = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, "image/*")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-
-    val googlePhotosIntent = Intent(baseIntent).setPackage("com.google.android.apps.photos")
+    val chooser = Intent.createChooser(intent, context.getString(R.string.sync_choose_viewer))
     try {
-        context.startActivity(googlePhotosIntent)
-        return
-    } catch (e: ActivityNotFoundException) {
-        // Not installed, or doesn't register for this -- fall through to the generic resolver.
-    }
-
-    try {
-        context.startActivity(baseIntent)
+        context.startActivity(chooser)
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
     }
