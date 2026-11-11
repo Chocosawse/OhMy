@@ -24,16 +24,19 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.ConnectionState
+import com.ohmy.zfsync.storage.SavedCameraCredentials
 
 @Composable
 fun ConnectScreen(
     connectionState: ConnectionState,
+    savedCredentials: SavedCameraCredentials?,
     onConnect: (ssid: String, password: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var ssid by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var ssid by remember { mutableStateOf(savedCredentials?.ssid.orEmpty()) }
+    var password by remember { mutableStateOf(savedCredentials?.password.orEmpty()) }
     val isConnecting = connectionState is ConnectionState.Connecting
+    val isReconnect = savedCredentials != null && ssid == savedCredentials.ssid && password == savedCredentials.password
 
     Column(
         modifier = modifier
@@ -66,7 +69,12 @@ fun ConnectScreen(
             enabled = !isConnecting && ssid.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(stringResource(if (isConnecting) R.string.connect_button_connecting else R.string.connect_button))
+            val label = when {
+                isConnecting -> stringResource(R.string.connect_button_connecting)
+                isReconnect -> stringResource(R.string.connect_button_reconnect, ssid)
+                else -> stringResource(R.string.connect_button)
+            }
+            Text(label)
         }
         if (isConnecting) {
             CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))

@@ -8,6 +8,7 @@
     <string name="connect_password_label">Password</string>
     <string name="connect_button">Connect</string>
     <string name="connect_button_connecting">Connecting…</string>
+    <string name="connect_button_reconnect">Reconnect to %1$s</string>
 
     <string name="sync_connected_to">Connected to %1$s</string>
     <string name="sync_auto_sync_label">Auto-sync new shots</string>

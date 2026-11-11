@@ -30,6 +30,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
             } else {
                 ConnectScreen(
                     connectionState = state.connectionState,
+                    savedCredentials = viewModel.savedCredentials,
                     onConnect = viewModel::connect,
                 )
             }

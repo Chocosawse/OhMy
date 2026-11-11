@@ -6,11 +6,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.util.UUID
 
 private const val TAG = "OhMyPtpIp"
 
@@ -49,15 +50,29 @@ class PtpIpClient private constructor(
     private var transactionId = 0L
     @Volatile private var eventLoopJob: Job? = null
 
+    /**
+     * PTP/IP's command channel only ever has one outstanding request/response transaction in
+     * flight -- there is no way to tell two interleaved responses apart on the wire. Auto-sync
+     * can trigger multiple downloads concurrently (e.g. a RAW+JPEG pair from one shutter press
+     * fires two ObjectAdded events), so every operation on the command socket must be serialized
+     * through this, or concurrent writers corrupt each other's request/response framing.
+     */
+    private val commandMutex = Mutex()
+
     private fun nextTransactionId(): Long {
         transactionId += 1
         return transactionId
     }
 
     suspend fun handshake(friendlyName: String = "OhMy Zf Sync") = withContext(Dispatchers.IO) {
-        val guid = randomGuidBytes()
+        val guid = clientGuidBytes()
 
-        val initRequest = PtpByteWriter().writeBytes(guid).writeNullTerminatedUtf16(friendlyName).toByteArray()
+        val initRequest = PtpByteWriter()
+            .writeBytes(guid)
+            .writeNullTerminatedUtf16(friendlyName)
+            .writeU16(PTPIP_VERSION_MINOR)
+            .writeU16(PTPIP_VERSION_MAJOR)
+            .toByteArray()
         writePtpIpPacket(commandOut, PtpIpPacketType.INIT_COMMAND_REQUEST, initRequest)
         val ack = readPtpIpPacket(commandIn)
         if (ack.type == PtpIpPacketType.INIT_FAIL) {
@@ -159,13 +174,13 @@ class PtpIpClient private constructor(
         if (::eventSocket.isInitialized) runCatching { eventSocket.close() }
     }
 
-    private fun executeOperation(
+    private suspend fun executeOperation(
         opcode: Int,
         dataPhase: DataPhase,
         params: List<Long>,
         onDataChunk: ((ByteArray) -> Unit)? = null,
         acceptableCodes: Set<Int> = setOf(PtpResponseCode.OK),
-    ): OperationResult {
+    ): OperationResult = commandMutex.withLock {
         val transId = nextTransactionId()
         val requestWriter = PtpByteWriter()
             .writeU32(dataPhase.wireValue)
@@ -193,7 +208,7 @@ class PtpIpClient private constructor(
         if (code !in acceptableCodes) {
             throw PtpIpProtocolException("Operation 0x${opcode.toString(16)} failed with response code 0x${code.toString(16)}")
         }
-        return OperationResult(code, respTransId, respParams, collected?.toByteArray())
+        OperationResult(code, respTransId, respParams, collected?.toByteArray())
     }
 
     private fun readDataPhase(onChunk: (ByteArray) -> Unit) {
@@ -232,17 +247,17 @@ class PtpIpClient private constructor(
             network?.bindSocket(socket)
             socket.connect(InetSocketAddress(host, PTP_IP_PORT), 10_000)
             socket.soTimeout = 20_000
+            socket.tcpNoDelay = true
             Log.d(TAG, "TCP connected, localPort=${socket.localPort} remote=${socket.remoteSocketAddress}")
             return socket
         }
 
-        private fun randomGuidBytes(): ByteArray {
-            val uuid = UUID.randomUUID()
-            val bytes = ByteArray(16)
-            val buffer = java.nio.ByteBuffer.wrap(bytes)
-            buffer.putLong(uuid.mostSignificantBits)
-            buffer.putLong(uuid.leastSignificantBits)
-            return bytes
-        }
+        /**
+         * The real Nikon SnapBridge app sends this exact fixed GUID (confirmed from a capture of
+         * it talking to a Zf) rather than a per-install random one. Matching it removes one more
+         * variable while this client is still being validated against real hardware.
+         */
+        private fun clientGuidBytes(): ByteArray =
+            byteArrayOf(0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88.toByte(), 0x99.toByte(), 0xaa.toByte(), 0xbb.toByte(), 0xcc.toByte(), 0xdd.toByte(), 0xee.toByte(), 0xff.toByte())
     }
 }

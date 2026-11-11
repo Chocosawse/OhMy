@@ -51,3 +51,7 @@ object PtpObjectFormatCode {
 }
 
 const val PTP_IP_PORT = 15740
+
+/** Trailing protocol version fields appended to the Init Command Request, minor then major. */
+const val PTPIP_VERSION_MAJOR = 0x0001
+const val PTPIP_VERSION_MINOR = 0x0000
