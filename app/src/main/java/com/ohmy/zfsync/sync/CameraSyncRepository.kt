@@ -11,7 +11,9 @@ import com.ohmy.zfsync.network.CameraWifiManager
 import com.ohmy.zfsync.ptpip.PtpEvent
 import com.ohmy.zfsync.ptpip.PtpEventCode
 import com.ohmy.zfsync.ptpip.PtpIpClient
+import com.ohmy.zfsync.storage.CameraCredentialsStore
 import com.ohmy.zfsync.storage.PhotoSaver
+import com.ohmy.zfsync.storage.SavedCameraCredentials
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +36,7 @@ class CameraSyncRepository(context: Context) {
     private val appContext = context.applicationContext
     private val wifiManager = CameraWifiManager(appContext)
     private val photoSaver = PhotoSaver(appContext)
+    private val credentialsStore = CameraCredentialsStore(appContext)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var ptpClient: PtpIpClient? = null
@@ -43,6 +46,8 @@ class CameraSyncRepository(context: Context) {
 
     private val _state = MutableStateFlow(SyncUiState())
     val state: StateFlow<SyncUiState> = _state.asStateFlow()
+
+    fun loadSavedCredentials(): SavedCameraCredentials? = credentialsStore.load()
 
     suspend fun connect(ssid: String, password: String) {
         _state.update { it.copy(connectionState = ConnectionState.Connecting, lastError = null) }
@@ -61,6 +66,7 @@ class CameraSyncRepository(context: Context) {
             network = net
             ptpClient = client
             eventJob = client.startEventLoop(scope, ::onPtpEvent)
+            credentialsStore.save(ssid, password)
 
             _state.update { it.copy(connectionState = ConnectionState.Connected(cameraIp)) }
         } catch (t: Throwable) {
