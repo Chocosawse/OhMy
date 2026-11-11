@@ -142,18 +142,18 @@ private fun PhotoRow(photo: SyncedPhoto, onClick: () -> Unit) {
 }
 
 /**
- * Always shows the system app picker (rather than going straight to whatever's currently the
- * resolved default) so the user can choose whichever installed gallery/viewer actually gives
- * them the album/swipe behavior they want, instead of this app guessing on their behalf.
+ * Plain startActivity on an implicit intent: when more than one installed app can handle it,
+ * Android shows its own disambiguation dialog with "Just once" / "Always" (unlike
+ * Intent.createChooser, which deliberately forces a choice every time and omits that option).
+ * If the user previously picked "Always", this goes straight to that app.
  */
 private fun openInGallery(context: Context, uri: Uri) {
     val intent = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, "image/*")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    val chooser = Intent.createChooser(intent, context.getString(R.string.sync_choose_viewer))
     try {
-        context.startActivity(chooser)
+        context.startActivity(intent)
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
     }
