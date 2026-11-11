@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -138,14 +139,28 @@ private fun PhotoRow(photo: SyncedPhoto, onClick: () -> Unit) {
     }
 }
 
+/**
+ * MediaStore.ACTION_REVIEW opens the system photo viewer showing the whole album/bucket the
+ * photo belongs to, scrolled to this one -- swipeable -- rather than ACTION_VIEW's single-photo
+ * behavior (which depends on how the particular receiving gallery app chooses to handle it).
+ * Falls back to plain ACTION_VIEW if no installed app declares support for ACTION_REVIEW.
+ */
 private fun openInGallery(context: Context, uri: Uri) {
-    val intent = Intent(Intent.ACTION_VIEW).apply {
+    val reviewIntent = Intent(MediaStore.ACTION_REVIEW).apply {
+        setDataAndType(uri, "image/jpeg")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, "image/jpeg")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     try {
-        context.startActivity(intent)
+        context.startActivity(reviewIntent)
     } catch (e: ActivityNotFoundException) {
-        Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
+        try {
+            context.startActivity(viewIntent)
+        } catch (e2: ActivityNotFoundException) {
+            Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
+        }
     }
 }
