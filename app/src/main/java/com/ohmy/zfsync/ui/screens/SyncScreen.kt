@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -143,27 +142,34 @@ private fun PhotoRow(photo: SyncedPhoto, onClick: () -> Unit) {
 }
 
 /**
- * MediaStore.ACTION_REVIEW opens the system photo viewer showing the whole album/bucket the
- * photo belongs to, scrolled to this one -- swipeable -- rather than ACTION_VIEW's single-photo
- * behavior (which depends on how the particular receiving gallery app chooses to handle it).
- * Falls back to plain ACTION_VIEW if no installed app declares support for ACTION_REVIEW.
+ * ACTION_VIEW on a MediaStore content:// URI is what gallery apps that support album filmstrips
+ * (Google Photos chief among them) key off of to show a swipeable view of the photo's whole
+ * album rather than a bare single image -- there's no documented Intent extra that forces this;
+ * it's each receiving app's own choice. Two things do meaningfully affect which app answers it:
+ *
+ * 1. MIME type specificity ("image/jpeg" vs "image/*") can steer Android's intent resolution
+ *    toward a different registered handler than a more specific type would.
+ * 2. Explicitly preferring Google Photos's package when installed, since it's the one widely
+ *    available app reliably known to implement album-aware viewing, rather than leaving
+ *    resolution to whatever the device currently treats as default.
  */
 private fun openInGallery(context: Context, uri: Uri) {
-    val reviewIntent = Intent(MediaStore.ACTION_REVIEW).apply {
-        setDataAndType(uri, "image/jpeg")
+    val baseIntent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "image/*")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(uri, "image/jpeg")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
+
+    val googlePhotosIntent = Intent(baseIntent).setPackage("com.google.android.apps.photos")
     try {
-        context.startActivity(reviewIntent)
+        context.startActivity(googlePhotosIntent)
+        return
     } catch (e: ActivityNotFoundException) {
-        try {
-            context.startActivity(viewIntent)
-        } catch (e2: ActivityNotFoundException) {
-            Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
-        }
+        // Not installed, or doesn't register for this -- fall through to the generic resolver.
+    }
+
+    try {
+        context.startActivity(baseIntent)
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
     }
 }
