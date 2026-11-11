@@ -10,7 +10,6 @@ import kotlinx.coroutines.withContext
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.util.UUID
 
 private const val TAG = "OhMyPtpIp"
 
@@ -55,7 +54,7 @@ class PtpIpClient private constructor(
     }
 
     suspend fun handshake(friendlyName: String = "OhMy Zf Sync") = withContext(Dispatchers.IO) {
-        val guid = randomGuidBytes()
+        val guid = clientGuidBytes()
 
         val initRequest = PtpByteWriter()
             .writeBytes(guid)
@@ -241,13 +240,12 @@ class PtpIpClient private constructor(
             return socket
         }
 
-        private fun randomGuidBytes(): ByteArray {
-            val uuid = UUID.randomUUID()
-            val bytes = ByteArray(16)
-            val buffer = java.nio.ByteBuffer.wrap(bytes)
-            buffer.putLong(uuid.mostSignificantBits)
-            buffer.putLong(uuid.leastSignificantBits)
-            return bytes
-        }
+        /**
+         * The real Nikon SnapBridge app sends this exact fixed GUID (confirmed from a capture of
+         * it talking to a Zf) rather than a per-install random one. Matching it removes one more
+         * variable while this client is still being validated against real hardware.
+         */
+        private fun clientGuidBytes(): ByteArray =
+            byteArrayOf(0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88.toByte(), 0x99.toByte(), 0xaa.toByte(), 0xbb.toByte(), 0xcc.toByte(), 0xdd.toByte(), 0xee.toByte(), 0xff.toByte())
     }
 }
