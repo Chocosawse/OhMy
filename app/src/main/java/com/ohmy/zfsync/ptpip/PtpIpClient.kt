@@ -57,7 +57,12 @@ class PtpIpClient private constructor(
     suspend fun handshake(friendlyName: String = "OhMy Zf Sync") = withContext(Dispatchers.IO) {
         val guid = randomGuidBytes()
 
-        val initRequest = PtpByteWriter().writeBytes(guid).writeNullTerminatedUtf16(friendlyName).toByteArray()
+        val initRequest = PtpByteWriter()
+            .writeBytes(guid)
+            .writeNullTerminatedUtf16(friendlyName)
+            .writeU16(PTPIP_VERSION_MINOR)
+            .writeU16(PTPIP_VERSION_MAJOR)
+            .toByteArray()
         writePtpIpPacket(commandOut, PtpIpPacketType.INIT_COMMAND_REQUEST, initRequest)
         val ack = readPtpIpPacket(commandIn)
         if (ack.type == PtpIpPacketType.INIT_FAIL) {
