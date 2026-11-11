@@ -1,13 +1,21 @@
 package com.ohmy.zfsync.ui.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -17,11 +25,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncUiState
+import com.ohmy.zfsync.model.SyncedPhoto
 import java.text.DateFormat
 import java.util.Date
 
@@ -72,18 +85,53 @@ fun SyncScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+        val context = LocalContext.current
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(state.downloadedPhotos.asReversed()) { photo ->
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Text(photo.filename, style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        DateFormat.getDateTimeInstance().format(Date(photo.savedAtMillis)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                PhotoRow(photo, onClick = { openInGallery(context, photo.uri) })
                 HorizontalDivider()
             }
         }
+    }
+}
+
+@Composable
+private fun PhotoRow(photo: SyncedPhoto, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AsyncImage(
+            model = photo.uri,
+            contentDescription = photo.filename,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(8.dp)),
+        )
+        Column {
+            Text(photo.filename, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                DateFormat.getDateTimeInstance().format(Date(photo.savedAtMillis)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun openInGallery(context: Context, uri: Uri) {
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "image/jpeg")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    try {
+        context.startActivity(intent)
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
     }
 }
