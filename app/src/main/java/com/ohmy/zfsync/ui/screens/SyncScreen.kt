@@ -1,10 +1,5 @@
 package com.ohmy.zfsync.ui.screens
 
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -48,6 +42,7 @@ fun SyncScreen(
     onAutoSyncChange: (Boolean) -> Unit,
     onSyncNow: () -> Unit,
     onDisconnect: () -> Unit,
+    onPhotoClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
@@ -102,10 +97,10 @@ fun SyncScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        val context = LocalContext.current
+        val displayPhotos = state.downloadedPhotos.asReversed()
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(state.downloadedPhotos.asReversed()) { photo ->
-                PhotoRow(photo, onClick = { openInGallery(context, photo.uri) })
+            itemsIndexed(displayPhotos) { index, photo ->
+                PhotoRow(photo, onClick = { onPhotoClick(index) })
                 HorizontalDivider()
             }
         }
@@ -138,23 +133,5 @@ private fun PhotoRow(photo: SyncedPhoto, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-/**
- * Plain startActivity on an implicit intent: when more than one installed app can handle it,
- * Android shows its own disambiguation dialog with "Just once" / "Always" (unlike
- * Intent.createChooser, which deliberately forces a choice every time and omits that option).
- * If the user previously picked "Always", this goes straight to that app.
- */
-private fun openInGallery(context: Context, uri: Uri) {
-    val intent = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(uri, "image/*")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    try {
-        context.startActivity(intent)
-    } catch (e: ActivityNotFoundException) {
-        Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
     }
 }

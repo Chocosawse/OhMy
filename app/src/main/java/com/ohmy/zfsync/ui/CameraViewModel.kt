@@ -1,6 +1,7 @@
 package com.ohmy.zfsync.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ohmy.zfsync.OhMyApplication
@@ -40,5 +41,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun syncNow() {
         viewModelScope.launch { repository.syncNow() }
+    }
+
+    fun deletePhoto(uri: Uri) {
+        viewModelScope.launch { repository.deletePhoto(uri) }
     }
 }

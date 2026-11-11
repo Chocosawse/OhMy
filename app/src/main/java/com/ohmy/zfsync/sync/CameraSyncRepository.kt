@@ -2,6 +2,7 @@ package com.ohmy.zfsync.sync
 
 import android.content.Context
 import android.net.Network
+import android.net.Uri
 import android.util.Log
 import com.ohmy.zfsync.model.ConnectionState
 import com.ohmy.zfsync.model.SyncUiState
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "OhMyCameraSync"
 
@@ -130,6 +132,16 @@ class CameraSyncRepository(context: Context) {
             _state.update { it.copy(lastError = t.message ?: "Sync failed") }
         } finally {
             _state.update { it.copy(isSyncing = false) }
+        }
+    }
+
+    /** Deletes a previously-downloaded photo (the local copy only -- the camera's card is untouched). */
+    suspend fun deletePhoto(uri: Uri) {
+        try {
+            withContext(Dispatchers.IO) { photoSaver.delete(uri) }
+            _state.update { it.copy(downloadedPhotos = it.downloadedPhotos.filterNot { photo -> photo.uri == uri }) }
+        } catch (t: Throwable) {
+            _state.update { it.copy(lastError = "Failed to delete photo: ${t.message}") }
         }
     }
 
