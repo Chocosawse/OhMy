@@ -33,7 +33,20 @@ class CameraWifiManager(context: Context) {
      * permission, which a normal third-party app cannot hold. The timeout below is enforced in
      * app code instead via [withTimeout].
      */
-    suspend fun connect(ssid: String, password: String, timeoutMs: Long = 30_000): Network {
+    /**
+     * [onLost] fires if the system tears this network down after the fact -- notably, the camera's
+     * AP is a "local-only" network (no internet capability), which Android is free to reclaim once
+     * it decides this app isn't prominent enough (e.g. backgrounded), even with a foreground service
+     * running. The initial join can still succeed or fail through the returned [Network] /
+     * exception as before; [onLost] is a separate, later signal for callers that want to react to
+     * losing a connection that was already established.
+     */
+    suspend fun connect(
+        ssid: String,
+        password: String,
+        timeoutMs: Long = 30_000,
+        onLost: () -> Unit = {},
+    ): Network {
         try {
             return withTimeout(timeoutMs) {
                 suspendCancellableCoroutine { cont ->
@@ -59,6 +72,11 @@ class CameraWifiManager(context: Context) {
                             if (cont.isActive) {
                                 cont.resumeWithException(CameraWifiException("Could not join Wi-Fi network \"$ssid\""))
                             }
+                        }
+
+                        override fun onLost(network: Network) {
+                            Log.w(TAG, "onLost network=$network")
+                            onLost()
                         }
                     }
                     activeCallback = callback

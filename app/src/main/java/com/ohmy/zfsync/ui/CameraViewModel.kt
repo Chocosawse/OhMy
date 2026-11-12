@@ -46,4 +46,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun deletePhoto(uri: Uri) {
         viewModelScope.launch { repository.deletePhoto(uri) }
     }
+
+    /** Call when the app returns to the foreground: silently rejoins the camera if the Wi-Fi
+     *  connection dropped on its own while backgrounded (see CameraSyncRepository.handleNetworkLost). */
+    fun retryConnectionIfNeeded() {
+        val credentials = repository.consumeLostConnectionCredentials() ?: return
+        connect(credentials.ssid, credentials.password)
+    }
 }

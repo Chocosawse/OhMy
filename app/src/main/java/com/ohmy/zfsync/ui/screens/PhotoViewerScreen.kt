@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Size
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncedPhoto
 import kotlinx.coroutines.launch
@@ -201,9 +203,22 @@ private fun ActionPill(onShare: () -> Unit, onDelete: () -> Unit) {
 private fun ZoomableImage(photo: SyncedPhoto) {
     var scale by remember(photo.uri) { mutableStateOf(1f) }
     var offset by remember(photo.uri) { mutableStateOf(Offset.Zero) }
+    val context = LocalContext.current
+
+    // The thumbnail/carousel rows load the same URI at a tiny size, and Coil's memory cache is
+    // keyed by data + size by default -- without a size override here, this request can be
+    // satisfied by whichever request to this URI the cache saw first, which upscales a tiny
+    // cached bitmap instead of decoding the photo at full resolution.
+    val fullSizeRequest = remember(photo.uri) {
+        ImageRequest.Builder(context)
+            .data(photo.uri)
+            .size(Size.ORIGINAL)
+            .memoryCacheKey("${photo.uri}-full")
+            .build()
+    }
 
     AsyncImage(
-        model = photo.uri,
+        model = fullSizeRequest,
         contentDescription = photo.filename,
         contentScale = ContentScale.Fit,
         modifier = Modifier
