@@ -1,14 +1,18 @@
 package com.ohmy.zfsync.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -17,21 +21,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncUiState
+import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.sync.DownloadStatus
 import java.text.DateFormat
 import java.util.Date
 
 @Composable
 fun SyncScreen(
     state: SyncUiState,
+    downloadStatus: DownloadStatus,
     cameraIp: String,
     onAutoSyncChange: (Boolean) -> Unit,
     onSyncNow: () -> Unit,
     onDisconnect: () -> Unit,
+    onPhotoClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
@@ -44,6 +55,20 @@ fun SyncScreen(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
+
+        if (downloadStatus is DownloadStatus.Downloading) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 16.dp),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Text(
+                    pluralStringResource(R.plurals.sync_downloading_count, downloadStatus.count, downloadStatus.count),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -72,18 +97,41 @@ fun SyncScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+        val displayPhotos = state.downloadedPhotos.asReversed()
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(state.downloadedPhotos.asReversed()) { photo ->
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Text(photo.filename, style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        DateFormat.getDateTimeInstance().format(Date(photo.savedAtMillis)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            itemsIndexed(displayPhotos) { index, photo ->
+                PhotoRow(photo, onClick = { onPhotoClick(index) })
                 HorizontalDivider()
             }
+        }
+    }
+}
+
+@Composable
+private fun PhotoRow(photo: SyncedPhoto, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AsyncImage(
+            model = photo.uri,
+            contentDescription = photo.filename,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(8.dp)),
+        )
+        Column {
+            Text(photo.filename, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                DateFormat.getDateTimeInstance().format(Date(photo.savedAtMillis)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -15,13 +15,28 @@
     <string name="sync_now_button">Sync now</string>
     <string name="sync_now_syncing">Syncing…</string>
     <string name="sync_disconnect_button">Disconnect</string>
+    <string name="sync_no_viewer_app">No app available for this action</string>
 
     <string name="sync_notification_channel_name">Camera sync</string>
     <string name="sync_notification_watching">Watching for new shots…</string>
     <string name="sync_notification_connected">Connected — %1$d photo(s) synced</string>
 
+    <string name="viewer_close">Close</string>
+    <string name="viewer_share">Share</string>
+    <string name="viewer_share_chooser_title">Share photo</string>
+    <string name="viewer_delete">Delete</string>
+    <string name="viewer_delete_dialog_title">Delete this photo?</string>
+    <string name="viewer_delete_dialog_text">This removes it from your phone. This can\'t be undone.</string>
+    <string name="viewer_delete_confirm">Delete</string>
+    <string name="viewer_delete_cancel">Cancel</string>
+
     <plurals name="sync_photo_count">
         <item quantity="one">%1$d photo synced this session</item>
         <item quantity="other">%1$d photos synced this session</item>
+    </plurals>
+
+    <plurals name="sync_downloading_count">
+        <item quantity="one">Downloading %1$d photo…</item>
+        <item quantity="other">Downloading %1$d photos…</item>
     </plurals>
 </resources>

@@ -6,11 +6,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import com.ohmy.zfsync.ui.CameraViewModel
 import com.ohmy.zfsync.ui.NikonSyncApp
 import com.ohmy.zfsync.ui.theme.OhMyTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val viewModel: CameraViewModel by viewModels()
 
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { /* no-op: user can retry Connect */ }
@@ -27,9 +31,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             OhMyTheme {
-                NikonSyncApp()
+                NikonSyncApp(viewModel = viewModel)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The camera's Wi-Fi AP can get torn down by the system while backgrounded (see
+        // CameraSyncRepository.handleNetworkLost) -- coming back to the foreground is the right
+        // moment to retry, since a WifiNetworkSpecifier join may need a system dialog that can't
+        // show while backgrounded.
+        viewModel.retryConnectionIfNeeded()
     }
 
     private fun requiredPermissions(): List<String> {

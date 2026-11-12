@@ -33,4 +33,10 @@ class PhotoSaver(private val context: Context) {
     fun deleteIncomplete(uri: Uri) {
         runCatching { context.contentResolver.delete(uri, null, null) }
     }
+
+    /** Deletes a photo this app previously saved. Own-authored MediaStore rows can be deleted
+     *  directly on API 29+, with no extra user confirmation required. */
+    fun delete(uri: Uri) {
+        context.contentResolver.delete(uri, null, null)
+    }
 }
