@@ -2,6 +2,7 @@ package com.ohmy.zfsync.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -51,6 +52,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onDisconnect = viewModel::disconnect,
                     onPhotoClick = { index -> viewerIndex = index },
                     onDeletePhotos = viewModel::deletePhotos,
+                    modifier = Modifier.safeDrawingPadding(),
                 )
                 else -> ConnectScreen(
                     state = state,
@@ -58,6 +60,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onConnect = viewModel::connect,
                     onPhotoClick = { index -> viewerIndex = index },
                     onDeletePhotos = viewModel::deletePhotos,
+                    modifier = Modifier.safeDrawingPadding(),
                 )
             }
         }
