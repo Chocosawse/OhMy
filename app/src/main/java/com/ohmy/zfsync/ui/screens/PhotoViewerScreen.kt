@@ -9,7 +9,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +55,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -230,10 +234,21 @@ private fun ZoomableImage(photo: SyncedPhoto) {
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(photo.uri) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    val newScale = (scale * zoom).coerceIn(1f, 5f)
-                    scale = newScale
-                    offset = if (newScale <= 1f) Offset.Zero else offset + pan
+                // Unlike detectTransformGestures, only consume what this image actually uses: a
+                // one-finger drag at 1x is left unconsumed so the parent HorizontalPager can turn
+                // it into a page swipe, while pinches (and pans once zoomed in) stay here.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val multiTouch = event.changes.count { it.pressed } > 1
+                        if (multiTouch || scale > 1f) {
+                            val newScale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                            scale = newScale
+                            offset = if (newScale <= 1f) Offset.Zero else offset + event.calculatePan()
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             }
             .graphicsLayer(

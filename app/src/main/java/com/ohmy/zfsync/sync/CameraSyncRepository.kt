@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 private const val TAG = "OhMyCameraSync"
@@ -51,7 +53,7 @@ class CameraSyncRepository(context: Context) {
     private var activeSsid: String? = null
     private var activePassword: String? = null
 
-    /** Set only when a previously-working connection drops on its own (see [handleNetworkLost]),
+    /** Set only when a previously-working connection drops on its own (see [handleConnectionLost]),
      *  as opposed to a plain failed/declined connect attempt -- so a caller can tell "this is worth
      *  silently retrying once the app is back in the foreground" apart from "the user is mid-way
      *  through typing credentials on the connect screen." */
@@ -63,6 +65,28 @@ class CameraSyncRepository(context: Context) {
     /** Independent of [state]: whether a photo is being downloaded right now, for anything that
      *  only cares about that (see [DownloadStatusTracker]). */
     val downloadStatus: StateFlow<DownloadStatus> = downloadStatusTracker.status
+
+    /** Serializes album reloads against downloads adding to the list, so a reload whose query ran
+     *  just before a download finished can't overwrite the list and drop that new photo. */
+    private val photosMutex = Mutex()
+
+    init {
+        refreshPhotos()
+    }
+
+    /** Reloads [SyncUiState.photos] from the album, picking up anything deleted or changed outside the app. */
+    fun refreshPhotos() {
+        scope.launch {
+            try {
+                photosMutex.withLock {
+                    val photos = photoSaver.loadAll()
+                    _state.update { it.copy(photos = photos) }
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to load album: $t")
+            }
+        }
+    }
 
     fun loadSavedCredentials(): SavedCameraCredentials? = credentialsStore.load()
 
@@ -77,7 +101,9 @@ class CameraSyncRepository(context: Context) {
         lostConnectionCredentials = null
         _state.update { it.copy(connectionState = ConnectionState.Connecting, lastError = null) }
         try {
-            val net = stage("joining Wi-Fi") { wifiManager.connect(ssid, password, onLost = ::handleNetworkLost) }
+            val net = stage("joining Wi-Fi") {
+                wifiManager.connect(ssid, password, onLost = { handleConnectionLost("camera Wi-Fi network lost") })
+            }
             val cameraIp = stage("resolving camera IP") {
                 wifiManager.getCameraIpAddress(net) ?: throw CameraWifiException("Could not determine the camera's IP address")
             }
@@ -90,7 +116,11 @@ class CameraSyncRepository(context: Context) {
 
             network = net
             ptpClient = client
-            eventJob = client.startEventLoop(scope, ::onPtpEvent)
+            eventJob = client.startEventLoop(
+                scope,
+                onEvent = ::onPtpEvent,
+                onClosed = { t -> handleConnectionLost("PTP/IP event channel closed: ${t.message}") },
+            )
             credentialsStore.save(ssid, password)
 
             _state.update { it.copy(connectionState = ConnectionState.Connected(cameraIp)) }
@@ -101,16 +131,19 @@ class CameraSyncRepository(context: Context) {
     }
 
     /**
-     * The camera's Wi-Fi AP offers no internet capability, so Android treats it as a "local-only"
-     * network it's free to tear down once this app isn't prominent enough -- commonly, as soon as
-     * it's backgrounded, even with [CameraSyncService] running in the foreground. Retrying the join
-     * immediately would likely fail the same way while still backgrounded (a WifiNetworkSpecifier
-     * join can need a system dialog that can't be shown off-screen), so this just surfaces the drop
-     * and remembers the credentials; [consumeLostConnectionCredentials] lets a caller retry once the
-     * app is actually back in front of the user.
+     * Called when an established session dies on its own: either the Wi-Fi network was torn down
+     * (the camera's AP has no internet capability, so Android may reclaim it once the app is
+     * backgrounded, even with [CameraSyncService] running) or the camera closed the PTP/IP event
+     * channel. Retrying immediately would likely fail the same way while still backgrounded (a
+     * WifiNetworkSpecifier join can need a system dialog that can't be shown off-screen), so this
+     * surfaces the drop and remembers the credentials; [consumeLostConnectionCredentials] lets a
+     * caller retry once the app is back in front of the user.
      */
-    private fun handleNetworkLost() {
-        Log.w(TAG, "Camera Wi-Fi connection lost")
+    @Synchronized
+    private fun handleConnectionLost(reason: String) {
+        // Both signals can fire for one drop; only the first one for a live session counts.
+        if (_state.value.connectionState !is ConnectionState.Connected) return
+        Log.w(TAG, "Connection lost: $reason")
         val ssid = activeSsid
         val password = activePassword
         teardownResources()
@@ -188,7 +221,12 @@ class CameraSyncRepository(context: Context) {
     suspend fun deletePhoto(uri: Uri) {
         try {
             withContext(Dispatchers.IO) { photoSaver.delete(uri) }
-            _state.update { it.copy(downloadedPhotos = it.downloadedPhotos.filterNot { photo -> photo.uri == uri }) }
+            _state.update {
+                it.copy(
+                    photos = it.photos.filterNot { photo -> photo.uri == uri },
+                    sessionPhotoUris = it.sessionPhotoUris - uri,
+                )
+            }
         } catch (t: Throwable) {
             _state.update { it.copy(lastError = "Failed to delete photo: ${t.message}") }
         }
@@ -199,7 +237,8 @@ class CameraSyncRepository(context: Context) {
         activeSsid = null
         activePassword = null
         lostConnectionCredentials = null
-        _state.update { SyncUiState() }
+        // The album outlives the connection; only the session-related state resets.
+        _state.update { SyncUiState(photos = it.photos) }
     }
 
     private fun onPtpEvent(event: PtpEvent) {
@@ -213,10 +252,14 @@ class CameraSyncRepository(context: Context) {
     private suspend fun downloadObject(handle: Long) {
         val client = ptpClient ?: return
         try {
-            downloadStatusTracker.track {
-                val info = client.getObjectInfo(handle)
-                if (!info.isJpeg) return@track
+            // Checked before tracking so a RAW file (skipped here) never counts as a download in
+            // flight -- otherwise a RAW+JPEG shot briefly reports two incoming photos.
+            val info = client.getObjectInfo(handle)
+            if (!info.isJpeg) return
 
+            // The photo is added to the list inside track(), before the in-flight count drops,
+            // so UI showing a placeholder per in-flight download swaps it for the real row.
+            downloadStatusTracker.track {
                 val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
                 val uri = photoSaver.createPendingImageUri(filename)
                 try {
@@ -227,8 +270,15 @@ class CameraSyncRepository(context: Context) {
                     throw t
                 }
 
-                _state.update {
-                    it.copy(downloadedPhotos = it.downloadedPhotos + SyncedPhoto(filename, System.currentTimeMillis(), uri))
+                photosMutex.withLock {
+                    _state.update {
+                        val photos = if (it.photos.any { photo -> photo.uri == uri }) {
+                            it.photos
+                        } else {
+                            it.photos + SyncedPhoto(filename, System.currentTimeMillis(), uri)
+                        }
+                        it.copy(photos = photos, sessionPhotoUris = it.sessionPhotoUris + uri)
+                    }
                 }
             }
         } catch (t: Throwable) {

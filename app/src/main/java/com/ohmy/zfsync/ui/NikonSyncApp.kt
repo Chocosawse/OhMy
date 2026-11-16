@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ohmy.zfsync.model.ConnectionState
+import com.ohmy.zfsync.model.photosNewestFirst
 import com.ohmy.zfsync.ui.screens.ConnectScreen
 import com.ohmy.zfsync.ui.screens.PhotoViewerScreen
 import com.ohmy.zfsync.ui.screens.SyncScreen
@@ -31,7 +32,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     // Snapshot taken once per viewer session (re-captured only when a fresh
                     // index is opened), so new auto-synced photos arriving mid-view don't shift
                     // pages out from under the pager -- see PhotoViewerScreen's doc comment.
-                    val photosSnapshot = remember(openIndex) { state.downloadedPhotos.asReversed().toList() }
+                    val photosSnapshot = remember(openIndex) { state.photosNewestFirst() }
                     PhotoViewerScreen(
                         initialPhotos = photosSnapshot,
                         initialIndex = openIndex,

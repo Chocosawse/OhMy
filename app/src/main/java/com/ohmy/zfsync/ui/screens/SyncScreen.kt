@@ -1,7 +1,9 @@
 package com.ohmy.zfsync.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +32,7 @@ import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncUiState
 import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.model.photosNewestFirst
 import com.ohmy.zfsync.sync.DownloadStatus
 import java.text.DateFormat
 import java.util.Date
@@ -51,7 +54,7 @@ fun SyncScreen(
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            text = pluralStringResource(R.plurals.sync_photo_count, state.downloadedPhotos.size, state.downloadedPhotos.size),
+            text = pluralStringResource(R.plurals.sync_photo_count, state.photos.size, state.photos.size),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
@@ -97,14 +100,79 @@ fun SyncScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        val displayPhotos = state.downloadedPhotos.asReversed()
+        // Same ordering the viewer uses, so a row's index here is its page index there.
+        val ordered = state.photosNewestFirst()
+        val sessionCount = ordered.count { it.uri in state.sessionPhotoUris }
+        val sessionPhotos = ordered.take(sessionCount)
+        val earlierPhotos = ordered.drop(sessionCount)
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            itemsIndexed(displayPhotos) { index, photo ->
+            item(key = "header-session") { SectionHeader(stringResource(R.string.sync_section_this_session)) }
+            val inFlight = (downloadStatus as? DownloadStatus.Downloading)?.count ?: 0
+            items(inFlight, key = { "placeholder-$it" }) {
+                PlaceholderRow()
+                HorizontalDivider()
+            }
+            if (sessionPhotos.isEmpty() && inFlight == 0) {
+                item(key = "session-empty") {
+                    Text(
+                        stringResource(R.string.sync_section_this_session_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
+            }
+            itemsIndexed(sessionPhotos, key = { _, photo -> photo.uri }) { index, photo ->
                 PhotoRow(photo, onClick = { onPhotoClick(index) })
                 HorizontalDivider()
             }
+            if (earlierPhotos.isNotEmpty()) {
+                item(key = "header-earlier") { SectionHeader(stringResource(R.string.sync_section_earlier)) }
+                itemsIndexed(earlierPhotos, key = { _, photo -> photo.uri }) { index, photo ->
+                    PhotoRow(photo, onClick = { onPhotoClick(sessionCount + index) })
+                    HorizontalDivider()
+                }
+            }
         }
     }
+}
+
+/** Stands in for a photo that's still downloading; same footprint as [PhotoRow] so the list doesn't jump. */
+@Composable
+private fun PlaceholderRow() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        }
+        Column {
+            Text(stringResource(R.string.sync_placeholder_title), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                stringResource(R.string.sync_placeholder_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp),
+    )
 }
 
 @Composable

@@ -40,7 +40,7 @@ class CameraSyncService : Service() {
             repository.state.collect { state ->
                 when (state.connectionState) {
                     is ConnectionState.Connected -> {
-                        val count = state.downloadedPhotos.size
+                        val count = state.photos.size
                         updateNotification(getString(R.string.sync_notification_connected, count))
                     }
                     is ConnectionState.Disconnected, is ConnectionState.Error -> stopSelf()
