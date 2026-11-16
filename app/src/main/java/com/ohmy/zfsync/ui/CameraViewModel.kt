@@ -1,6 +1,7 @@
 package com.ohmy.zfsync.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ohmy.zfsync.OhMyApplication
@@ -9,6 +10,7 @@ import com.ohmy.zfsync.model.SyncUiState
 import com.ohmy.zfsync.service.CameraSyncService
 import com.ohmy.zfsync.storage.SavedCameraCredentials
 import com.ohmy.zfsync.sync.CameraSyncRepository
+import com.ohmy.zfsync.sync.DownloadStatus
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -16,6 +18,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val repository: CameraSyncRepository = (application as OhMyApplication).syncRepository
 
     val state: StateFlow<SyncUiState> = repository.state
+    val downloadStatus: StateFlow<DownloadStatus> = repository.downloadStatus
     val savedCredentials: SavedCameraCredentials? = repository.loadSavedCredentials()
 
     fun connect(ssid: String, password: String) {
@@ -38,5 +41,16 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun syncNow() {
         viewModelScope.launch { repository.syncNow() }
+    }
+
+    fun deletePhoto(uri: Uri) {
+        viewModelScope.launch { repository.deletePhoto(uri) }
+    }
+
+    /** Call when the app returns to the foreground: silently rejoins the camera if the Wi-Fi
+     *  connection dropped on its own while backgrounded (see CameraSyncRepository.handleNetworkLost). */
+    fun retryConnectionIfNeeded() {
+        val credentials = repository.consumeLostConnectionCredentials() ?: return
+        connect(credentials.ssid, credentials.password)
     }
 }

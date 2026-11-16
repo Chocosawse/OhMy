@@ -2,6 +2,7 @@ package com.ohmy.zfsync.sync
 
 import android.content.Context
 import android.net.Network
+import android.net.Uri
 import android.util.Log
 import com.ohmy.zfsync.model.ConnectionState
 import com.ohmy.zfsync.model.SyncUiState
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "OhMyCameraSync"
 
@@ -37,6 +39,7 @@ class CameraSyncRepository(context: Context) {
     private val wifiManager = CameraWifiManager(appContext)
     private val photoSaver = PhotoSaver(appContext)
     private val credentialsStore = CameraCredentialsStore(appContext)
+    private val downloadStatusTracker = DownloadStatusTracker()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var ptpClient: PtpIpClient? = null
@@ -44,15 +47,37 @@ class CameraSyncRepository(context: Context) {
     private var eventJob: Job? = null
     private val knownHandles = mutableSetOf<Long>()
 
+    /** The credentials actually in use, kept so a mid-session Wi-Fi loss can be retried with them. */
+    private var activeSsid: String? = null
+    private var activePassword: String? = null
+
+    /** Set only when a previously-working connection drops on its own (see [handleNetworkLost]),
+     *  as opposed to a plain failed/declined connect attempt -- so a caller can tell "this is worth
+     *  silently retrying once the app is back in the foreground" apart from "the user is mid-way
+     *  through typing credentials on the connect screen." */
+    private var lostConnectionCredentials: SavedCameraCredentials? = null
+
     private val _state = MutableStateFlow(SyncUiState())
     val state: StateFlow<SyncUiState> = _state.asStateFlow()
 
+    /** Independent of [state]: whether a photo is being downloaded right now, for anything that
+     *  only cares about that (see [DownloadStatusTracker]). */
+    val downloadStatus: StateFlow<DownloadStatus> = downloadStatusTracker.status
+
     fun loadSavedCredentials(): SavedCameraCredentials? = credentialsStore.load()
 
+    /** Returns and clears the credentials of a connection that dropped on its own, if any -- for a
+     *  caller to retry once the app is back in the foreground (see [lostConnectionCredentials]). */
+    fun consumeLostConnectionCredentials(): SavedCameraCredentials? =
+        lostConnectionCredentials.also { lostConnectionCredentials = null }
+
     suspend fun connect(ssid: String, password: String) {
+        activeSsid = ssid
+        activePassword = password
+        lostConnectionCredentials = null
         _state.update { it.copy(connectionState = ConnectionState.Connecting, lastError = null) }
         try {
-            val net = stage("joining Wi-Fi") { wifiManager.connect(ssid, password) }
+            val net = stage("joining Wi-Fi") { wifiManager.connect(ssid, password, onLost = ::handleNetworkLost) }
             val cameraIp = stage("resolving camera IP") {
                 wifiManager.getCameraIpAddress(net) ?: throw CameraWifiException("Could not determine the camera's IP address")
             }
@@ -70,9 +95,40 @@ class CameraSyncRepository(context: Context) {
 
             _state.update { it.copy(connectionState = ConnectionState.Connected(cameraIp)) }
         } catch (t: Throwable) {
-            disconnect()
+            teardownResources()
             _state.update { it.copy(connectionState = ConnectionState.Error(t.message ?: "Connection failed")) }
         }
+    }
+
+    /**
+     * The camera's Wi-Fi AP offers no internet capability, so Android treats it as a "local-only"
+     * network it's free to tear down once this app isn't prominent enough -- commonly, as soon as
+     * it's backgrounded, even with [CameraSyncService] running in the foreground. Retrying the join
+     * immediately would likely fail the same way while still backgrounded (a WifiNetworkSpecifier
+     * join can need a system dialog that can't be shown off-screen), so this just surfaces the drop
+     * and remembers the credentials; [consumeLostConnectionCredentials] lets a caller retry once the
+     * app is actually back in front of the user.
+     */
+    private fun handleNetworkLost() {
+        Log.w(TAG, "Camera Wi-Fi connection lost")
+        val ssid = activeSsid
+        val password = activePassword
+        teardownResources()
+        if (ssid != null && password != null) {
+            lostConnectionCredentials = SavedCameraCredentials(ssid, password)
+        }
+        _state.update { it.copy(connectionState = ConnectionState.Error("Lost connection to the camera")) }
+    }
+
+    /** Tears down the live connection's resources without touching [_state] beyond what callers do themselves. */
+    private fun teardownResources() {
+        eventJob?.cancel()
+        eventJob = null
+        ptpClient?.close()
+        ptpClient = null
+        wifiManager.disconnect()
+        network = null
+        knownHandles.clear()
     }
 
     /** Wraps a connection stage so failures report where in the sequence they happened. */
@@ -128,14 +184,21 @@ class CameraSyncRepository(context: Context) {
         }
     }
 
+    /** Deletes a previously-downloaded photo (the local copy only -- the camera's card is untouched). */
+    suspend fun deletePhoto(uri: Uri) {
+        try {
+            withContext(Dispatchers.IO) { photoSaver.delete(uri) }
+            _state.update { it.copy(downloadedPhotos = it.downloadedPhotos.filterNot { photo -> photo.uri == uri }) }
+        } catch (t: Throwable) {
+            _state.update { it.copy(lastError = "Failed to delete photo: ${t.message}") }
+        }
+    }
+
     fun disconnect() {
-        eventJob?.cancel()
-        eventJob = null
-        ptpClient?.close()
-        ptpClient = null
-        wifiManager.disconnect()
-        network = null
-        knownHandles.clear()
+        teardownResources()
+        activeSsid = null
+        activePassword = null
+        lostConnectionCredentials = null
         _state.update { SyncUiState() }
     }
 
@@ -150,21 +213,23 @@ class CameraSyncRepository(context: Context) {
     private suspend fun downloadObject(handle: Long) {
         val client = ptpClient ?: return
         try {
-            val info = client.getObjectInfo(handle)
-            if (!info.isJpeg) return
+            downloadStatusTracker.track {
+                val info = client.getObjectInfo(handle)
+                if (!info.isJpeg) return@track
 
-            val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
-            val uri = photoSaver.createPendingImageUri(filename)
-            try {
-                photoSaver.openOutputStream(uri).use { out -> client.getObject(handle, out) }
-                photoSaver.markComplete(uri)
-            } catch (t: Throwable) {
-                photoSaver.deleteIncomplete(uri)
-                throw t
-            }
+                val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
+                val uri = photoSaver.createPendingImageUri(filename)
+                try {
+                    photoSaver.openOutputStream(uri).use { out -> client.getObject(handle, out) }
+                    photoSaver.markComplete(uri)
+                } catch (t: Throwable) {
+                    photoSaver.deleteIncomplete(uri)
+                    throw t
+                }
 
-            _state.update {
-                it.copy(downloadedPhotos = it.downloadedPhotos + SyncedPhoto(filename, System.currentTimeMillis(), uri))
+                _state.update {
+                    it.copy(downloadedPhotos = it.downloadedPhotos + SyncedPhoto(filename, System.currentTimeMillis(), uri))
+                }
             }
         } catch (t: Throwable) {
             _state.update { it.copy(lastError = "Failed to download $handle: ${t.message}") }
