@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 private const val TAG = "OhMyCameraSync"
@@ -63,6 +65,28 @@ class CameraSyncRepository(context: Context) {
     /** Independent of [state]: whether a photo is being downloaded right now, for anything that
      *  only cares about that (see [DownloadStatusTracker]). */
     val downloadStatus: StateFlow<DownloadStatus> = downloadStatusTracker.status
+
+    /** Serializes album reloads against downloads adding to the list, so a reload whose query ran
+     *  just before a download finished can't overwrite the list and drop that new photo. */
+    private val photosMutex = Mutex()
+
+    init {
+        refreshPhotos()
+    }
+
+    /** Reloads [SyncUiState.photos] from the album, picking up anything deleted or changed outside the app. */
+    fun refreshPhotos() {
+        scope.launch {
+            try {
+                photosMutex.withLock {
+                    val photos = photoSaver.loadAll()
+                    _state.update { it.copy(photos = photos) }
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to load album: $t")
+            }
+        }
+    }
 
     fun loadSavedCredentials(): SavedCameraCredentials? = credentialsStore.load()
 
@@ -197,7 +221,7 @@ class CameraSyncRepository(context: Context) {
     suspend fun deletePhoto(uri: Uri) {
         try {
             withContext(Dispatchers.IO) { photoSaver.delete(uri) }
-            _state.update { it.copy(downloadedPhotos = it.downloadedPhotos.filterNot { photo -> photo.uri == uri }) }
+            _state.update { it.copy(photos = it.photos.filterNot { photo -> photo.uri == uri }) }
         } catch (t: Throwable) {
             _state.update { it.copy(lastError = "Failed to delete photo: ${t.message}") }
         }
@@ -208,7 +232,8 @@ class CameraSyncRepository(context: Context) {
         activeSsid = null
         activePassword = null
         lostConnectionCredentials = null
-        _state.update { SyncUiState() }
+        // The album outlives the connection; only the session-related state resets.
+        _state.update { SyncUiState(photos = it.photos) }
     }
 
     private fun onPtpEvent(event: PtpEvent) {
@@ -236,8 +261,14 @@ class CameraSyncRepository(context: Context) {
                     throw t
                 }
 
-                _state.update {
-                    it.copy(downloadedPhotos = it.downloadedPhotos + SyncedPhoto(filename, System.currentTimeMillis(), uri))
+                photosMutex.withLock {
+                    _state.update {
+                        if (it.photos.any { photo -> photo.uri == uri }) {
+                            it
+                        } else {
+                            it.copy(photos = it.photos + SyncedPhoto(filename, System.currentTimeMillis(), uri))
+                        }
+                    }
                 }
             }
         } catch (t: Throwable) {

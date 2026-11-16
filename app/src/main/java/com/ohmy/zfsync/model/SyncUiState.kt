@@ -19,6 +19,7 @@ data class SyncUiState(
     val connectionState: ConnectionState = ConnectionState.Disconnected,
     val autoSyncEnabled: Boolean = true,
     val isSyncing: Boolean = false,
-    val downloadedPhotos: List<SyncedPhoto> = emptyList(),
+    /** Every photo in the app's album (not just this session's), oldest first. */
+    val photos: List<SyncedPhoto> = emptyList(),
     val lastError: String? = null,
 )

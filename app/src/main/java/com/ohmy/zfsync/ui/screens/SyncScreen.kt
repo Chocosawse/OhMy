@@ -51,7 +51,7 @@ fun SyncScreen(
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            text = pluralStringResource(R.plurals.sync_photo_count, state.downloadedPhotos.size, state.downloadedPhotos.size),
+            text = pluralStringResource(R.plurals.sync_photo_count, state.photos.size, state.photos.size),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
@@ -97,7 +97,7 @@ fun SyncScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        val displayPhotos = state.downloadedPhotos.asReversed()
+        val displayPhotos = state.photos.asReversed()
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             itemsIndexed(displayPhotos) { index, photo ->
                 PhotoRow(photo, onClick = { onPhotoClick(index) })

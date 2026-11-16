@@ -43,6 +43,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { repository.syncNow() }
     }
 
+    fun refreshPhotos() {
+        repository.refreshPhotos()
+    }
+
     fun deletePhoto(uri: Uri) {
         viewModelScope.launch { repository.deletePhoto(uri) }
     }

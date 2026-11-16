@@ -43,6 +43,8 @@ class MainActivity : ComponentActivity() {
         // moment to retry, since a WifiNetworkSpecifier join may need a system dialog that can't
         // show while backgrounded.
         viewModel.retryConnectionIfNeeded()
+        // Photos may have been deleted from the album in another app while we were away.
+        viewModel.refreshPhotos()
     }
 
     private fun requiredPermissions(): List<String> {

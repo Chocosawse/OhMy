@@ -19,7 +19,7 @@
 
     <string name="sync_notification_channel_name">Camera sync</string>
     <string name="sync_notification_watching">Watching for new shots…</string>
-    <string name="sync_notification_connected">Connected — %1$d photo(s) synced</string>
+    <string name="sync_notification_connected">Connected — %1$d photo(s) in album</string>
 
     <string name="viewer_close">Close</string>
     <string name="viewer_share">Share</string>
@@ -31,8 +31,8 @@
     <string name="viewer_delete_cancel">Cancel</string>
 
     <plurals name="sync_photo_count">
-        <item quantity="one">%1$d photo synced this session</item>
-        <item quantity="other">%1$d photos synced this session</item>
+        <item quantity="one">%1$d photo in Pictures/OhMy</item>
+        <item quantity="other">%1$d photos in Pictures/OhMy</item>
     </plurals>
 
     <plurals name="sync_downloading_count">
