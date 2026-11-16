@@ -30,6 +30,7 @@ import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncUiState
 import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.model.photosNewestFirst
 import com.ohmy.zfsync.sync.DownloadStatus
 import java.text.DateFormat
 import java.util.Date
@@ -97,14 +98,46 @@ fun SyncScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        val displayPhotos = state.photos.asReversed()
+        // Same ordering the viewer uses, so a row's index here is its page index there.
+        val ordered = state.photosNewestFirst()
+        val sessionCount = ordered.count { it.uri in state.sessionPhotoUris }
+        val sessionPhotos = ordered.take(sessionCount)
+        val earlierPhotos = ordered.drop(sessionCount)
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            itemsIndexed(displayPhotos) { index, photo ->
+            item(key = "header-session") { SectionHeader(stringResource(R.string.sync_section_this_session)) }
+            if (sessionPhotos.isEmpty()) {
+                item(key = "session-empty") {
+                    Text(
+                        stringResource(R.string.sync_section_this_session_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
+            }
+            itemsIndexed(sessionPhotos, key = { _, photo -> photo.uri }) { index, photo ->
                 PhotoRow(photo, onClick = { onPhotoClick(index) })
                 HorizontalDivider()
             }
+            if (earlierPhotos.isNotEmpty()) {
+                item(key = "header-earlier") { SectionHeader(stringResource(R.string.sync_section_earlier)) }
+                itemsIndexed(earlierPhotos, key = { _, photo -> photo.uri }) { index, photo ->
+                    PhotoRow(photo, onClick = { onPhotoClick(sessionCount + index) })
+                    HorizontalDivider()
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp),
+    )
 }
 
 @Composable

@@ -21,5 +21,14 @@ data class SyncUiState(
     val isSyncing: Boolean = false,
     /** Every photo in the app's album (not just this session's), oldest first. */
     val photos: List<SyncedPhoto> = emptyList(),
+    /** Photos downloaded since the user last connected; cleared on an explicit disconnect. */
+    val sessionPhotoUris: Set<Uri> = emptySet(),
     val lastError: String? = null,
 )
+
+/** Display order shared by the list and the viewer so indices line up: this session's photos
+ *  first, then everything earlier, each newest first. */
+fun SyncUiState.photosNewestFirst(): List<SyncedPhoto> {
+    val (session, earlier) = photos.asReversed().partition { it.uri in sessionPhotoUris }
+    return session + earlier
+}

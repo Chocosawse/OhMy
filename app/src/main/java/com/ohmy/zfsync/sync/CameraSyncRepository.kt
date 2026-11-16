@@ -221,7 +221,12 @@ class CameraSyncRepository(context: Context) {
     suspend fun deletePhoto(uri: Uri) {
         try {
             withContext(Dispatchers.IO) { photoSaver.delete(uri) }
-            _state.update { it.copy(photos = it.photos.filterNot { photo -> photo.uri == uri }) }
+            _state.update {
+                it.copy(
+                    photos = it.photos.filterNot { photo -> photo.uri == uri },
+                    sessionPhotoUris = it.sessionPhotoUris - uri,
+                )
+            }
         } catch (t: Throwable) {
             _state.update { it.copy(lastError = "Failed to delete photo: ${t.message}") }
         }
@@ -263,11 +268,12 @@ class CameraSyncRepository(context: Context) {
 
                 photosMutex.withLock {
                     _state.update {
-                        if (it.photos.any { photo -> photo.uri == uri }) {
-                            it
+                        val photos = if (it.photos.any { photo -> photo.uri == uri }) {
+                            it.photos
                         } else {
-                            it.copy(photos = it.photos + SyncedPhoto(filename, System.currentTimeMillis(), uri))
+                            it.photos + SyncedPhoto(filename, System.currentTimeMillis(), uri)
                         }
+                        it.copy(photos = photos, sessionPhotoUris = it.sessionPhotoUris + uri)
                     }
                 }
             }
