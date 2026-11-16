@@ -2,6 +2,7 @@ package com.ohmy.zfsync.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,9 +27,11 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
             val connected = state.connectionState as? ConnectionState.Connected
-            if (connected != null) {
-                val openIndex = viewerIndex
-                if (openIndex != null) {
+            val openIndex = viewerIndex
+            when {
+                // The viewer opens from either screen: synced photos are on the phone, so
+                // browsing them doesn't need a camera connection.
+                openIndex != null -> {
                     // Snapshot taken once per viewer session (re-captured only when a fresh
                     // index is opened), so new auto-synced photos arriving mid-view don't shift
                     // pages out from under the pager -- see PhotoViewerScreen's doc comment.
@@ -39,23 +42,25 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                         onDelete = { photo -> viewModel.deletePhotos(listOf(photo.uri)) },
                         onClose = { viewerIndex = null },
                     )
-                } else {
-                    SyncScreen(
-                        state = state,
-                        downloadStatus = downloadStatus,
-                        cameraIp = connected.cameraIp,
-                        onAutoSyncChange = viewModel::setAutoSyncEnabled,
-                        onSyncNow = viewModel::syncNow,
-                        onDisconnect = viewModel::disconnect,
-                        onPhotoClick = { index -> viewerIndex = index },
-                        onDeletePhotos = viewModel::deletePhotos,
-                    )
                 }
-            } else {
-                ConnectScreen(
-                    connectionState = state.connectionState,
+                connected != null -> SyncScreen(
+                    state = state,
+                    downloadStatus = downloadStatus,
+                    cameraIp = connected.cameraIp,
+                    onAutoSyncChange = viewModel::setAutoSyncEnabled,
+                    onSyncNow = viewModel::syncNow,
+                    onDisconnect = viewModel::disconnect,
+                    onPhotoClick = { index -> viewerIndex = index },
+                    onDeletePhotos = viewModel::deletePhotos,
+                    modifier = Modifier.safeDrawingPadding(),
+                )
+                else -> ConnectScreen(
+                    state = state,
                     savedCredentials = viewModel.savedCredentials,
                     onConnect = viewModel::connect,
+                    onPhotoClick = { index -> viewerIndex = index },
+                    onDeletePhotos = viewModel::deletePhotos,
+                    modifier = Modifier.safeDrawingPadding(),
                 )
             }
         }

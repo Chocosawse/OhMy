@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -104,13 +105,14 @@ fun PhotoViewerScreen(
 
         IconButton(
             onClick = onClose,
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            // The photo itself runs edge to edge behind the system bars; controls stay clear of them.
+            modifier = Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(8.dp),
         ) {
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
 
         Column(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             CarouselIndicator(
