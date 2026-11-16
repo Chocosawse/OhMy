@@ -51,7 +51,7 @@ class CameraSyncRepository(context: Context) {
     private var activeSsid: String? = null
     private var activePassword: String? = null
 
-    /** Set only when a previously-working connection drops on its own (see [handleNetworkLost]),
+    /** Set only when a previously-working connection drops on its own (see [handleConnectionLost]),
      *  as opposed to a plain failed/declined connect attempt -- so a caller can tell "this is worth
      *  silently retrying once the app is back in the foreground" apart from "the user is mid-way
      *  through typing credentials on the connect screen." */
@@ -77,7 +77,9 @@ class CameraSyncRepository(context: Context) {
         lostConnectionCredentials = null
         _state.update { it.copy(connectionState = ConnectionState.Connecting, lastError = null) }
         try {
-            val net = stage("joining Wi-Fi") { wifiManager.connect(ssid, password, onLost = ::handleNetworkLost) }
+            val net = stage("joining Wi-Fi") {
+                wifiManager.connect(ssid, password, onLost = { handleConnectionLost("camera Wi-Fi network lost") })
+            }
             val cameraIp = stage("resolving camera IP") {
                 wifiManager.getCameraIpAddress(net) ?: throw CameraWifiException("Could not determine the camera's IP address")
             }
@@ -90,7 +92,11 @@ class CameraSyncRepository(context: Context) {
 
             network = net
             ptpClient = client
-            eventJob = client.startEventLoop(scope, ::onPtpEvent)
+            eventJob = client.startEventLoop(
+                scope,
+                onEvent = ::onPtpEvent,
+                onClosed = { t -> handleConnectionLost("PTP/IP event channel closed: ${t.message}") },
+            )
             credentialsStore.save(ssid, password)
 
             _state.update { it.copy(connectionState = ConnectionState.Connected(cameraIp)) }
@@ -101,16 +107,19 @@ class CameraSyncRepository(context: Context) {
     }
 
     /**
-     * The camera's Wi-Fi AP offers no internet capability, so Android treats it as a "local-only"
-     * network it's free to tear down once this app isn't prominent enough -- commonly, as soon as
-     * it's backgrounded, even with [CameraSyncService] running in the foreground. Retrying the join
-     * immediately would likely fail the same way while still backgrounded (a WifiNetworkSpecifier
-     * join can need a system dialog that can't be shown off-screen), so this just surfaces the drop
-     * and remembers the credentials; [consumeLostConnectionCredentials] lets a caller retry once the
-     * app is actually back in front of the user.
+     * Called when an established session dies on its own: either the Wi-Fi network was torn down
+     * (the camera's AP has no internet capability, so Android may reclaim it once the app is
+     * backgrounded, even with [CameraSyncService] running) or the camera closed the PTP/IP event
+     * channel. Retrying immediately would likely fail the same way while still backgrounded (a
+     * WifiNetworkSpecifier join can need a system dialog that can't be shown off-screen), so this
+     * surfaces the drop and remembers the credentials; [consumeLostConnectionCredentials] lets a
+     * caller retry once the app is back in front of the user.
      */
-    private fun handleNetworkLost() {
-        Log.w(TAG, "Camera Wi-Fi connection lost")
+    @Synchronized
+    private fun handleConnectionLost(reason: String) {
+        // Both signals can fire for one drop; only the first one for a live session counts.
+        if (_state.value.connectionState !is ConnectionState.Connected) return
+        Log.w(TAG, "Connection lost: $reason")
         val ssid = activeSsid
         val password = activePassword
         teardownResources()

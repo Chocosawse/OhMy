@@ -5,6 +5,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -47,6 +48,7 @@ class PtpIpClient private constructor(
     private val commandOut = commandSocket.getOutputStream()
     private lateinit var eventSocket: Socket
     private lateinit var eventIn: java.io.InputStream
+    private lateinit var eventOut: OutputStream
     private var transactionId = 0L
     @Volatile private var eventLoopJob: Job? = null
 
@@ -92,24 +94,47 @@ class PtpIpClient private constructor(
         val newEventSocket = openSocket(host, network)
         eventSocket = newEventSocket
         eventIn = newEventSocket.getInputStream()
-        val eventOut = newEventSocket.getOutputStream()
+        eventOut = newEventSocket.getOutputStream()
         val eventRequest = PtpByteWriter().writeU32(connectionNumber).toByteArray()
         writePtpIpPacket(eventOut, PtpIpPacketType.INIT_EVENT_REQUEST, eventRequest)
         val eventAck = readPtpIpPacket(eventIn)
         if (eventAck.type != PtpIpPacketType.INIT_EVENT_ACK) {
             throw PtpIpProtocolException("Expected Init Event Ack, got packet type ${eventAck.type}")
         }
+        // The event channel is idle for as long as no shots are taken, so a read timeout here
+        // would kill the loop after any quiet stretch. Block indefinitely instead: close()
+        // unblocks the read, and TCP keep-alive plus the Wi-Fi onLost callback catch dead links.
+        newEventSocket.soTimeout = 0
+        newEventSocket.keepAlive = true
         Log.d(TAG, "event handshake ok")
     }
 
-    /** Starts a background loop reading Event (0x4xxx) packets from the event socket and dispatching them. */
-    fun startEventLoop(scope: CoroutineScope, onEvent: (PtpEvent) -> Unit): Job {
+    /**
+     * Starts a background loop reading Event (0x4xxx) packets from the event socket and
+     * dispatching them. [onClosed] fires if the channel dies on its own (camera closed it, link
+     * dropped) -- not when [close] shuts it down deliberately -- so callers never sit on a
+     * session that looks connected but will never deliver another event.
+     */
+    fun startEventLoop(
+        scope: CoroutineScope,
+        onEvent: (PtpEvent) -> Unit,
+        onClosed: (Throwable) -> Unit,
+    ): Job {
         val job = scope.launch(Dispatchers.IO) {
             while (true) {
                 val packet = try {
                     readPtpIpPacket(eventIn)
                 } catch (t: Throwable) {
+                    if (isActive) {
+                        Log.e(TAG, "event channel closed unexpectedly: $t")
+                        onClosed(t)
+                    }
                     break
+                }
+                if (packet.type == PtpIpPacketType.PROBE_REQUEST) {
+                    // Keep-alive ping from the camera; unanswered, it may drop the session.
+                    runCatching { writePtpIpPacket(eventOut, PtpIpPacketType.PROBE_RESPONSE, ByteArray(0)) }
+                    continue
                 }
                 if (packet.type != PtpIpPacketType.EVENT) continue
                 val r = PtpByteReader(packet.payload)

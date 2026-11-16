@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // The camera's Wi-Fi AP can get torn down by the system while backgrounded (see
-        // CameraSyncRepository.handleNetworkLost) -- coming back to the foreground is the right
+        // CameraSyncRepository.handleConnectionLost) -- coming back to the foreground is the right
         // moment to retry, since a WifiNetworkSpecifier join may need a system dialog that can't
         // show while backgrounded.
         viewModel.retryConnectionIfNeeded()

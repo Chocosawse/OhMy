@@ -48,7 +48,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /** Call when the app returns to the foreground: silently rejoins the camera if the Wi-Fi
-     *  connection dropped on its own while backgrounded (see CameraSyncRepository.handleNetworkLost). */
+     *  connection dropped on its own while backgrounded (see CameraSyncRepository.handleConnectionLost). */
     fun retryConnectionIfNeeded() {
         val credentials = repository.consumeLostConnectionCredentials() ?: return
         connect(credentials.ssid, credentials.password)
