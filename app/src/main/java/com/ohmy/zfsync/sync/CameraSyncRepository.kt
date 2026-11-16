@@ -217,18 +217,28 @@ class CameraSyncRepository(context: Context) {
         }
     }
 
-    /** Deletes a previously-downloaded photo (the local copy only -- the camera's card is untouched). */
-    suspend fun deletePhoto(uri: Uri) {
-        try {
-            withContext(Dispatchers.IO) { photoSaver.delete(uri) }
-            _state.update {
-                it.copy(
-                    photos = it.photos.filterNot { photo -> photo.uri == uri },
-                    sessionPhotoUris = it.sessionPhotoUris - uri,
-                )
+    /** Deletes previously-downloaded photos (the local copies only -- the camera's card is untouched).
+     *  Each is attempted independently, so one failure doesn't leave the rest undeleted. */
+    suspend fun deletePhotos(uris: Collection<Uri>) {
+        val deleted = mutableSetOf<Uri>()
+        var lastFailure: Throwable? = null
+        withContext(Dispatchers.IO) {
+            for (uri in uris) {
+                try {
+                    photoSaver.delete(uri)
+                    deleted += uri
+                } catch (t: Throwable) {
+                    lastFailure = t
+                }
             }
-        } catch (t: Throwable) {
-            _state.update { it.copy(lastError = "Failed to delete photo: ${t.message}") }
+        }
+        val failedCount = uris.size - deleted.size
+        _state.update {
+            it.copy(
+                photos = it.photos.filterNot { photo -> photo.uri in deleted },
+                sessionPhotoUris = it.sessionPhotoUris - deleted,
+                lastError = lastFailure?.let { t -> "Failed to delete $failedCount photo(s): ${t.message}" } ?: it.lastError,
+            )
         }
     }
 

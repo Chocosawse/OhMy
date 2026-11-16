@@ -1,9 +1,5 @@
 package com.ohmy.zfsync.ui.screens
 
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -17,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,12 +27,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -65,6 +57,8 @@ import coil.request.ImageRequest
 import coil.size.Size
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.ui.components.ActionPill
+import com.ohmy.zfsync.ui.components.sharePhotos
 import kotlinx.coroutines.launch
 
 /**
@@ -126,8 +120,10 @@ fun PhotoViewerScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             ActionPill(
-                onShare = { sharePhoto(context, photos[pagerState.currentPage]) },
+                onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
                 onDelete = { pendingDelete = photos[pagerState.currentPage] },
+                containerColor = Color.White.copy(alpha = 0.2f),
+                contentColor = Color.White,
             )
         }
     }
@@ -189,27 +185,6 @@ private fun CarouselIndicator(
 }
 
 @Composable
-private fun ActionPill(onShare: () -> Unit, onDelete: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = Color.White.copy(alpha = 0.2f),
-        shadowElevation = 4.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onShare) {
-                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.viewer_share), tint = Color.White)
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.viewer_delete), tint = Color.White)
-            }
-        }
-    }
-}
-
-@Composable
 private fun ZoomableImage(photo: SyncedPhoto) {
     var scale by remember(photo.uri) { mutableStateOf(1f) }
     var offset by remember(photo.uri) { mutableStateOf(Offset.Zero) }
@@ -258,18 +233,4 @@ private fun ZoomableImage(photo: SyncedPhoto) {
                 translationY = offset.y,
             ),
     )
-}
-
-private fun sharePhoto(context: Context, photo: SyncedPhoto) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "image/jpeg"
-        putExtra(Intent.EXTRA_STREAM, photo.uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    val chooser = Intent.createChooser(intent, context.getString(R.string.viewer_share_chooser_title))
-    try {
-        context.startActivity(chooser)
-    } catch (e: ActivityNotFoundException) {
-        Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
-    }
 }

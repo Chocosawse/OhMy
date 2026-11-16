@@ -47,8 +47,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         repository.refreshPhotos()
     }
 
-    fun deletePhoto(uri: Uri) {
-        viewModelScope.launch { repository.deletePhoto(uri) }
+    fun deletePhotos(uris: Collection<Uri>) {
+        viewModelScope.launch { repository.deletePhotos(uris) }
     }
 
     /** Call when the app returns to the foreground: silently rejoins the camera if the Wi-Fi

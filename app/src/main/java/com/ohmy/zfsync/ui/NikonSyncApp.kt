@@ -36,7 +36,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     PhotoViewerScreen(
                         initialPhotos = photosSnapshot,
                         initialIndex = openIndex,
-                        onDelete = { photo -> viewModel.deletePhoto(photo.uri) },
+                        onDelete = { photo -> viewModel.deletePhotos(listOf(photo.uri)) },
                         onClose = { viewerIndex = null },
                     )
                 } else {
@@ -48,6 +48,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                         onSyncNow = viewModel::syncNow,
                         onDisconnect = viewModel::disconnect,
                         onPhotoClick = { index -> viewerIndex = index },
+                        onDeletePhotos = viewModel::deletePhotos,
                     )
                 }
             } else {

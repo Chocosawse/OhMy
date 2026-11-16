@@ -35,6 +35,23 @@
     <string name="viewer_delete_confirm">Delete</string>
     <string name="viewer_delete_cancel">Cancel</string>
 
+    <string name="select_cancel">Cancel selection</string>
+
+    <plurals name="select_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+
+    <plurals name="select_delete_dialog_title">
+        <item quantity="one">Delete %1$d photo?</item>
+        <item quantity="other">Delete %1$d photos?</item>
+    </plurals>
+
+    <plurals name="select_delete_dialog_text">
+        <item quantity="one">This removes it from your phone. This can\'t be undone.</item>
+        <item quantity="other">This removes them from your phone. This can\'t be undone.</item>
+    </plurals>
+
     <plurals name="sync_photo_count">
         <item quantity="one">%1$d photo in Pictures/OhMy</item>
         <item quantity="other">%1$d photos in Pictures/OhMy</item>
