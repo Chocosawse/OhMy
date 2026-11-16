@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -88,6 +89,11 @@ fun PhotoViewerScreen(
         LaunchedEffect(Unit) { onClose() }
         return
     }
+
+    // This screen is swapped in by Compose state, not a back-stack entry, so without this the
+    // system back gesture has nothing of ours to intercept and falls through to the Activity,
+    // closing the whole app instead of returning to the sync screen.
+    BackHandler(onBack = onClose)
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(
