@@ -9,9 +9,8 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,18 +42,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
@@ -62,6 +64,7 @@ import com.ohmy.zfsync.model.SyncedPhoto
 import com.ohmy.zfsync.model.photosNewestFirst
 import com.ohmy.zfsync.sync.DownloadStatus
 import com.ohmy.zfsync.ui.components.ActionPill
+import com.ohmy.zfsync.ui.components.dragToSelect
 import com.ohmy.zfsync.ui.components.sharePhotos
 import java.text.DateFormat
 import java.util.Date
@@ -109,10 +112,9 @@ fun SyncScreen(
     val onRowClick: (SyncedPhoto, Int) -> Unit = { photo, index ->
         if (selectMode) toggle(photo) else onPhotoClick(index)
     }
-    val onRowLongClick: (SyncedPhoto) -> Unit = { photo ->
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        toggle(photo)
-    }
+    val listState = rememberLazyListState()
+    // The drag gesture outlives recompositions, so it reads the latest list through this.
+    val latestOrdered by rememberUpdatedState(ordered)
 
     // Keeps the pill's count steady while it animates out after the selection is cleared,
     // instead of flashing "0 selected".
@@ -177,7 +179,16 @@ fun SyncScreen(
             val sessionPhotos = ordered.take(sessionCount)
             val earlierPhotos = ordered.drop(sessionCount)
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .dragToSelect(
+                        listState = listState,
+                        selectableKeys = { latestOrdered.map { it.uri } },
+                        selection = { selected },
+                        onSelectionChange = { selected = it },
+                        haptics = haptics,
+                    ),
                 contentPadding = PaddingValues(bottom = if (selectMode) PillClearance else 0.dp),
             ) {
                 item(key = "header-session") { SectionHeader(stringResource(R.string.sync_section_this_session)) }
@@ -201,7 +212,7 @@ fun SyncScreen(
                         photo = photo,
                         isSelected = photo.uri in selected,
                         onClick = { onRowClick(photo, index) },
-                        onLongClick = { onRowLongClick(photo) },
+                        onLongPress = { toggle(photo) },
                     )
                     HorizontalDivider()
                 }
@@ -212,7 +223,7 @@ fun SyncScreen(
                             photo = photo,
                             isSelected = photo.uri in selected,
                             onClick = { onRowClick(photo, sessionCount + index) },
-                            onLongClick = { onRowLongClick(photo) },
+                            onLongPress = { toggle(photo) },
                         )
                         HorizontalDivider()
                     }
@@ -293,20 +304,22 @@ private fun SectionHeader(title: String) {
     )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PhotoRow(
     photo: SyncedPhoto,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onLongPress: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .clickable(onClick = onClick)
+            // The list's dragToSelect handles the actual long-press gesture (a row-level one
+            // would fire too and double-toggle); this exposes the same action to accessibility.
+            .semantics { onLongClick { onLongPress(); true } }
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
