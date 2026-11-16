@@ -1,7 +1,9 @@
 package com.ohmy.zfsync.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -105,7 +107,12 @@ fun SyncScreen(
         val earlierPhotos = ordered.drop(sessionCount)
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             item(key = "header-session") { SectionHeader(stringResource(R.string.sync_section_this_session)) }
-            if (sessionPhotos.isEmpty()) {
+            val inFlight = (downloadStatus as? DownloadStatus.Downloading)?.count ?: 0
+            items(inFlight, key = { "placeholder-$it" }) {
+                PlaceholderRow()
+                HorizontalDivider()
+            }
+            if (sessionPhotos.isEmpty() && inFlight == 0) {
                 item(key = "session-empty") {
                     Text(
                         stringResource(R.string.sync_section_this_session_empty),
@@ -126,6 +133,34 @@ fun SyncScreen(
                     HorizontalDivider()
                 }
             }
+        }
+    }
+}
+
+/** Stands in for a photo that's still downloading; same footprint as [PhotoRow] so the list doesn't jump. */
+@Composable
+private fun PlaceholderRow() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        }
+        Column {
+            Text(stringResource(R.string.sync_placeholder_title), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                stringResource(R.string.sync_placeholder_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

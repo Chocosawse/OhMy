@@ -252,10 +252,14 @@ class CameraSyncRepository(context: Context) {
     private suspend fun downloadObject(handle: Long) {
         val client = ptpClient ?: return
         try {
-            downloadStatusTracker.track {
-                val info = client.getObjectInfo(handle)
-                if (!info.isJpeg) return@track
+            // Checked before tracking so a RAW file (skipped here) never counts as a download in
+            // flight -- otherwise a RAW+JPEG shot briefly reports two incoming photos.
+            val info = client.getObjectInfo(handle)
+            if (!info.isJpeg) return
 
+            // The photo is added to the list inside track(), before the in-flight count drops,
+            // so UI showing a placeholder per in-flight download swaps it for the real row.
+            downloadStatusTracker.track {
                 val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
                 val uri = photoSaver.createPendingImageUri(filename)
                 try {

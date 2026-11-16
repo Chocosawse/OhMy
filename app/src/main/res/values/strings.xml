@@ -18,6 +18,8 @@
     <string name="sync_section_this_session">This session</string>
     <string name="sync_section_this_session_empty">New shots will appear here</string>
     <string name="sync_section_earlier">Earlier</string>
+    <string name="sync_placeholder_title">Downloading…</string>
+    <string name="sync_placeholder_subtitle">Incoming from camera</string>
     <string name="sync_no_viewer_app">No app available for this action</string>
 
     <string name="sync_notification_channel_name">Camera sync</string>
