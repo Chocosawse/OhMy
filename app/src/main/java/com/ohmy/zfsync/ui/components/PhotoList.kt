@@ -164,6 +164,7 @@ fun PhotoList(
 
         ActionPill(
             visible = selectMode,
+            pulseKey = selected.size,
             modifier = Modifier.align(Alignment.BottomCenter),
             label = pluralStringResource(R.plurals.select_count, pillCount, pillCount),
             onShare = { sharePhotos(context, ordered.filter { it.uri in selected }) },
