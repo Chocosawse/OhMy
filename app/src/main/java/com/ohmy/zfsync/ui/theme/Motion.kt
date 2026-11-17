@@ -11,8 +11,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 
 /*
  * The app's motion language. Every animation uses OvershootEasing (exits use its mirror,
- * OvershootExitEasing), via overshootSpec / overshootExitSpec. The one exception is the photo
- * pager's own swipe/snap, where overshooting would flash the neighbouring photo.
+ * OvershootExitEasing), via overshootSpec / overshootExitSpec. Exceptions, which keep Compose's
+ * default non-overshooting motion: the photo pager's own swipe/snap, where overshooting would
+ * flash the neighbouring photo, and the viewer's double-tap zoom.
  */
 
 private const val OVERSHOOT_TENSION = 1.5f

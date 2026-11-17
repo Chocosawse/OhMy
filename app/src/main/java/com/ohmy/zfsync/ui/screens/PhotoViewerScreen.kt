@@ -291,7 +291,9 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState) {
                     val toScale = if (zoomingIn) DOUBLE_TAP_ZOOM else 1f
                     val toOffset = if (zoomingIn) (center - tap) * (DOUBLE_TAP_ZOOM - 1f) else Offset.Zero
                     coroutineScope.launch {
-                        animate(0f, 1f, animationSpec = overshootSpec()) { fraction, _ ->
+                        // Default critically-damped spring, deliberately not the overshoot curve:
+                        // zooming past the target and back reads as jitter on a full-screen photo.
+                        animate(0f, 1f) { fraction, _ ->
                             zoom.scale = fromScale + (toScale - fromScale) * fraction
                             zoom.offset = lerp(fromOffset, toOffset, fraction)
                         }
