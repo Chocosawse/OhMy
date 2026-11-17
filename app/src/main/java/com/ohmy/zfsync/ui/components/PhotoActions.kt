@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,24 +32,70 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
+import com.ohmy.zfsync.ui.theme.animatePop
+import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
+import com.ohmy.zfsync.ui.theme.overshootExitSpec
+import com.ohmy.zfsync.ui.theme.overshootSpec
+import com.ohmy.zfsync.ui.theme.pop
 
 /**
  * Floating pill of photo actions, shared by the viewer (over a black backdrop) and the list's
  * select mode (over the themed surface) -- hence the color parameters. [label] and [onCancel]
  * are optional extras the viewer doesn't need.
+ *
+ * Toggling [visible] animates the pill itself: showing pops the capsule in while its items
+ * cascade in from both ends toward the middle; hiding cascades them out from the middle and
+ * collapses the capsule last. Once fully hidden it leaves composition.
  */
 @Composable
 fun ActionPill(
     onShare: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    visible: Boolean = true,
     label: String? = null,
     onCancel: (() -> Unit)? = null,
     containerColor: Color = MaterialTheme.colorScheme.secondaryContainer,
     contentColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
+    val items = buildList<@Composable () -> Unit> {
+        if (label != null) {
+            add { Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 12.dp, end = 4.dp)) }
+        }
+        add {
+            IconButton(onClick = onShare) {
+                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.viewer_share))
+            }
+        }
+        add {
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.viewer_delete))
+            }
+        }
+        if (onCancel != null) {
+            add {
+                IconButton(onClick = onCancel) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.select_cancel))
+                }
+            }
+        }
+    }
+    val last = items.lastIndex
+    // On the way out the capsule waits for its items to (mostly) leave before collapsing.
+    val lastItemExitDelay = (0..last).maxOf { cascadeDelayMillis(it, 0, last, showing = false) }
+    val containerProgress = animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = if (visible) overshootSpec() else overshootExitSpec(lastItemExitDelay + MOTION_DURATION_MILLIS / 2),
+        label = "pillContainer",
+    )
+    // Stays composed until the exit finishes; derived so the animation itself doesn't recompose.
+    val latestVisible by rememberUpdatedState(visible)
+    val composed by remember { derivedStateOf { latestVisible || containerProgress.value > 0f } }
+    if (!composed) return
+
     Surface(
-        modifier = modifier,
+        modifier = modifier.pop { containerProgress.value },
         shape = RoundedCornerShape(50),
         color = containerColor,
         contentColor = contentColor,
@@ -52,18 +105,10 @@ fun ActionPill(
             modifier = Modifier.padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (label != null) {
-                Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 12.dp, end = 4.dp))
-            }
-            IconButton(onClick = onShare) {
-                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.viewer_share))
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.viewer_delete))
-            }
-            if (onCancel != null) {
-                IconButton(onClick = onCancel) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.select_cancel))
+            items.forEachIndexed { index, item ->
+                key(index) {
+                    val progress = animatePop(visible, cascadeDelayMillis(index, 0, last, showing = visible))
+                    Box(Modifier.pop { progress.value }) { item() }
                 }
             }
         }

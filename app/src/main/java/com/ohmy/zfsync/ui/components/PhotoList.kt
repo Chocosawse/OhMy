@@ -2,13 +2,6 @@ package com.ohmy.zfsync.ui.components
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -169,19 +162,14 @@ fun PhotoList(
             }
         }
 
-        AnimatedVisibility(
+        ActionPill(
             visible = selectMode,
             modifier = Modifier.align(Alignment.BottomCenter),
-            enter = slideInVertically { it } + scaleIn(initialScale = 0.8f) + fadeIn(),
-            exit = slideOutVertically { it } + scaleOut(targetScale = 0.8f) + fadeOut(),
-        ) {
-            ActionPill(
-                label = pluralStringResource(R.plurals.select_count, pillCount, pillCount),
-                onShare = { sharePhotos(context, ordered.filter { it.uri in selected }) },
-                onDelete = { confirmDelete = true },
-                onCancel = { selected = emptySet() },
-            )
-        }
+            label = pluralStringResource(R.plurals.select_count, pillCount, pillCount),
+            onShare = { sharePhotos(context, ordered.filter { it.uri in selected }) },
+            onDelete = { confirmDelete = true },
+            onCancel = { selected = emptySet() },
+        )
     }
 
     if (confirmDelete) {
