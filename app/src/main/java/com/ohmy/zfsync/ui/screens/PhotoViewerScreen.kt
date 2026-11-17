@@ -1,6 +1,9 @@
 package com.ohmy.zfsync.ui.screens
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,6 +12,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,16 +40,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.toMutableStateList
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -60,6 +70,10 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionPill
 import com.ohmy.zfsync.ui.components.sharePhotos
+import com.ohmy.zfsync.ui.theme.animatePop
+import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
+import com.ohmy.zfsync.ui.theme.overshootSpec
+import com.ohmy.zfsync.ui.theme.pop
 import kotlinx.coroutines.launch
 
 /**
@@ -83,6 +97,11 @@ fun PhotoViewerScreen(
     var pendingDelete by remember { mutableStateOf<SyncedPhoto?>(null) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    // Zoom lives here rather than inside each page so the screen can react to the current
+    // photo's zoom (the carousel only shows at 1x). The holders are state objects, so a plain
+    // map is enough: reads of their fields are what get observed.
+    val zoomStates = remember { HashMap<Uri, ZoomState>() }
+    fun zoomStateFor(photo: SyncedPhoto) = zoomStates.getOrPut(photo.uri) { ZoomState() }
 
     if (photos.isEmpty()) {
         LaunchedEffect(Unit) { onClose() }
@@ -94,13 +113,20 @@ fun PhotoViewerScreen(
     // closing the whole app instead of returning to the sync screen.
     BackHandler(onBack = onClose)
 
+    // A photo swiped away from resets to 1x, so coming back to it starts fully zoomed out.
+    LaunchedEffect(pagerState.settledPage) {
+        val current = photos.getOrNull(pagerState.settledPage)?.uri
+        zoomStates.forEach { (uri, zoom) -> if (uri != current) zoom.reset() }
+    }
+    val currentZoomedOut = zoomStateFor(photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]).scale <= 1f
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             key = { photos[it].uri },
         ) { page ->
-            ZoomableImage(photos[page])
+            ZoomableImage(photos[page], zoomStateFor(photos[page]))
         }
 
         IconButton(
@@ -118,6 +144,7 @@ fun PhotoViewerScreen(
             CarouselIndicator(
                 photos = photos,
                 currentIndex = pagerState.currentPage,
+                visible = currentZoomedOut,
                 onThumbnailClick = { index -> coroutineScope.launch { pagerState.animateScrollToPage(index) } },
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -149,29 +176,59 @@ fun PhotoViewerScreen(
     }
 }
 
+/**
+ * Thumbnail strip. Toggling [visible] pops the on-screen thumbnails in from both ends toward the
+ * middle, or out from the middle toward both ends. It keeps its space while hidden, so the pill
+ * below doesn't jump, but stops taking touches.
+ */
 @Composable
 private fun CarouselIndicator(
     photos: List<SyncedPhoto>,
     currentIndex: Int,
+    visible: Boolean,
     onThumbnailClick: (Int) -> Unit,
 ) {
     val listState = rememberLazyListState()
-    LaunchedEffect(currentIndex) { listState.animateScrollToItem(currentIndex) }
+    LaunchedEffect(currentIndex) {
+        // Glide the current thumbnail to the centre; if it's off screen, jump near it first.
+        if (listState.layoutInfo.visibleItemsInfo.none { it.index == currentIndex }) {
+            listState.scrollToItem(currentIndex)
+            withFrameNanos { }
+        }
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == currentIndex } ?: return@LaunchedEffect
+        val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
+        listState.animateScrollBy((item.offset + item.size / 2 - viewportCenter).toFloat(), overshootSpec())
+    }
+
+    // Which thumbnails are on screen when the toggle happens decides each one's cascade delay.
+    // Read without observation: it's a one-off snapshot per toggle, not something to recompose on.
+    val onScreen = remember(visible) {
+        Snapshot.withoutReadObservation {
+            val items = listState.layoutInfo.visibleItemsInfo
+            if (items.isEmpty()) IntRange.EMPTY else items.first().index..items.last().index
+        }
+    }
 
     LazyRow(
         state = listState,
         modifier = Modifier.fillMaxWidth().height(56.dp),
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        userScrollEnabled = visible,
     ) {
         itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
             val selected = index == currentIndex
+            val size by animateDpAsState(if (selected) 48.dp else 40.dp, overshootSpec(), label = "thumbSize")
+            val thumbPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
             AsyncImage(
                 model = photo.uri,
                 contentDescription = photo.filename,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(if (selected) 48.dp else 40.dp)
+                    .size(size)
+                    .pop { thumbPop.value }
                     .clip(RoundedCornerShape(6.dp))
                     .then(
                         if (selected) {
@@ -180,17 +237,29 @@ private fun CarouselIndicator(
                             Modifier
                         },
                     )
-                    .clickable { onThumbnailClick(index) },
+                    .clickable(enabled = visible) { onThumbnailClick(index) },
             )
         }
     }
 }
 
+@Stable
+private class ZoomState {
+    var scale by mutableFloatStateOf(1f)
+    var offset by mutableStateOf(Offset.Zero)
+
+    fun reset() {
+        scale = 1f
+        offset = Offset.Zero
+    }
+}
+
+private const val DOUBLE_TAP_ZOOM = 2f
+
 @Composable
-private fun ZoomableImage(photo: SyncedPhoto) {
-    var scale by remember(photo.uri) { mutableStateOf(1f) }
-    var offset by remember(photo.uri) { mutableStateOf(Offset.Zero) }
+private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     // The thumbnail/carousel rows load the same URI at a tiny size, and Coil's memory cache is
     // keyed by data + size by default -- without a size override here, this request can be
@@ -211,6 +280,27 @@ private fun ZoomableImage(photo: SyncedPhoto) {
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(photo.uri) {
+                detectTapGestures(onDoubleTap = { tap ->
+                    // Toggle between 1x and 200%. Zooming in keeps the tapped spot under the
+                    // finger: with the default center transform origin, a point p lands at
+                    // center + (p - center) * scale + offset, so offset = (center - p) * (scale - 1).
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val fromScale = zoom.scale
+                    val fromOffset = zoom.offset
+                    val zoomingIn = zoom.scale <= 1f
+                    val toScale = if (zoomingIn) DOUBLE_TAP_ZOOM else 1f
+                    val toOffset = if (zoomingIn) (center - tap) * (DOUBLE_TAP_ZOOM - 1f) else Offset.Zero
+                    coroutineScope.launch {
+                        // Default critically-damped spring, deliberately not the overshoot curve:
+                        // zooming past the target and back reads as jitter on a full-screen photo.
+                        animate(0f, 1f) { fraction, _ ->
+                            zoom.scale = fromScale + (toScale - fromScale) * fraction
+                            zoom.offset = lerp(fromOffset, toOffset, fraction)
+                        }
+                    }
+                })
+            }
+            .pointerInput(photo.uri) {
                 // Unlike detectTransformGestures, only consume what this image actually uses: a
                 // one-finger drag at 1x is left unconsumed so the parent HorizontalPager can turn
                 // it into a page swipe, while pinches (and pans once zoomed in) stay here.
@@ -219,20 +309,20 @@ private fun ZoomableImage(photo: SyncedPhoto) {
                     do {
                         val event = awaitPointerEvent()
                         val multiTouch = event.changes.count { it.pressed } > 1
-                        if (multiTouch || scale > 1f) {
-                            val newScale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
-                            scale = newScale
-                            offset = if (newScale <= 1f) Offset.Zero else offset + event.calculatePan()
+                        if (multiTouch || zoom.scale > 1f) {
+                            val newScale = (zoom.scale * event.calculateZoom()).coerceIn(1f, 5f)
+                            zoom.scale = newScale
+                            zoom.offset = if (newScale <= 1f) Offset.Zero else zoom.offset + event.calculatePan()
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
                 }
             }
             .graphicsLayer(
-                scaleX = scale,
-                scaleY = scale,
-                translationX = offset.x,
-                translationY = offset.y,
+                scaleX = zoom.scale,
+                scaleY = zoom.scale,
+                translationX = zoom.offset.x,
+                translationY = zoom.offset.y,
             ),
     )
 }
