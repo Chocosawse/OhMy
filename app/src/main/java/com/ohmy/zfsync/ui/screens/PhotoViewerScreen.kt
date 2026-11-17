@@ -221,14 +221,14 @@ private fun CarouselIndicator(
         itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
             val selected = index == currentIndex
             val size by animateDpAsState(if (selected) 48.dp else 40.dp, overshootSpec(), label = "thumbSize")
-            val progress = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
+            val thumbPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
             AsyncImage(
                 model = photo.uri,
                 contentDescription = photo.filename,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(size)
-                    .pop { progress.value }
+                    .pop(thumbPop)
                     .clip(RoundedCornerShape(6.dp))
                     .then(
                         if (selected) {

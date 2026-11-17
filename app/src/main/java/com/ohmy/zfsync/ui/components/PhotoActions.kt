@@ -5,7 +5,6 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -35,8 +34,6 @@ import com.ohmy.zfsync.model.SyncedPhoto
 import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.animatePop
 import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
-import com.ohmy.zfsync.ui.theme.overshootExitSpec
-import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.pop
 
 /**
@@ -82,20 +79,17 @@ fun ActionPill(
         }
     }
     val last = items.lastIndex
-    // On the way out the capsule waits for its items to (mostly) leave before collapsing.
+    // Showing: the capsule pops in first and its items cascade in once it has fully settled.
+    // Hiding: the items cascade out first, and the capsule collapses as the last ones leave.
     val lastItemExitDelay = (0..last).maxOf { cascadeDelayMillis(it, 0, last, showing = false) }
-    val containerProgress = animateFloatAsState(
-        targetValue = if (visible) 1f else 0f,
-        animationSpec = if (visible) overshootSpec() else overshootExitSpec(lastItemExitDelay + MOTION_DURATION_MILLIS / 2),
-        label = "pillContainer",
-    )
+    val container = animatePop(visible, delayMillis = if (visible) 0 else lastItemExitDelay + MOTION_DURATION_MILLIS / 2)
     // Stays composed until the exit finishes; derived so the animation itself doesn't recompose.
     val latestVisible by rememberUpdatedState(visible)
-    val composed by remember { derivedStateOf { latestVisible || containerProgress.value > 0f } }
+    val composed by remember { derivedStateOf { latestVisible || !container.isGone } }
     if (!composed) return
 
     Surface(
-        modifier = modifier.pop { containerProgress.value },
+        modifier = modifier.pop(container),
         shape = RoundedCornerShape(50),
         color = containerColor,
         contentColor = contentColor,
@@ -107,8 +101,9 @@ fun ActionPill(
         ) {
             items.forEachIndexed { index, item ->
                 key(index) {
-                    val progress = animatePop(visible, cascadeDelayMillis(index, 0, last, showing = visible))
-                    Box(Modifier.pop { progress.value }) { item() }
+                    val cascadeDelay = cascadeDelayMillis(index, 0, last, showing = visible)
+                    val itemPop = animatePop(visible, if (visible) MOTION_DURATION_MILLIS + cascadeDelay else cascadeDelay)
+                    Box(Modifier.pop(itemPop)) { item() }
                 }
             }
         }
