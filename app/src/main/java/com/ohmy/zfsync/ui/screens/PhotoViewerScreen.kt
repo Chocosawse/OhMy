@@ -228,7 +228,7 @@ private fun CarouselIndicator(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(size)
-                    .pop(thumbPop)
+                    .pop { thumbPop.value }
                     .clip(RoundedCornerShape(6.dp))
                     .then(
                         if (selected) {

@@ -85,11 +85,11 @@ fun ActionPill(
     val container = animatePop(visible, delayMillis = if (visible) 0 else lastItemExitDelay + MOTION_DURATION_MILLIS / 2)
     // Stays composed until the exit finishes; derived so the animation itself doesn't recompose.
     val latestVisible by rememberUpdatedState(visible)
-    val composed by remember { derivedStateOf { latestVisible || !container.isGone } }
+    val composed by remember { derivedStateOf { latestVisible || container.value > 0f } }
     if (!composed) return
 
     Surface(
-        modifier = modifier.pop(container),
+        modifier = modifier.pop { container.value },
         shape = RoundedCornerShape(50),
         color = containerColor,
         contentColor = contentColor,
@@ -103,7 +103,7 @@ fun ActionPill(
                 key(index) {
                     val cascadeDelay = cascadeDelayMillis(index, 0, last, showing = visible)
                     val itemPop = animatePop(visible, if (visible) MOTION_DURATION_MILLIS + cascadeDelay else cascadeDelay)
-                    Box(Modifier.pop(itemPop)) { item() }
+                    Box(Modifier.pop { itemPop.value }) { item() }
                 }
             }
         }
