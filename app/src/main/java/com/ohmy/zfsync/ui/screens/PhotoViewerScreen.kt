@@ -148,7 +148,7 @@ fun PhotoViewerScreen(
         zoomStates.forEach { (uri, zoom) -> if (uri != current) zoom.reset() }
     }
     val currentZoomedOut = zoomStateFor(photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]).scale <= 1f
-    // Zoomed in, the photo gets the whole screen: the status bar hides along with the carousel.
+    // Zoomed in, the photo gets the whole screen: the status bar hides along with the carousel and pill.
     StatusBarHidden(hidden = !currentZoomedOut)
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -188,6 +188,8 @@ fun PhotoViewerScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             ActionPill(
+                // Hidden with the carousel and status bar while zoomed in.
+                visible = currentZoomedOut,
                 onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
                 onDelete = { pendingDelete = photos[pagerState.currentPage] },
                 containerColor = Color.White.copy(alpha = 0.2f),
