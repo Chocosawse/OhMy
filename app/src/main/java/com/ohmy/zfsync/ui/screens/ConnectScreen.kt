@@ -36,6 +36,7 @@ fun ConnectScreen(
     onConnect: (ssid: String, password: String) -> Unit,
     onPhotoClick: (index: Int) -> Unit,
     onDeletePhotos: (List<Uri>) -> Unit,
+    onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val connectionState = state.connectionState
@@ -98,6 +99,7 @@ fun ConnectScreen(
             showSessionSections = false,
             onPhotoClick = onPhotoClick,
             onDeletePhotos = onDeletePhotos,
+            onOpenMenu = onOpenMenu,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )
     }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,7 +45,7 @@ import com.ohmy.zfsync.ui.theme.pop
 
 /**
  * Floating pill of photo actions, shared by the viewer (over a black backdrop) and the list's
- * select mode (over the themed surface) -- hence the color parameters. [label] and [onCancel]
+ * select mode (over the themed surface) -- hence the color parameters. [label], [onCancel] and [onMenu]
  * are optional extras the viewer doesn't need.
  *
  * Toggling [visible] animates the pill itself: showing pops the capsule in while its items
@@ -62,6 +63,7 @@ fun ActionPill(
     pulseKey: Any? = null,
     label: String? = null,
     onCancel: (() -> Unit)? = null,
+    onMenu: (() -> Unit)? = null,
     containerColor: Color = MaterialTheme.colorScheme.secondaryContainer,
     contentColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
@@ -83,6 +85,13 @@ fun ActionPill(
             add {
                 IconButton(onClick = onCancel) {
                     Icon(Icons.Default.Close, contentDescription = stringResource(R.string.select_cancel))
+                }
+            }
+        }
+        if (onMenu != null) {
+            add {
+                IconButton(onClick = onMenu) {
+                    Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.select_menu))
                 }
             }
         }

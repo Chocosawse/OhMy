@@ -1,6 +1,6 @@
 [versions]
-agp = "8.7.3"
-kotlin = "2.0.21"
+agp = "9.4.1"
+kotlin = "2.4.20"
 coreKtx = "1.13.1"
 lifecycleRuntimeKtx = "2.8.6"
 activityCompose = "1.9.2"
@@ -8,6 +8,7 @@ composeBom = "2024.10.00"
 lifecycleViewmodelCompose = "2.8.6"
 coroutines = "1.9.0"
 coil = "2.7.0"
+csDesign = "0.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -24,6 +25,7 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 androidx-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+chocosawse-design = { group = "com.chocosawse", name = "design", version.ref = "csDesign" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

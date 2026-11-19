@@ -36,6 +36,7 @@ fun SyncScreen(
     onDisconnect: () -> Unit,
     onPhotoClick: (index: Int) -> Unit,
     onDeletePhotos: (List<Uri>) -> Unit,
+    onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
@@ -96,6 +97,7 @@ fun SyncScreen(
             inFlightCount = (downloadStatus as? DownloadStatus.Downloading)?.count ?: 0,
             onPhotoClick = onPhotoClick,
             onDeletePhotos = onDeletePhotos,
+            onOpenMenu = onOpenMenu,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )
     }

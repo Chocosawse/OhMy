@@ -38,6 +38,11 @@
     <string name="viewer_delete_cancel">Cancel</string>
 
     <string name="select_cancel">Cancel selection</string>
+    <string name="select_menu">Menu</string>
+
+    <string name="theme_title">Theme</string>
+    <string name="theme_system">System (Material You)</string>
+    <string name="theme_close">Close</string>
 
     <plurals name="select_count">
         <item quantity="one">%1$d selected</item>

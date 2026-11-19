@@ -76,6 +76,7 @@ fun PhotoList(
     showSessionSections: Boolean,
     onPhotoClick: (index: Int) -> Unit,
     onDeletePhotos: (List<Uri>) -> Unit,
+    onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
     inFlightCount: Int = 0,
 ) {
@@ -170,6 +171,7 @@ fun PhotoList(
             onShare = { sharePhotos(context, ordered.filter { it.uri in selected }) },
             onDelete = { confirmDelete = true },
             onCancel = { selected = emptySet() },
+            onMenu = onOpenMenu,
         )
     }
 

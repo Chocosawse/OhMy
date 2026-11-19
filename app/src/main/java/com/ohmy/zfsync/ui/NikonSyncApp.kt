@@ -1,5 +1,10 @@
 package com.ohmy.zfsync.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -17,12 +22,17 @@ import com.ohmy.zfsync.model.photosNewestFirst
 import com.ohmy.zfsync.ui.screens.ConnectScreen
 import com.ohmy.zfsync.ui.screens.PhotoViewerScreen
 import com.ohmy.zfsync.ui.screens.SyncScreen
+import com.ohmy.zfsync.ui.screens.ThemePickerScreen
+import com.ohmy.zfsync.ui.theme.overshootExitSpec
+import com.ohmy.zfsync.ui.theme.overshootSpec
 
 @Composable
 fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val downloadStatus by viewModel.downloadStatus.collectAsState()
+    val themeChoice by viewModel.themeChoice.collectAsState()
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
+    var showThemePicker by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -52,6 +62,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onDisconnect = viewModel::disconnect,
                     onPhotoClick = { index -> viewerIndex = index },
                     onDeletePhotos = viewModel::deletePhotos,
+                    onOpenMenu = { showThemePicker = true },
                     modifier = Modifier.safeDrawingPadding(),
                 )
                 else -> ConnectScreen(
@@ -60,7 +71,22 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onConnect = viewModel::connect,
                     onPhotoClick = { index -> viewerIndex = index },
                     onDeletePhotos = viewModel::deletePhotos,
+                    onOpenMenu = { showThemePicker = true },
                     modifier = Modifier.safeDrawingPadding(),
+                )
+            }
+
+            // Drawn over the screen that opened it rather than replacing it, so that screen (and its
+            // photo selection) is still there underneath when the picker closes.
+            AnimatedVisibility(
+                visible = showThemePicker,
+                enter = scaleIn(overshootSpec(), initialScale = 0.92f) + fadeIn(overshootSpec()),
+                exit = scaleOut(overshootExitSpec(), targetScale = 0.92f) + fadeOut(overshootExitSpec()),
+            ) {
+                ThemePickerScreen(
+                    current = themeChoice,
+                    onSelect = viewModel::setTheme,
+                    onClose = { showThemePicker = false },
                 )
             }
         }
