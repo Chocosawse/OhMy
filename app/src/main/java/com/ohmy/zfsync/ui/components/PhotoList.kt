@@ -2,8 +2,10 @@ package com.ohmy.zfsync.ui.components
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +58,7 @@ import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.core.model.photosNewestFirst
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import com.ohmy.zfsync.ui.theme.onSurfaceTertiary
+import com.ohmy.zfsync.ui.theme.pressExpand
 import java.text.DateFormat
 import java.util.Date
 
@@ -63,6 +66,12 @@ private val SelectionSaver = listSaver<Set<Uri>, Uri>(save = { it.toList() }, re
 
 /** Leaves room at the bottom of the list so the floating pill never covers the last row. */
 private val PillClearance = 88.dp
+
+/**
+ * Rows span the screen, so they expand far less than small controls (PRESS_EXPAND_SCALE): at
+ * phone width 3% is about as many pixels as a pill button's 15%, without spilling off screen.
+ */
+private const val ROW_PRESS_EXPAND_SCALE = 1.03f
 
 /** Inset of each row's content from the list's edges, so thumbnails don't touch the screen edge. */
 private val ListItemHorizontalPadding = 16.dp
@@ -259,12 +268,15 @@ private fun PhotoRow(
     onClick: () -> Unit,
     onLongPress: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
+            // Outermost, so the highlight grows with the content.
+            .pressExpand(interactionSource, pressedScale = ROW_PRESS_EXPAND_SCALE)
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
             // The list's dragToSelect handles the actual long-press gesture (a row-level one
             // would fire too and double-toggle); this exposes the same action to accessibility.
             .semantics { onLongClick { onLongPress(); true } }
