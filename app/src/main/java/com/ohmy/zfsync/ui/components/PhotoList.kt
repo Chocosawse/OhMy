@@ -152,6 +152,8 @@ fun PhotoList(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                // Rows fade out at the list's edges rather than being cut off.
+                .verticalFadingEdges(listState)
                 .dragToSelect(
                     listState = listState,
                     selectableKeys = { latestOrdered.map { it.uri } },
