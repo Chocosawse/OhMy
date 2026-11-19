@@ -114,7 +114,7 @@ private fun previewColors(choice: ThemeChoice): List<Color> {
 private val SwatchHeight = 72.dp
 
 /** Widths of the accent, supporting and primary swatches: primary, on the right, is the full square. */
-private val SwatchWidths = listOf(18.dp, 36.dp, 72.dp)
+private val SwatchWidths = listOf(18.dp, 56.dp, 72.dp)
 
 /** The colors as blocks side by side, with no gaps between them. */
 @Composable
