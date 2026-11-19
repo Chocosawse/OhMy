@@ -148,9 +148,11 @@ fun PhotoViewerScreen(
         zoomStates.forEach { (uri, zoom) -> if (uri != current) zoom.reset() }
     }
     val currentZoomedOut = zoomStateFor(photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]).scale <= 1f
-    // Zoomed in, the photo gets the whole screen: the status bar hides along with the carousel,
-    // pill and close button.
-    StatusBarHidden(hidden = !currentZoomedOut)
+    // Whether the controls (status bar, close button, carousel, pill) show. Zooming in hides them
+    // and returning to 1x brings them back; a single tap toggles them at any zoom.
+    var controlsVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(currentZoomedOut) { controlsVisible = currentZoomedOut }
+    StatusBarHidden(hidden = !controlsVisible)
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(
@@ -158,14 +160,14 @@ fun PhotoViewerScreen(
             modifier = Modifier.fillMaxSize(),
             key = { photos[it].uri },
         ) { page ->
-            ZoomableImage(photos[page], zoomStateFor(photos[page]))
+            ZoomableImage(photos[page], zoomStateFor(photos[page]), onTap = { controlsVisible = !controlsVisible })
         }
 
-        // Hidden with the other controls while zoomed in.
-        val closePop = animatePop(currentZoomedOut)
+        // Shown and hidden with the other controls.
+        val closePop = animatePop(controlsVisible)
         IconButton(
             onClick = onClose,
-            enabled = currentZoomedOut,
+            enabled = controlsVisible,
             // The photo itself runs edge to edge behind the system bars; controls stay clear of them.
             // Padded for where the status bar is even while it's hidden, so the button doesn't
             // jump up and down as zooming hides and shows the bar.
@@ -186,15 +188,15 @@ fun PhotoViewerScreen(
                 photos = photos,
                 inFlightCount = inFlightCount,
                 currentIndex = pagerState.currentPage,
-                visible = currentZoomedOut,
+                visible = controlsVisible,
                 onThumbnailClick = { index -> coroutineScope.launch { pagerState.animateScrollToPage(index) } },
                 // Instant, not animated: scrubbing changes photo many times a second.
                 onScrubTo = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
             )
             Spacer(modifier = Modifier.height(16.dp))
             ActionPill(
-                // Hidden with the carousel and status bar while zoomed in.
-                visible = currentZoomedOut,
+                // Shown and hidden with the other controls.
+                visible = controlsVisible,
                 onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
                 onDelete = { pendingDelete = photos[pagerState.currentPage] },
                 containerColor = Color.White.copy(alpha = 0.2f),
@@ -490,7 +492,9 @@ private class ZoomState {
 private const val DOUBLE_TAP_ZOOM = 2f
 
 @Composable
-private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState) {
+private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit) {
+    // The tap detector below is set up once per photo, so it reads the latest callback through this.
+    val latestOnTap by rememberUpdatedState(onTap)
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -513,7 +517,7 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState) {
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(photo.uri) {
-                detectTapGestures(onDoubleTap = { tap ->
+                detectTapGestures(onTap = { latestOnTap() }, onDoubleTap = { tap ->
                     // Toggle between 1x and 200%. Zooming in keeps the tapped spot under the
                     // finger: with the default center transform origin, a point p lands at
                     // center + (p - center) * scale + offset, so offset = (center - p) * (scale - 1).
