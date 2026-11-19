@@ -221,7 +221,6 @@ private fun PlaceholderRow() {
         Box(
             modifier = Modifier
                 .size(56.dp)
-                .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
@@ -277,9 +276,7 @@ private fun PhotoRow(
                 model = photo.uri,
                 contentDescription = photo.filename,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(8.dp)),
+                modifier = Modifier.size(56.dp),
             )
             if (isSelected) {
                 Icon(
