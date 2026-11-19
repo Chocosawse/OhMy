@@ -2,7 +2,6 @@ package com.ohmy.zfsync.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -32,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
+import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import com.ohmy.zfsync.ui.theme.ThemeChoice
 import com.ohmy.zfsync.ui.theme.paletteName
 import com.ohmy.zfsync.ui.theme.systemColorScheme
@@ -75,7 +74,8 @@ private fun ThemeRow(choice: ThemeChoice, selected: Boolean, onClick: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 12.dp),
+            // No start padding: the swatches sit flush against the screen's left edge.
+            .padding(end = ScreenHorizontalPadding, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -98,23 +98,21 @@ private fun ThemeRow(choice: ThemeChoice, selected: Boolean, onClick: () -> Unit
 private fun previewColors(choice: ThemeChoice): List<Color> {
     val dark = isSystemInDarkTheme()
     return when (choice) {
-        ThemeChoice.System -> systemColorScheme(dark).let { listOf(it.primary, it.primaryContainer, it.tertiary) }
+        ThemeChoice.System -> systemColorScheme(dark).let { listOf(it.tertiary, it.primaryContainer, it.primary) }
         is ThemeChoice.Palette -> choice.palette.let {
-            if (dark) listOf(it.primaryNight, it.color900, it.complement) else listOf(it.primary, it.color100, it.complement)
+            if (dark) listOf(it.complement, it.color900, it.primaryNight) else listOf(it.complement, it.color100, it.primary)
         }
     }
 }
 
+private val SwatchSize = 72.dp
+
+/** The colors as squares side by side, with no gaps between them. */
 @Composable
 private fun Swatches(colors: List<Color>) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row {
         colors.forEach { color ->
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .background(color, CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
-            )
+            Box(modifier = Modifier.size(SwatchSize).background(color))
         }
     }
 }
