@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import com.ohmy.zfsync.ui.CameraViewModel
 import com.ohmy.zfsync.ui.NikonSyncApp
@@ -34,7 +36,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            OhMyTheme {
+            val themeChoice by viewModel.themeChoice.collectAsState()
+            OhMyTheme(choice = themeChoice) {
                 NikonSyncApp(viewModel = viewModel)
             }
         }
