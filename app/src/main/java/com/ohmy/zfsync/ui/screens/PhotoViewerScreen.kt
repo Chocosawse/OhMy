@@ -184,6 +184,15 @@ fun PhotoViewerScreen(
             modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            ActionPill(
+                // Shown and hidden with the other controls.
+                visible = controlsVisible,
+                onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
+                onDelete = { pendingDelete = photos[pagerState.currentPage] },
+                containerColor = Color.White.copy(alpha = 0.2f),
+                contentColor = Color.White,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             CarouselIndicator(
                 photos = photos,
                 inFlightCount = inFlightCount,
@@ -192,15 +201,6 @@ fun PhotoViewerScreen(
                 onThumbnailClick = { index -> coroutineScope.launch { pagerState.animateScrollToPage(index) } },
                 // Instant, not animated: scrubbing changes photo many times a second.
                 onScrubTo = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            ActionPill(
-                // Shown and hidden with the other controls.
-                visible = controlsVisible,
-                onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
-                onDelete = { pendingDelete = photos[pagerState.currentPage] },
-                containerColor = Color.White.copy(alpha = 0.2f),
-                contentColor = Color.White,
             )
         }
     }
