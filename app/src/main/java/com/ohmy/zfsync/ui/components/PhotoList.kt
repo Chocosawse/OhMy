@@ -67,11 +67,8 @@ private val SelectionSaver = listSaver<Set<Uri>, Uri>(save = { it.toList() }, re
 /** Leaves room at the bottom of the list so the floating pill never covers the last row. */
 private val PillClearance = 88.dp
 
-/**
- * Rows span the screen, so they expand far less than small controls (PRESS_EXPAND_SCALE): at
- * phone width 3% is about as many pixels as a pill button's 15%, without spilling off screen.
- */
-private const val ROW_PRESS_EXPAND_SCALE = 1.03f
+/** Rows span the screen, so they expand far less than small controls (PRESS_EXPAND_SCALE). */
+private const val ROW_PRESS_EXPAND_SCALE = 1.01f
 
 /** Inset of each row's content from the list's edges, so thumbnails don't touch the screen edge. */
 private val ListItemHorizontalPadding = 16.dp
