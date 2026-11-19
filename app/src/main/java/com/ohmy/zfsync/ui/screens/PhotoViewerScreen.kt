@@ -1,5 +1,8 @@
 package com.ohmy.zfsync.ui.screens
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
@@ -41,6 +44,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -66,11 +70,13 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
@@ -126,6 +132,7 @@ fun PhotoViewerScreen(
     // system back gesture has nothing of ours to intercept and falls through to the Activity,
     // closing the whole app instead of returning to the sync screen.
     BackHandler(onBack = onClose)
+    LightSystemBarIcons()
 
     // A photo swiped away from resets to 1x, so coming back to it starts fully zoomed out.
     LaunchedEffect(pagerState.settledPage) {
@@ -191,6 +198,35 @@ fun PhotoViewerScreen(
             },
         )
     }
+}
+
+/**
+ * Switches the status and navigation bar icons to light (white) while this is in composition, and
+ * restores them after: the viewer is black whatever the app's light/dark mode, and the bars are
+ * transparent, so dark icons would vanish against it.
+ */
+@Composable
+private fun LightSystemBarIcons() {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    DisposableEffect(view) {
+        val window = view.context.findActivity()?.window ?: return@DisposableEffect onDispose {}
+        val controller = WindowCompat.getInsetsController(window, view)
+        val wereLightStatusBars = controller.isAppearanceLightStatusBars
+        val wereLightNavigationBars = controller.isAppearanceLightNavigationBars
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
+        onDispose {
+            controller.isAppearanceLightStatusBars = wereLightStatusBars
+            controller.isAppearanceLightNavigationBars = wereLightNavigationBars
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /**
