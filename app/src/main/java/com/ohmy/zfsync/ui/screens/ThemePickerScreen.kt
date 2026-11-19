@@ -93,16 +93,21 @@ private fun ThemeRow(choice: ThemeChoice, selected: Boolean, onClick: () -> Unit
     }
 }
 
-/** A few representative colors for the current light/dark mode, so themes can be told apart at a glance. */
+/**
+ * Representative colors for the current light/dark mode, so themes can be told apart at a glance:
+ * accent, then a supporting shade, then primary. The primary color is always last, i.e. the
+ * rightmost square.
+ */
 @Composable
 private fun previewColors(choice: ThemeChoice): List<Color> {
     val dark = isSystemInDarkTheme()
-    return when (choice) {
-        ThemeChoice.System -> systemColorScheme(dark).let { listOf(it.tertiary, it.primaryContainer, it.primary) }
+    val (accent, supporting, primary) = when (choice) {
+        ThemeChoice.System -> systemColorScheme(dark).let { Triple(it.tertiary, it.primaryContainer, it.primary) }
         is ThemeChoice.Palette -> choice.palette.let {
-            if (dark) listOf(it.complement, it.color900, it.primaryNight) else listOf(it.complement, it.color100, it.primary)
+            if (dark) Triple(it.complement, it.color900, it.primaryNight) else Triple(it.complement, it.color100, it.primary)
         }
     }
+    return listOf(accent, supporting, primary)
 }
 
 private val SwatchSize = 72.dp
