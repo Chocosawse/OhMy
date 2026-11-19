@@ -46,7 +46,7 @@ fun ConnectScreen(
     val isConnecting = connectionState is ConnectionState.Connecting
     val isReconnect = savedCredentials != null && ssid == savedCredentials.ssid && password == savedCredentials.password
 
-    Column(modifier = modifier.fillMaxSize().padding(vertical = 24.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(top = 24.dp)) {
         // Only the form gets the side margin; the list spans the width and insets its own rows.
         Column(
             modifier = Modifier.padding(horizontal = ScreenHorizontalPadding),

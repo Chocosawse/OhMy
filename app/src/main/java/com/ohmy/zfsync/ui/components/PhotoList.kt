@@ -11,10 +11,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -64,8 +70,11 @@ import java.util.Date
 
 private val SelectionSaver = listSaver<Set<Uri>, Uri>(save = { it.toList() }, restore = { it.toSet() })
 
+/** Gap between the floating pill and the bottom inset (navigation bar or keyboard). */
+private val PillBottomMargin = 24.dp
+
 /** Leaves room at the bottom of the list so the floating pill never covers the last row. */
-private val PillClearance = 88.dp
+private val PillClearance = 88.dp + PillBottomMargin
 
 /** Rows span the screen, so they expand far less than small controls (PRESS_EXPAND_SCALE). */
 private const val ROW_PRESS_EXPAND_SCALE = 1.01f
@@ -115,6 +124,7 @@ fun PhotoList(
     }
 
     val listState = rememberLazyListState()
+    val bottomInset = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
     // The drag gesture outlives recompositions, so it reads the latest list through this.
     val latestOrdered by rememberUpdatedState(ordered)
 
@@ -149,7 +159,9 @@ fun PhotoList(
                     onSelectionChange = { selected = it },
                     haptics = haptics,
                 ),
-            contentPadding = PaddingValues(bottom = if (selectMode) PillClearance else 0.dp),
+            // The list runs behind the navigation bar (and keyboard), so its content is padded
+            // for them: the last row can scroll clear of both, plus the pill when it's showing.
+            contentPadding = PaddingValues(bottom = bottomInset + if (selectMode) PillClearance else 0.dp),
         ) {
             if (showSessionSections) {
                 val sessionCount = ordered.count { it.uri in state.sessionPhotoUris }
@@ -178,7 +190,10 @@ fun PhotoList(
         ActionPill(
             visible = selectMode,
             pulseKey = selected.size,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                .padding(bottom = PillBottomMargin),
             label = pluralStringResource(R.plurals.select_count, pillCount, pillCount),
             onShare = { sharePhotos(context, ordered.filter { it.uri in selected }) },
             onDelete = { confirmDelete = true },
