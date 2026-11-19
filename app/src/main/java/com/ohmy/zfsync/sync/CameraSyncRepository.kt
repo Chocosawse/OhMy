@@ -280,13 +280,15 @@ class CameraSyncRepository(context: Context) {
                     photoSaver.deleteIncomplete(uri)
                     throw t
                 }
+                // Manual syncs run from the main thread; reading EXIF is file I/O.
+                val exposure = withContext(Dispatchers.IO) { photoSaver.readExposure(uri) }
 
                 photosMutex.withLock {
                     _state.update {
                         val photos = if (it.photos.any { photo -> photo.uri == uri }) {
                             it.photos
                         } else {
-                            it.photos + SyncedPhoto(filename, System.currentTimeMillis(), uri)
+                            it.photos + SyncedPhoto(filename, System.currentTimeMillis(), uri, exposure)
                         }
                         it.copy(photos = photos, sessionPhotoUris = it.sessionPhotoUris + uri)
                     }

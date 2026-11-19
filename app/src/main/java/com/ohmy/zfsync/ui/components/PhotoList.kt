@@ -47,12 +47,15 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.core.model.photosNewestFirst
+import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
+import com.ohmy.zfsync.ui.theme.onSurfaceTertiary
 import java.text.DateFormat
 import java.util.Date
 
@@ -60,6 +63,9 @@ private val SelectionSaver = listSaver<Set<Uri>, Uri>(save = { it.toList() }, re
 
 /** Leaves room at the bottom of the list so the floating pill never covers the last row. */
 private val PillClearance = 88.dp
+
+/** Inset of each row's content from the list's edges, so thumbnails don't touch the screen edge. */
+private val ListItemHorizontalPadding = 16.dp
 
 /**
  * The album as a selectable list: tap opens a photo, long-press (and drag) selects, and a
@@ -201,7 +207,8 @@ private fun EmptyText(text: String) {
         text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = 8.dp),
+        // Lines up with the screen's own text, which the list (spanning the full width) doesn't inherit.
+        modifier = Modifier.padding(horizontal = ScreenHorizontalPadding, vertical = 8.dp),
     )
 }
 
@@ -209,14 +216,13 @@ private fun EmptyText(text: String) {
 @Composable
 private fun PlaceholderRow() {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = ListItemHorizontalPadding, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
             modifier = Modifier
                 .size(56.dp)
-                .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
@@ -239,7 +245,10 @@ private fun SectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ScreenHorizontalPadding)
+            .padding(top = 16.dp, bottom = 4.dp),
     )
 }
 
@@ -259,7 +268,8 @@ private fun PhotoRow(
             // The list's dragToSelect handles the actual long-press gesture (a row-level one
             // would fire too and double-toggle); this exposes the same action to accessibility.
             .semantics { onLongClick { onLongPress(); true } }
-            .padding(vertical = 8.dp),
+            // Inside the background and click area, so the selection highlight still spans the row.
+            .padding(horizontal = ListItemHorizontalPadding, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -268,9 +278,7 @@ private fun PhotoRow(
                 model = photo.uri,
                 contentDescription = photo.filename,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(8.dp)),
+                modifier = Modifier.size(56.dp),
             )
             if (isSelected) {
                 Icon(
@@ -292,6 +300,15 @@ private fun PhotoRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            photo.exposure?.toDisplayString()?.let { exposure ->
+                Text(
+                    exposure,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
