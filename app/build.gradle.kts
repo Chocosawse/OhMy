@@ -54,10 +54,12 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.core)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.chocosawse.design)
     implementation(project(":core:model"))
     debugImplementation(libs.androidx.ui.tooling)
     // Fake data for previews (the debug source set) and tests; never part of a production release.
     debugImplementation(project(":core:testing"))
     testImplementation(project(":core:testing"))
+    testImplementation(libs.junit)
 }

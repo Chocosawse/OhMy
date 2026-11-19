@@ -13,6 +13,8 @@ data class SyncedPhoto(
     val filename: String,
     val savedAtMillis: Long,
     val uri: Uri,
+    /** Null when the photo has no readable exposure EXIF. */
+    val exposure: ExposureInfo? = null,
 )
 
 data class SyncUiState(

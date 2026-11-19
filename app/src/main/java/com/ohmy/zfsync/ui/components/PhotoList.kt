@@ -47,6 +47,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
@@ -54,6 +55,7 @@ import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.core.model.photosNewestFirst
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
+import com.ohmy.zfsync.ui.theme.onSurfaceTertiary
 import java.text.DateFormat
 import java.util.Date
 
@@ -298,6 +300,15 @@ private fun PhotoRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            photo.exposure?.toDisplayString()?.let { exposure ->
+                Text(
+                    exposure,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

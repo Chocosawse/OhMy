@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.chocosawse.design.AppTheme
 import com.chocosawse.design.ColorPalette
@@ -31,6 +32,12 @@ sealed interface ThemeChoice {
 }
 
 val ThemeChoice.paletteName: String? get() = (this as? ThemeChoice.Palette)?.palette?.name
+
+/**
+ * A third, quieter text level below [ColorScheme.onSurfaceVariant] (secondary text), for
+ * supporting detail. Material 3 has no such role, so it's derived and follows every theme.
+ */
+val ColorScheme.onSurfaceTertiary: Color get() = onSurfaceVariant.copy(alpha = 0.7f)
 
 @Composable
 fun systemColorScheme(darkTheme: Boolean): ColorScheme {

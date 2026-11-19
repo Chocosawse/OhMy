@@ -6,6 +6,8 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.exifinterface.media.ExifInterface
+import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import java.io.IOException
 import java.io.OutputStream
@@ -39,15 +41,35 @@ class PhotoSaver(private val context: Context) {
             val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
             val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
             while (cursor.moveToNext()) {
+                val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cursor.getLong(idCol))
                 photos += SyncedPhoto(
                     filename = cursor.getString(nameCol),
                     savedAtMillis = cursor.getLong(dateCol) * 1000,
-                    uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cursor.getLong(idCol)),
+                    uri = uri,
+                    exposure = readExposure(uri),
                 )
             }
         }
         return photos
     }
+
+    /**
+     * [uri]'s exposure settings from its EXIF, or null if it has none or can't be read. Zero
+     * values count as missing: that's what manual (non-CPU) lenses record for focal length and
+     * aperture.
+     */
+    fun readExposure(uri: Uri): ExposureInfo? = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            val exif = ExifInterface(stream)
+            fun positive(tag: String) = exif.getAttributeDouble(tag, 0.0).takeIf { it > 0.0 }
+            ExposureInfo(
+                focalLengthMm = positive(ExifInterface.TAG_FOCAL_LENGTH),
+                aperture = positive(ExifInterface.TAG_F_NUMBER),
+                exposureTimeSeconds = positive(ExifInterface.TAG_EXPOSURE_TIME),
+                lensName = exif.getAttribute(ExifInterface.TAG_LENS_MODEL)?.trim()?.takeIf { it.isNotEmpty() },
+            ).takeIf { it != ExposureInfo() }
+        }
+    }.getOrNull()
 
     fun createPendingImageUri(filename: String): Uri {
         val values = ContentValues().apply {

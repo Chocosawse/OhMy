@@ -3,6 +3,7 @@ package com.ohmy.zfsync.core.testing
 import android.net.Uri
 import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.DownloadStatus
+import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
@@ -25,14 +26,32 @@ object FakeData {
     /** A fixed instant: 2026-11-16 21:30 UTC. */
     private const val BASE_TIME_MILLIS = 1_794_864_600_000L
 
+    /** One per photo in [photos], covering full EXIF, a manual lens (name only) and no EXIF at all. */
+    private val exposures: List<ExposureInfo?> = listOf(
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 1.0 / 250),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 125),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 4.0, exposureTimeSeconds = 1.0 / 60),
+        // Manual (non-CPU) lens: no focal length or aperture recorded, just the name set in-camera.
+        ExposureInfo(exposureTimeSeconds = 1.0 / 500, lensName = "Voigtländer Nokton 40mm F1.2"),
+        ExposureInfo(focalLengthMm = 24.0, aperture = 5.6, exposureTimeSeconds = 1.0 / 1000),
+        ExposureInfo(focalLengthMm = 85.0, aperture = 1.8, exposureTimeSeconds = 1.0 / 2000),
+        ExposureInfo(focalLengthMm = 50.0, aperture = 8.0, exposureTimeSeconds = 0.5),
+        null,
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 2.0),
+        ExposureInfo(focalLengthMm = 105.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 320),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 250),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 1.0 / 8),
+    )
+
     /** The whole album, oldest first (the order [SyncUiState.photos] uses). */
-    val photos: List<SyncedPhoto> = List(12) { i ->
+    val photos: List<SyncedPhoto> = exposures.mapIndexed { i, exposure ->
         val number = 3730 + i
         SyncedPhoto(
             filename = "DSC_$number.JPG",
             // Roughly a shot every 1.5 minutes, as in a real outing.
             savedAtMillis = BASE_TIME_MILLIS + i * 90_000L,
             uri = Uri.parse("content://media/external/images/media/${10_000 + number}"),
+            exposure = exposure,
         )
     }
 
