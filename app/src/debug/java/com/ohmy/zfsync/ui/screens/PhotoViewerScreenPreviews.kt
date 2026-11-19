@@ -2,6 +2,8 @@ package com.ohmy.zfsync.ui.screens
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.ohmy.zfsync.core.model.DownloadStatus
+import com.ohmy.zfsync.core.model.photosNewestFirst
 import com.ohmy.zfsync.core.testing.FakeData
 import com.ohmy.zfsync.ui.theme.OhMyTheme
 
@@ -12,10 +14,25 @@ import com.ohmy.zfsync.ui.theme.OhMyTheme
 private fun PhotoViewerScreenPreview() {
     OhMyTheme {
         PhotoViewerScreen(
-            initialPhotos = FakeData.photos.asReversed(),
+            photos = FakeData.photos.asReversed(),
             initialIndex = 2,
             onDelete = {},
             onClose = {},
+        )
+    }
+}
+
+/** Two downloads in flight: placeholders at the front of the carousel. */
+@Preview
+@Composable
+private fun PhotoViewerScreenDownloadingPreview() {
+    OhMyTheme {
+        PhotoViewerScreen(
+            photos = FakeData.States.connected.photosNewestFirst(),
+            initialIndex = 0,
+            onDelete = {},
+            onClose = {},
+            inFlightCount = (FakeData.downloadingTwo as DownloadStatus.Downloading).count,
         )
     }
 }

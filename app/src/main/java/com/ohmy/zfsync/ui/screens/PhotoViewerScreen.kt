@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -34,6 +35,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -46,9 +48,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +67,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -89,20 +92,22 @@ import kotlinx.coroutines.launch
  * Full-screen, swipeable viewer over the photos this app has downloaded -- built in-app rather
  * than delegated to whatever gallery app the device has, since that turned out to vary wildly in
  * practice (neither ACTION_VIEW nor ACTION_REVIEW produced a cross-photo carousel on two real
- * gallery apps tested). [initialPhotos] is a snapshot taken when the viewer opens, kept as local
- * state from then on: a new auto-synced photo arriving mid-view won't shift pages out from under
- * the pager, but a delete performed here updates immediately.
+ * gallery apps tested). It follows the live album: photos synced while it's open appear at the
+ * front, where the newest go, without moving the photo being viewed (pages are keyed by photo),
+ * and the carousel shows a placeholder for each of the [inFlightCount] downloads still running.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PhotoViewerScreen(
-    initialPhotos: List<SyncedPhoto>,
+    photos: List<SyncedPhoto>,
     initialIndex: Int,
     onDelete: (SyncedPhoto) -> Unit,
     onClose: () -> Unit,
+    inFlightCount: Int = 0,
 ) {
-    val photos = remember { initialPhotos.toMutableStateList() }
-    val pagerState = rememberPagerState(initialPage = initialIndex) { photos.size }
+    // The pager and effects outlive recompositions, so they read the live list through this.
+    val latestPhotos by rememberUpdatedState(photos)
+    val pagerState = rememberPagerState(initialPage = initialIndex) { latestPhotos.size }
     var pendingDelete by remember { mutableStateOf<SyncedPhoto?>(null) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -124,7 +129,7 @@ fun PhotoViewerScreen(
 
     // A photo swiped away from resets to 1x, so coming back to it starts fully zoomed out.
     LaunchedEffect(pagerState.settledPage) {
-        val current = photos.getOrNull(pagerState.settledPage)?.uri
+        val current = latestPhotos.getOrNull(pagerState.settledPage)?.uri
         zoomStates.forEach { (uri, zoom) -> if (uri != current) zoom.reset() }
     }
     val currentZoomedOut = zoomStateFor(photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]).scale <= 1f
@@ -152,6 +157,7 @@ fun PhotoViewerScreen(
         ) {
             CarouselIndicator(
                 photos = photos,
+                inFlightCount = inFlightCount,
                 currentIndex = pagerState.currentPage,
                 visible = currentZoomedOut,
                 onThumbnailClick = { index -> coroutineScope.launch { pagerState.animateScrollToPage(index) } },
@@ -175,7 +181,7 @@ fun PhotoViewerScreen(
             text = { Text(stringResource(R.string.viewer_delete_dialog_text)) },
             confirmButton = {
                 TextButton(onClick = {
-                    photos.remove(photo)
+                    // The live album drops it, and the pager moves to a neighbouring photo.
                     onDelete(photo)
                     pendingDelete = null
                 }) { Text(stringResource(R.string.viewer_delete_confirm)) }
@@ -188,13 +194,18 @@ fun PhotoViewerScreen(
 }
 
 /**
- * Thumbnail strip. Toggling [visible] pops the on-screen thumbnails in from both ends toward the
- * middle, or out from the middle toward both ends. It keeps its space while hidden, so the pill
- * below doesn't jump, but stops taking touches.
+ * Thumbnail strip: a placeholder per in-flight download at the front (where new photos land),
+ * then a thumbnail per photo, in page order. Toggling [visible] pops the on-screen items in from
+ * both ends toward the middle, or out from the middle toward both ends. It keeps its space while
+ * hidden, so the pill below doesn't jump, but stops taking touches.
+ *
+ * Placeholders shift the strip's item positions relative to page numbers, so photos are found by
+ * key (their URI) rather than by position.
  */
 @Composable
 private fun CarouselIndicator(
     photos: List<SyncedPhoto>,
+    inFlightCount: Int,
     currentIndex: Int,
     visible: Boolean,
     onThumbnailClick: (Int) -> Unit,
@@ -203,17 +214,19 @@ private fun CarouselIndicator(
     val listState = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
     var scrubbing by remember { mutableStateOf(false) }
+    val latestPhotos by rememberUpdatedState(photos)
 
-    LaunchedEffect(currentIndex, scrubbing) {
+    LaunchedEffect(currentIndex, inFlightCount, scrubbing) {
         // Mid-scrub the strip must stay put under the finger; it recentres once the finger lifts.
         if (scrubbing) return@LaunchedEffect
+        val currentKey = latestPhotos.getOrNull(currentIndex)?.uri ?: return@LaunchedEffect
         // Glide the current thumbnail to the centre; if it's off screen, jump near it first.
-        if (listState.layoutInfo.visibleItemsInfo.none { it.index == currentIndex }) {
-            listState.scrollToItem(currentIndex)
+        if (listState.layoutInfo.visibleItemsInfo.none { it.key == currentKey }) {
+            listState.scrollToItem(inFlightCount + currentIndex)
             withFrameNanos { }
         }
         val info = listState.layoutInfo
-        val item = info.visibleItemsInfo.firstOrNull { it.index == currentIndex } ?: return@LaunchedEffect
+        val item = info.visibleItemsInfo.firstOrNull { it.key == currentKey } ?: return@LaunchedEffect
         val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
         listState.animateScrollBy((item.offset + item.size / 2 - viewportCenter).toFloat(), overshootSpec())
     }
@@ -237,6 +250,7 @@ private fun CarouselIndicator(
                 enabled = visible,
                 haptics = haptics,
                 onScrubbingChange = { scrubbing = it },
+                pageForKey = { key -> latestPhotos.indexOfFirst { it.uri == key }.takeIf { it >= 0 } },
                 onScrubTo = onScrubTo,
             ),
         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -245,10 +259,16 @@ private fun CarouselIndicator(
         // Dragging scrubs (carouselScrub) rather than scrolling; the strip scrolls itself at the edges.
         userScrollEnabled = false,
     ) {
+        // Cascade delays go by position in the strip, placeholders included.
+        items(inFlightCount, key = { "placeholder-$it" }) { index ->
+            val placeholderPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
+            PlaceholderThumbnail(Modifier.pop { placeholderPop.value })
+        }
         itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
             val selected = index == currentIndex
             val size by animateDpAsState(if (selected) SelectedThumbnailSize else ThumbnailSize, overshootSpec(), label = "thumbSize")
-            val thumbPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
+            val position = inFlightCount + index
+            val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
             AsyncImage(
                 model = photo.uri,
                 contentDescription = photo.filename,
@@ -270,6 +290,21 @@ private fun CarouselIndicator(
     }
 }
 
+/** Stands in for a photo still downloading, until its thumbnail replaces it. */
+@Composable
+private fun PlaceholderThumbnail(modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.sync_placeholder_title)
+    Box(
+        modifier = modifier
+            .size(ThumbnailSize)
+            .background(Color.White.copy(alpha = 0.15f))
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+    }
+}
+
 /**
  * Scrubbing: touching the strip jumps to the thumbnail under the finger, and dragging keeps
  * following it, with a haptic tick per photo. While the finger is near either end the strip
@@ -280,6 +315,8 @@ private fun Modifier.carouselScrub(
     enabled: Boolean,
     haptics: HapticFeedback,
     onScrubbingChange: (Boolean) -> Unit,
+    /** The page for a strip item's key, or null for non-photo items (download placeholders). */
+    pageForKey: (Any) -> Int?,
     onScrubTo: (Int) -> Unit,
 ): Modifier = pointerInput(listState, enabled) {
     if (!enabled) return@pointerInput
@@ -295,17 +332,20 @@ private fun Modifier.carouselScrub(
             var pointerX = down.position.x
             var current: Int? = null
 
-            // The thumbnail whose centre is nearest the finger, so the gaps between thumbnails and
-            // the strip's end padding still pick one.
-            fun nearestIndex(x: Float): Int? {
+            // The photo whose thumbnail centre is nearest the finger, so the gaps between thumbnails,
+            // the strip's end padding and download placeholders still pick a photo.
+            fun nearestPage(x: Float): Int? {
                 val info = listState.layoutInfo
                 // Item offsets start after the leading content padding; viewportStartOffset is minus that.
                 val contentX = x + info.viewportStartOffset
-                return info.visibleItemsInfo.minByOrNull { abs(it.offset + it.size / 2f - contentX) }?.index
+                return info.visibleItemsInfo
+                    .mapNotNull { item -> pageForKey(item.key)?.let { page -> page to abs(item.offset + item.size / 2f - contentX) } }
+                    .minByOrNull { it.second }
+                    ?.first
             }
 
             fun followFinger() {
-                val index = nearestIndex(pointerX) ?: return
+                val index = nearestPage(pointerX) ?: return
                 if (index == current) return
                 if (current != null) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 current = index
