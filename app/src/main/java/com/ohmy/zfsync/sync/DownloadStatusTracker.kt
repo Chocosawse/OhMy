@@ -1,15 +1,10 @@
 package com.ohmy.zfsync.sync
 
+import com.ohmy.zfsync.core.model.DownloadStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.updateAndGet
-
-/** Whether a photo is currently being downloaded from the camera, and how many at once. */
-sealed interface DownloadStatus {
-    data object Idle : DownloadStatus
-    data class Downloading(val count: Int) : DownloadStatus
-}
 
 /**
  * Tracks how many downloads are in flight and exposes that as a simple [DownloadStatus] stream,

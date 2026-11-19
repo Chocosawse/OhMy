@@ -6,7 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.core.model.SyncedPhoto
 import java.io.IOException
 import java.io.OutputStream
 

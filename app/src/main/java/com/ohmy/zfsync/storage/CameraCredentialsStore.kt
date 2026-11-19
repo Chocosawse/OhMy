@@ -1,8 +1,7 @@
 package com.ohmy.zfsync.storage
 
 import android.content.Context
-
-data class SavedCameraCredentials(val ssid: String, val password: String)
+import com.ohmy.zfsync.core.model.SavedCameraCredentials
 
 /**
  * Remembers the last Wi-Fi SSID/password that connected successfully, so the Connect screen can

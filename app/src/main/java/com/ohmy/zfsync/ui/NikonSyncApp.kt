@@ -17,8 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ohmy.zfsync.model.ConnectionState
-import com.ohmy.zfsync.model.photosNewestFirst
+import com.ohmy.zfsync.core.model.ConnectionState
+import com.ohmy.zfsync.core.model.photosNewestFirst
 import com.ohmy.zfsync.ui.screens.ConnectScreen
 import com.ohmy.zfsync.ui.screens.PhotoViewerScreen
 import com.ohmy.zfsync.ui.screens.SyncScreen

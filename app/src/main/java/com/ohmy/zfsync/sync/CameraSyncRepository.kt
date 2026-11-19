@@ -4,9 +4,11 @@ import android.content.Context
 import android.net.Network
 import android.net.Uri
 import android.util.Log
-import com.ohmy.zfsync.model.ConnectionState
-import com.ohmy.zfsync.model.SyncUiState
-import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.core.model.ConnectionState
+import com.ohmy.zfsync.core.model.DownloadStatus
+import com.ohmy.zfsync.core.model.SavedCameraCredentials
+import com.ohmy.zfsync.core.model.SyncUiState
+import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.network.CameraWifiException
 import com.ohmy.zfsync.network.CameraWifiManager
 import com.ohmy.zfsync.ptpip.PtpEvent
@@ -14,7 +16,6 @@ import com.ohmy.zfsync.ptpip.PtpEventCode
 import com.ohmy.zfsync.ptpip.PtpIpClient
 import com.ohmy.zfsync.storage.CameraCredentialsStore
 import com.ohmy.zfsync.storage.PhotoSaver
-import com.ohmy.zfsync.storage.SavedCameraCredentials
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
