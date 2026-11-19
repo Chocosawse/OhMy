@@ -22,8 +22,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
-import com.ohmy.zfsync.model.SyncUiState
-import com.ohmy.zfsync.sync.DownloadStatus
+import com.ohmy.zfsync.core.model.DownloadStatus
+import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.ui.components.PhotoList
 
 @Composable

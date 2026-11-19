@@ -5,12 +5,12 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ohmy.zfsync.OhMyApplication
-import com.ohmy.zfsync.model.ConnectionState
-import com.ohmy.zfsync.model.SyncUiState
+import com.ohmy.zfsync.core.model.ConnectionState
+import com.ohmy.zfsync.core.model.DownloadStatus
+import com.ohmy.zfsync.core.model.SavedCameraCredentials
+import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.service.CameraSyncService
-import com.ohmy.zfsync.storage.SavedCameraCredentials
 import com.ohmy.zfsync.sync.CameraSyncRepository
-import com.ohmy.zfsync.sync.DownloadStatus
 import com.ohmy.zfsync.ui.theme.ThemeChoice
 import com.ohmy.zfsync.ui.theme.paletteName
 import kotlinx.coroutines.flow.SharingStarted

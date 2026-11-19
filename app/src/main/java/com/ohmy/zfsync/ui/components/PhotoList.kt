@@ -50,9 +50,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ohmy.zfsync.R
-import com.ohmy.zfsync.model.SyncUiState
-import com.ohmy.zfsync.model.SyncedPhoto
-import com.ohmy.zfsync.model.photosNewestFirst
+import com.ohmy.zfsync.core.model.SyncUiState
+import com.ohmy.zfsync.core.model.SyncedPhoto
+import com.ohmy.zfsync.core.model.photosNewestFirst
 import java.text.DateFormat
 import java.util.Date
 

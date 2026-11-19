@@ -12,7 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.ohmy.zfsync.OhMyApplication
 import com.ohmy.zfsync.R
-import com.ohmy.zfsync.model.ConnectionState
+import com.ohmy.zfsync.core.model.ConnectionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

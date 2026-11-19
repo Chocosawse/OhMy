@@ -26,3 +26,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "OhMy"
 include(":app")
+include(":core:model")
+include(":core:testing")

@@ -1,4 +1,4 @@
-package com.ohmy.zfsync.model
+package com.ohmy.zfsync.core.model
 
 import android.net.Uri
 

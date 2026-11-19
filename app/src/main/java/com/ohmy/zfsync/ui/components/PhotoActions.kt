@@ -35,7 +35,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
-import com.ohmy.zfsync.model.SyncedPhoto
+import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.OvershootEasing
 import com.ohmy.zfsync.ui.theme.animatePop
