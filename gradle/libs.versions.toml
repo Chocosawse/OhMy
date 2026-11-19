@@ -9,7 +9,7 @@ lifecycleViewmodelCompose = "2.8.6"
 coroutines = "1.9.0"
 coil = "2.7.0"
 exifinterface = "1.3.7"
-csDesign = "0.2.0"
+csDesign = "0.3.0"
 junit = "4.13.2"
 robolectric = "4.14.1"
 
