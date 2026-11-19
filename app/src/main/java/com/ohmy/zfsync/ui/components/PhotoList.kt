@@ -61,6 +61,9 @@ private val SelectionSaver = listSaver<Set<Uri>, Uri>(save = { it.toList() }, re
 /** Leaves room at the bottom of the list so the floating pill never covers the last row. */
 private val PillClearance = 88.dp
 
+/** Inset of every row's content (and the headers) from the list's edges, so thumbnails don't touch them. */
+private val ListItemHorizontalPadding = 16.dp
+
 /**
  * The album as a selectable list: tap opens a photo, long-press (and drag) selects, and a
  * floating pill acts on the selection. Rows are in [photosNewestFirst] order, which is also the
@@ -201,7 +204,7 @@ private fun EmptyText(text: String) {
         text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = ListItemHorizontalPadding, vertical = 8.dp),
     )
 }
 
@@ -209,7 +212,7 @@ private fun EmptyText(text: String) {
 @Composable
 private fun PlaceholderRow() {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = ListItemHorizontalPadding, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -239,7 +242,10 @@ private fun SectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ListItemHorizontalPadding)
+            .padding(top = 16.dp, bottom = 4.dp),
     )
 }
 
@@ -259,7 +265,8 @@ private fun PhotoRow(
             // The list's dragToSelect handles the actual long-press gesture (a row-level one
             // would fire too and double-toggle); this exposes the same action to accessibility.
             .semantics { onLongClick { onLongPress(); true } }
-            .padding(vertical = 8.dp),
+            // Inside the background and click area, so the selection highlight still spans the row.
+            .padding(horizontal = ListItemHorizontalPadding, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
