@@ -6,8 +6,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,6 +30,14 @@ import com.ohmy.zfsync.ui.screens.SyncScreen
 import com.ohmy.zfsync.ui.screens.ThemePickerScreen
 import com.ohmy.zfsync.ui.theme.overshootExitSpec
 import com.ohmy.zfsync.ui.theme.overshootSpec
+
+/**
+ * Insets the home and sync screens pad by: top and sides only. Their photo list runs to the
+ * bottom edge, behind the transparent navigation bar, and pads its own content for the bottom
+ * inset so its last row can still scroll clear of the bar.
+ */
+private val ScreenInsets: WindowInsets
+    @Composable get() = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
 
 @Composable
 fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
@@ -63,7 +75,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onPhotoClick = { index -> viewerIndex = index },
                     onDeletePhotos = viewModel::deletePhotos,
                     onOpenMenu = { showThemePicker = true },
-                    modifier = Modifier.safeDrawingPadding(),
+                    modifier = Modifier.windowInsetsPadding(ScreenInsets),
                 )
                 else -> ConnectScreen(
                     state = state,
@@ -72,7 +84,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onPhotoClick = { index -> viewerIndex = index },
                     onDeletePhotos = viewModel::deletePhotos,
                     onOpenMenu = { showThemePicker = true },
-                    modifier = Modifier.safeDrawingPadding(),
+                    modifier = Modifier.windowInsetsPadding(ScreenInsets),
                 )
             }
 

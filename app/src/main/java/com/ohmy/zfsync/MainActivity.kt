@@ -27,6 +27,10 @@ class MainActivity : ComponentActivity() {
         // Android 15+ forces edge-to-edge for apps targeting it; opting in explicitly gives the
         // same layout on older versions too. Screens pad themselves via window insets.
         enableEdgeToEdge()
+        // enableEdgeToEdge leaves navigation bar contrast enforcement on, so the system paints a
+        // translucent scrim over our content behind the navigation bar on some devices (e.g.
+        // tablets with a taskbar) even with gesture navigation. Screens handle legibility instead.
+        window.isNavigationBarContrastEnforced = false
 
         val neededPermissions = requiredPermissions().filter {
             ContextCompat.checkSelfPermission(this, it) != android.content.pm.PackageManager.PERMISSION_GRANTED

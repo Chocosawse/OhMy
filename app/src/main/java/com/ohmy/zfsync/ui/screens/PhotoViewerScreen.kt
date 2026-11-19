@@ -1,5 +1,8 @@
 package com.ohmy.zfsync.ui.screens
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
@@ -17,14 +20,20 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -41,6 +50,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -66,11 +76,15 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
@@ -96,7 +110,7 @@ import kotlinx.coroutines.launch
  * front, where the newest go, without moving the photo being viewed (pages are keyed by photo),
  * and the carousel shows a placeholder for each of the [inFlightCount] downloads still running.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun PhotoViewerScreen(
     photos: List<SyncedPhoto>,
@@ -126,6 +140,7 @@ fun PhotoViewerScreen(
     // system back gesture has nothing of ours to intercept and falls through to the Activity,
     // closing the whole app instead of returning to the sync screen.
     BackHandler(onBack = onClose)
+    LightSystemBarIcons()
 
     // A photo swiped away from resets to 1x, so coming back to it starts fully zoomed out.
     LaunchedEffect(pagerState.settledPage) {
@@ -133,6 +148,8 @@ fun PhotoViewerScreen(
         zoomStates.forEach { (uri, zoom) -> if (uri != current) zoom.reset() }
     }
     val currentZoomedOut = zoomStateFor(photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]).scale <= 1f
+    // Zoomed in, the photo gets the whole screen: the status bar hides along with the carousel and pill.
+    StatusBarHidden(hidden = !currentZoomedOut)
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(
@@ -146,7 +163,12 @@ fun PhotoViewerScreen(
         IconButton(
             onClick = onClose,
             // The photo itself runs edge to edge behind the system bars; controls stay clear of them.
-            modifier = Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(8.dp),
+            // Padded for where the status bar is even while it's hidden, so the button doesn't
+            // jump up and down as zooming hides and shows the bar.
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .windowInsetsPadding(WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility))
+                .padding(8.dp),
         ) {
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
@@ -166,6 +188,8 @@ fun PhotoViewerScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             ActionPill(
+                // Hidden with the carousel and status bar while zoomed in.
+                visible = currentZoomedOut,
                 onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
                 onDelete = { pendingDelete = photos[pagerState.currentPage] },
                 containerColor = Color.White.copy(alpha = 0.2f),
@@ -191,6 +215,56 @@ fun PhotoViewerScreen(
             },
         )
     }
+}
+
+/**
+ * Switches the status and navigation bar icons to light (white) while this is in composition, and
+ * restores them after: the viewer is black whatever the app's light/dark mode, and the bars are
+ * transparent, so dark icons would vanish against it.
+ */
+@Composable
+private fun LightSystemBarIcons() {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    DisposableEffect(view) {
+        val window = view.context.findActivity()?.window ?: return@DisposableEffect onDispose {}
+        val controller = WindowCompat.getInsetsController(window, view)
+        val wereLightStatusBars = controller.isAppearanceLightStatusBars
+        val wereLightNavigationBars = controller.isAppearanceLightNavigationBars
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
+        onDispose {
+            controller.isAppearanceLightStatusBars = wereLightStatusBars
+            controller.isAppearanceLightNavigationBars = wereLightNavigationBars
+        }
+    }
+}
+
+/**
+ * Hides the status bar while [hidden], showing it again otherwise and when this leaves
+ * composition. While hidden, a swipe from the top edge reveals it briefly.
+ */
+@Composable
+private fun StatusBarHidden(hidden: Boolean) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    DisposableEffect(view, hidden) {
+        val window = view.context.findActivity()?.window ?: return@DisposableEffect onDispose {}
+        val controller = WindowCompat.getInsetsController(window, view)
+        val previousBehavior = controller.systemBarsBehavior
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (hidden) controller.hide(WindowInsetsCompat.Type.statusBars()) else controller.show(WindowInsetsCompat.Type.statusBars())
+        onDispose {
+            controller.show(WindowInsetsCompat.Type.statusBars())
+            controller.systemBarsBehavior = previousBehavior
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /**

@@ -40,7 +40,7 @@ fun SyncScreen(
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(vertical = 24.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(top = 24.dp)) {
         // Only the controls get the side margin; the list spans the width and insets its own rows.
         Column(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding)) {
             Text(
