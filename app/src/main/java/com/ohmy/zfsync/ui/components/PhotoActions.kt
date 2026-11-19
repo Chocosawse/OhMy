@@ -7,6 +7,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
@@ -42,6 +44,7 @@ import com.ohmy.zfsync.ui.theme.animatePop
 import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
 import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.pop
+import com.ohmy.zfsync.ui.theme.pressExpand
 
 /**
  * Floating pill of photo actions, shared by the viewer (over a black backdrop) and the list's
@@ -71,29 +74,13 @@ fun ActionPill(
         if (label != null) {
             add { Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 12.dp, end = 4.dp)) }
         }
-        add {
-            IconButton(onClick = onShare) {
-                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.viewer_share))
-            }
-        }
-        add {
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.viewer_delete))
-            }
-        }
+        add { PillButton(onShare, Icons.Default.Share, stringResource(R.string.viewer_share)) }
+        add { PillButton(onDelete, Icons.Default.Delete, stringResource(R.string.viewer_delete)) }
         if (onCancel != null) {
-            add {
-                IconButton(onClick = onCancel) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.select_cancel))
-                }
-            }
+            add { PillButton(onCancel, Icons.Default.Close, stringResource(R.string.select_cancel)) }
         }
         if (onMenu != null) {
-            add {
-                IconButton(onClick = onMenu) {
-                    Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.select_menu))
-                }
-            }
+            add { PillButton(onMenu, Icons.Default.Menu, stringResource(R.string.select_menu)) }
         }
     }
     val last = items.lastIndex
@@ -149,6 +136,19 @@ fun ActionPill(
 
 private const val PULSE_SCALE = 1.06f
 private const val PULSE_EXPAND_MILLIS = 120
+
+/** One of the pill's actions: an icon button that subtly expands while pressed. */
+@Composable
+private fun PillButton(onClick: () -> Unit, icon: ImageVector, contentDescription: String) {
+    val interactionSource = remember { MutableInteractionSource() }
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.pressExpand(interactionSource),
+        interactionSource = interactionSource,
+    ) {
+        Icon(icon, contentDescription = contentDescription)
+    }
+}
 
 /** Opens the system share sheet for one or more photos. */
 fun sharePhotos(context: Context, photos: List<SyncedPhoto>) {
