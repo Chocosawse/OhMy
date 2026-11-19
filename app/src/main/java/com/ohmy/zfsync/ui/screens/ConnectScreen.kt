@@ -99,7 +99,7 @@ fun ConnectScreen(
 
         // Previously synced photos live on the phone, so they're browsable (and shareable /
         // deletable) without a camera connection.
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         PhotoList(
             state = state,
             showSessionSections = false,
