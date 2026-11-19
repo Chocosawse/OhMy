@@ -3,13 +3,14 @@ package com.ohmy.zfsync.ui.screens
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -98,11 +99,7 @@ fun ConnectScreen(
 
         // Previously synced photos live on the phone, so they're browsable (and shareable /
         // deletable) without a camera connection.
-        HorizontalDivider(
-            modifier = Modifier
-                .padding(horizontal = ScreenHorizontalPadding)
-                .padding(top = 24.dp, bottom = 8.dp),
-        )
+        Spacer(modifier = Modifier.height(32.dp))
         PhotoList(
             state = state,
             showSessionSections = false,
