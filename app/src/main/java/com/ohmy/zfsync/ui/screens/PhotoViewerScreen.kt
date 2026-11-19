@@ -212,13 +212,13 @@ private fun CarouselIndicator(
         state = listState,
         modifier = Modifier.fillMaxWidth().height(56.dp),
         contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
         userScrollEnabled = visible,
     ) {
         itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
             val selected = index == currentIndex
-            val size by animateDpAsState(if (selected) 48.dp else 40.dp, overshootSpec(), label = "thumbSize")
+            val size by animateDpAsState(if (selected) SelectedThumbnailSize else ThumbnailSize, overshootSpec(), label = "thumbSize")
             val thumbPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
             AsyncImage(
                 model = photo.uri,
@@ -239,6 +239,11 @@ private fun CarouselIndicator(
         }
     }
 }
+
+private val ThumbnailSize = 40.dp
+
+/** The current photo's thumbnail: 10% larger than its earlier 48dp, i.e. about 1.32x a regular one. */
+private val SelectedThumbnailSize = 48.dp * 1.1f
 
 @Stable
 private class ZoomState {

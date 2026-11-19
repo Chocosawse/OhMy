@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -31,8 +32,9 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val downloadStatus by viewModel.downloadStatus.collectAsState()
     val themeChoice by viewModel.themeChoice.collectAsState()
-    var viewerIndex by remember { mutableStateOf<Int?>(null) }
-    var showThemePicker by remember { mutableStateOf(false) }
+    // Saveable: rotation recreates the activity, and an open gallery or theme picker must survive it.
+    var viewerIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showThemePicker by rememberSaveable { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
