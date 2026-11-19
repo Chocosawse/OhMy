@@ -74,8 +74,9 @@ private fun ThemeRow(choice: ThemeChoice, selected: Boolean, onClick: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            // No start padding: the swatches sit flush against the screen's left edge.
-            .padding(end = ScreenHorizontalPadding, top = 12.dp, bottom = 12.dp),
+            // No start or vertical padding: the swatches sit flush against the screen's left edge
+            // and touch the swatches in the rows above and below.
+            .padding(end = ScreenHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -110,14 +111,17 @@ private fun previewColors(choice: ThemeChoice): List<Color> {
     return listOf(accent, supporting, primary)
 }
 
-private val SwatchSize = 72.dp
+private val SwatchHeight = 72.dp
 
-/** The colors as squares side by side, with no gaps between them. */
+/** Widths of the accent, supporting and primary swatches: primary, on the right, is the full square. */
+private val SwatchWidths = listOf(18.dp, 36.dp, 72.dp)
+
+/** The colors as blocks side by side, with no gaps between them. */
 @Composable
 private fun Swatches(colors: List<Color>) {
     Row {
-        colors.forEach { color ->
-            Box(modifier = Modifier.size(SwatchSize).background(color))
+        colors.zip(SwatchWidths).forEach { (color, width) ->
+            Box(modifier = Modifier.size(width = width, height = SwatchHeight).background(color))
         }
     }
 }
