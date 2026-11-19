@@ -25,6 +25,7 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.DownloadStatus
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.ui.components.PhotoList
+import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 
 @Composable
 fun SyncScreen(
@@ -39,57 +40,60 @@ fun SyncScreen(
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
-        Text(
-            text = stringResource(R.string.sync_connected_to, cameraIp),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
-            text = pluralStringResource(R.plurals.sync_photo_count, state.photos.size, state.photos.size),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
-        )
+    Column(modifier = modifier.fillMaxSize().padding(vertical = 24.dp)) {
+        // Only the controls get the side margin; the list spans the width and insets its own rows.
+        Column(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding)) {
+            Text(
+                text = stringResource(R.string.sync_connected_to, cameraIp),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = pluralStringResource(R.plurals.sync_photo_count, state.photos.size, state.photos.size),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+            )
 
-        if (downloadStatus is DownloadStatus.Downloading) {
+            if (downloadStatus is DownloadStatus.Downloading) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 16.dp),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(
+                        pluralStringResource(R.plurals.sync_downloading_count, downloadStatus.count, downloadStatus.count),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+
             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 16.dp),
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Text(
-                    pluralStringResource(R.plurals.sync_downloading_count, downloadStatus.count, downloadStatus.count),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Text(stringResource(R.string.sync_auto_sync_label), style = MaterialTheme.typography.bodyLarge)
+                Switch(checked = state.autoSyncEnabled, onCheckedChange = onAutoSyncChange)
             }
-        }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(stringResource(R.string.sync_auto_sync_label), style = MaterialTheme.typography.bodyLarge)
-            Switch(checked = state.autoSyncEnabled, onCheckedChange = onAutoSyncChange)
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Button(onClick = onSyncNow, enabled = !state.isSyncing, modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Text(stringResource(if (state.isSyncing) R.string.sync_now_syncing else R.string.sync_now_button))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Button(onClick = onSyncNow, enabled = !state.isSyncing, modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    Text(stringResource(if (state.isSyncing) R.string.sync_now_syncing else R.string.sync_now_button))
+                }
+                OutlinedButton(onClick = onDisconnect, modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    Text(stringResource(R.string.sync_disconnect_button))
+                }
             }
-            OutlinedButton(onClick = onDisconnect, modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Text(stringResource(R.string.sync_disconnect_button))
+
+            state.lastError?.let {
+                Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
-        }
 
-        state.lastError?.let {
-            Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         PhotoList(
             state = state,

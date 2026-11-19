@@ -28,6 +28,7 @@ import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.ui.components.PhotoList
+import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 
 @Composable
 fun ConnectScreen(
@@ -45,8 +46,12 @@ fun ConnectScreen(
     val isConnecting = connectionState is ConnectionState.Connecting
     val isReconnect = savedCredentials != null && ssid == savedCredentials.ssid && password == savedCredentials.password
 
-    Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(vertical = 24.dp)) {
+        // Only the form gets the side margin; the list spans the width and insets its own rows.
+        Column(
+            modifier = Modifier.padding(horizontal = ScreenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             Text(text = stringResource(R.string.connect_title), style = MaterialTheme.typography.headlineSmall)
             Text(text = stringResource(R.string.connect_instructions), style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(
@@ -93,7 +98,11 @@ fun ConnectScreen(
 
         // Previously synced photos live on the phone, so they're browsable (and shareable /
         // deletable) without a camera connection.
-        HorizontalDivider(modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
+        HorizontalDivider(
+            modifier = Modifier
+                .padding(horizontal = ScreenHorizontalPadding)
+                .padding(top = 24.dp, bottom = 8.dp),
+        )
         PhotoList(
             state = state,
             showSessionSections = false,

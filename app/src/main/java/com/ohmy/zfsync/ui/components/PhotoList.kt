@@ -53,6 +53,7 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.core.model.photosNewestFirst
+import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import java.text.DateFormat
 import java.util.Date
 
@@ -61,7 +62,7 @@ private val SelectionSaver = listSaver<Set<Uri>, Uri>(save = { it.toList() }, re
 /** Leaves room at the bottom of the list so the floating pill never covers the last row. */
 private val PillClearance = 88.dp
 
-/** Inset of every row's content (and the headers) from the list's edges, so thumbnails don't touch them. */
+/** Inset of each row's content from the list's edges, so thumbnails don't touch the screen edge. */
 private val ListItemHorizontalPadding = 16.dp
 
 /**
@@ -204,7 +205,8 @@ private fun EmptyText(text: String) {
         text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = ListItemHorizontalPadding, vertical = 8.dp),
+        // Lines up with the screen's own text, which the list (spanning the full width) doesn't inherit.
+        modifier = Modifier.padding(horizontal = ScreenHorizontalPadding, vertical = 8.dp),
     )
 }
 
@@ -244,7 +246,7 @@ private fun SectionHeader(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = ListItemHorizontalPadding)
+            .padding(horizontal = ScreenHorizontalPadding)
             .padding(top = 16.dp, bottom = 4.dp),
     )
 }
