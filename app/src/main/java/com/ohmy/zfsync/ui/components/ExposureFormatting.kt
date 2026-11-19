@@ -4,12 +4,13 @@ import com.ohmy.zfsync.core.model.ExposureInfo
 import kotlin.math.roundToLong
 
 /**
- * One line like "40 mm • ƒ/2 • 1/250 s". Without a focal length (e.g. a manual lens) it leads
- * with the lens name instead. Missing parts are left out; null when nothing is known.
+ * One line like "NIKKOR Z 40mm f/2 SE • 40 mm • ƒ/2 • 1/250 s": lens name, focal length,
+ * aperture, shutter speed. Missing parts are left out; null when nothing is known.
  */
 fun ExposureInfo.toDisplayString(): String? {
     val parts = listOfNotNull(
-        focalLengthMm?.let { "${it.trimmed()} mm" } ?: lensName,
+        lensName,
+        focalLengthMm?.let { "${it.trimmed()} mm" },
         aperture?.let { "ƒ/${it.trimmed()}" },
         exposureTimeSeconds?.let(::formatShutterSpeed),
     )

@@ -26,21 +26,27 @@ object FakeData {
     /** A fixed instant: 2026-11-16 21:30 UTC. */
     private const val BASE_TIME_MILLIS = 1_794_864_600_000L
 
-    /** One per photo in [photos], covering full EXIF, a manual lens (name only) and no EXIF at all. */
+    private const val LENS_40 = "NIKKOR Z 40mm f/2 SE"
+
+    /**
+     * One per photo in [photos]. Covers full EXIF, a lens that recorded no name, a manual (non-CPU)
+     * lens with only its in-camera name, and no EXIF at all.
+     */
     private val exposures: List<ExposureInfo?> = listOf(
-        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 1.0 / 250),
-        ExposureInfo(focalLengthMm = 40.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 125),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 1.0 / 250, lensName = LENS_40),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 125, lensName = LENS_40),
+        // No lens name recorded.
         ExposureInfo(focalLengthMm = 40.0, aperture = 4.0, exposureTimeSeconds = 1.0 / 60),
         // Manual (non-CPU) lens: no focal length or aperture recorded, just the name set in-camera.
         ExposureInfo(exposureTimeSeconds = 1.0 / 500, lensName = "Voigtländer Nokton 40mm F1.2"),
-        ExposureInfo(focalLengthMm = 24.0, aperture = 5.6, exposureTimeSeconds = 1.0 / 1000),
-        ExposureInfo(focalLengthMm = 85.0, aperture = 1.8, exposureTimeSeconds = 1.0 / 2000),
-        ExposureInfo(focalLengthMm = 50.0, aperture = 8.0, exposureTimeSeconds = 0.5),
+        ExposureInfo(focalLengthMm = 24.0, aperture = 5.6, exposureTimeSeconds = 1.0 / 1000, lensName = "NIKKOR Z 24-70mm f/4 S"),
+        ExposureInfo(focalLengthMm = 85.0, aperture = 1.8, exposureTimeSeconds = 1.0 / 2000, lensName = "NIKKOR Z 85mm f/1.8 S"),
+        ExposureInfo(focalLengthMm = 50.0, aperture = 8.0, exposureTimeSeconds = 0.5, lensName = "NIKKOR Z 50mm f/1.8 S"),
         null,
-        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 2.0),
-        ExposureInfo(focalLengthMm = 105.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 320),
-        ExposureInfo(focalLengthMm = 40.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 250),
-        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 1.0 / 8),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 2.0, lensName = LENS_40),
+        ExposureInfo(focalLengthMm = 105.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 320, lensName = "NIKKOR Z MC 105mm f/2.8 VR S"),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.8, exposureTimeSeconds = 1.0 / 250, lensName = LENS_40),
+        ExposureInfo(focalLengthMm = 40.0, aperture = 2.0, exposureTimeSeconds = 1.0 / 8, lensName = LENS_40),
     )
 
     /** The whole album, oldest first (the order [SyncUiState.photos] uses). */

@@ -8,7 +8,15 @@ import org.junit.Test
 class ExposureFormattingTest {
 
     @Test
-    fun `formats all three parts`() {
+    fun `formats all four parts in order`() {
+        assertEquals(
+            "NIKKOR Z 40mm f/2 SE • 40 mm • ƒ/2 • 1/250 s",
+            ExposureInfo(40.0, 2.0, 1.0 / 250, lensName = "NIKKOR Z 40mm f/2 SE").toDisplayString(),
+        )
+    }
+
+    @Test
+    fun `leaves out a missing lens name`() {
         assertEquals("40 mm • ƒ/2 • 1/250 s", ExposureInfo(40.0, 2.0, 1.0 / 250).toDisplayString())
     }
 
@@ -31,16 +39,11 @@ class ExposureFormattingTest {
     }
 
     @Test
-    fun `falls back to the lens name without a focal length`() {
+    fun `manual lens shows its name and whatever else was recorded`() {
         assertEquals(
             "Voigtländer Nokton 40mm F1.2 • 1/500 s",
             ExposureInfo(exposureTimeSeconds = 1.0 / 500, lensName = "Voigtländer Nokton 40mm F1.2").toDisplayString(),
         )
-    }
-
-    @Test
-    fun `prefers the focal length over the lens name`() {
-        assertEquals("40 mm • ƒ/2", ExposureInfo(40.0, 2.0, lensName = "NIKKOR Z 40mm f/2").toDisplayString())
     }
 
     @Test
