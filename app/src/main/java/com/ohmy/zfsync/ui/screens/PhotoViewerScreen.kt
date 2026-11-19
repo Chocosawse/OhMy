@@ -7,13 +7,13 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -55,11 +56,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -72,6 +79,10 @@ import com.ohmy.zfsync.ui.theme.animatePop
 import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
 import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.pop
+import kotlin.math.abs
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -144,6 +155,8 @@ fun PhotoViewerScreen(
                 currentIndex = pagerState.currentPage,
                 visible = currentZoomedOut,
                 onThumbnailClick = { index -> coroutineScope.launch { pagerState.animateScrollToPage(index) } },
+                // Instant, not animated: scrubbing changes photo many times a second.
+                onScrubTo = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
             )
             Spacer(modifier = Modifier.height(16.dp))
             ActionPill(
@@ -185,9 +198,15 @@ private fun CarouselIndicator(
     currentIndex: Int,
     visible: Boolean,
     onThumbnailClick: (Int) -> Unit,
+    onScrubTo: (Int) -> Unit,
 ) {
     val listState = rememberLazyListState()
-    LaunchedEffect(currentIndex) {
+    val haptics = LocalHapticFeedback.current
+    var scrubbing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentIndex, scrubbing) {
+        // Mid-scrub the strip must stay put under the finger; it recentres once the finger lifts.
+        if (scrubbing) return@LaunchedEffect
         // Glide the current thumbnail to the centre; if it's off screen, jump near it first.
         if (listState.layoutInfo.visibleItemsInfo.none { it.index == currentIndex }) {
             listState.scrollToItem(currentIndex)
@@ -210,15 +229,25 @@ private fun CarouselIndicator(
 
     LazyRow(
         state = listState,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(CarouselHeight)
+            .carouselScrub(
+                listState = listState,
+                enabled = visible,
+                haptics = haptics,
+                onScrubbingChange = { scrubbing = it },
+                onScrubTo = onScrubTo,
+            ),
         contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        userScrollEnabled = visible,
+        // Dragging scrubs (carouselScrub) rather than scrolling; the strip scrolls itself at the edges.
+        userScrollEnabled = false,
     ) {
         itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
             val selected = index == currentIndex
-            val size by animateDpAsState(if (selected) 48.dp else 40.dp, overshootSpec(), label = "thumbSize")
+            val size by animateDpAsState(if (selected) SelectedThumbnailSize else ThumbnailSize, overshootSpec(), label = "thumbSize")
             val thumbPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
             AsyncImage(
                 model = photo.uri,
@@ -234,11 +263,99 @@ private fun CarouselIndicator(
                             Modifier
                         },
                     )
-                    .clickable(enabled = visible) { onThumbnailClick(index) },
+                    // Touches are handled by carouselScrub; this keeps a tap action for accessibility.
+                    .then(if (visible) Modifier.semantics { onClick { onThumbnailClick(index); true } } else Modifier),
             )
         }
     }
 }
+
+/**
+ * Scrubbing: touching the strip jumps to the thumbnail under the finger, and dragging keeps
+ * following it, with a haptic tick per photo. While the finger is near either end the strip
+ * auto-scrolls (faster the closer it is), so the whole album can be scrubbed in one drag.
+ */
+private fun Modifier.carouselScrub(
+    listState: LazyListState,
+    enabled: Boolean,
+    haptics: HapticFeedback,
+    onScrubbingChange: (Boolean) -> Unit,
+    onScrubTo: (Int) -> Unit,
+): Modifier = pointerInput(listState, enabled) {
+    if (!enabled) return@pointerInput
+    coroutineScope {
+        val edgePx = 48.dp.toPx()
+        val maxScrollPerFramePx = 20.dp.toPx()
+
+        awaitEachGesture {
+            // Initial pass, consumed throughout: the thumbnails and the photo pager underneath
+            // mustn't also react to the same touch.
+            val down = awaitFirstDown(pass = PointerEventPass.Initial)
+            down.consume()
+            var pointerX = down.position.x
+            var current: Int? = null
+
+            // The thumbnail whose centre is nearest the finger, so the gaps between thumbnails and
+            // the strip's end padding still pick one.
+            fun nearestIndex(x: Float): Int? {
+                val info = listState.layoutInfo
+                // Item offsets start after the leading content padding; viewportStartOffset is minus that.
+                val contentX = x + info.viewportStartOffset
+                return info.visibleItemsInfo.minByOrNull { abs(it.offset + it.size / 2f - contentX) }?.index
+            }
+
+            fun followFinger() {
+                val index = nearestIndex(pointerX) ?: return
+                if (index == current) return
+                if (current != null) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                current = index
+                onScrubTo(index)
+            }
+
+            fun scrollSpeed(x: Float): Float = when {
+                x < edgePx -> -maxScrollPerFramePx * (edgePx - x) / edgePx
+                x > size.width - edgePx -> maxScrollPerFramePx * (x - (size.width - edgePx)) / edgePx
+                else -> 0f
+            }
+
+            onScrubbingChange(true)
+            followFinger()
+            var autoScroll: Job? = null
+            try {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    change.consume()
+                    if (!change.pressed) break
+                    pointerX = change.position.x
+                    followFinger()
+                    if (scrollSpeed(pointerX) != 0f && autoScroll?.isActive != true) {
+                        autoScroll = launch {
+                            while (isActive) {
+                                val speed = scrollSpeed(pointerX)
+                                if (speed == 0f) break
+                                withFrameNanos { }
+                                listState.scrollBy(speed)
+                                // Thumbnails slide under a still finger while the strip scrolls.
+                                followFinger()
+                            }
+                        }
+                    }
+                }
+            } finally {
+                autoScroll?.cancel()
+                onScrubbingChange(false)
+            }
+        }
+    }
+}
+
+private val ThumbnailSize = 40.dp
+
+private val SelectedThumbnailSize = 56.dp
+
+/** Leaves room above and below the current thumbnail for its grow animation to overshoot. */
+private val CarouselHeight = 60.dp
 
 @Stable
 private class ZoomState {
