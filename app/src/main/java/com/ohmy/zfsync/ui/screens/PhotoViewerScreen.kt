@@ -210,7 +210,7 @@ private fun CarouselIndicator(
 
     LazyRow(
         state = listState,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier.fillMaxWidth().height(CarouselHeight),
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -242,8 +242,10 @@ private fun CarouselIndicator(
 
 private val ThumbnailSize = 40.dp
 
-/** The current photo's thumbnail: 10% larger than its earlier 48dp, i.e. about 1.32x a regular one. */
-private val SelectedThumbnailSize = 48.dp * 1.1f
+private val SelectedThumbnailSize = 56.dp
+
+/** Leaves room above and below the current thumbnail for its grow animation to overshoot. */
+private val CarouselHeight = 60.dp
 
 @Stable
 private class ZoomState {
