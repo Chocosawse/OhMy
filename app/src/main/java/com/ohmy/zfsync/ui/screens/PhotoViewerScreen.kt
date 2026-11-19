@@ -148,7 +148,8 @@ fun PhotoViewerScreen(
         zoomStates.forEach { (uri, zoom) -> if (uri != current) zoom.reset() }
     }
     val currentZoomedOut = zoomStateFor(photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]).scale <= 1f
-    // Zoomed in, the photo gets the whole screen: the status bar hides along with the carousel and pill.
+    // Zoomed in, the photo gets the whole screen: the status bar hides along with the carousel,
+    // pill and close button.
     StatusBarHidden(hidden = !currentZoomedOut)
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -160,15 +161,19 @@ fun PhotoViewerScreen(
             ZoomableImage(photos[page], zoomStateFor(photos[page]))
         }
 
+        // Hidden with the other controls while zoomed in.
+        val closePop = animatePop(currentZoomedOut)
         IconButton(
             onClick = onClose,
+            enabled = currentZoomedOut,
             // The photo itself runs edge to edge behind the system bars; controls stay clear of them.
             // Padded for where the status bar is even while it's hidden, so the button doesn't
             // jump up and down as zooming hides and shows the bar.
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility))
-                .padding(8.dp),
+                .padding(8.dp)
+                .pop { closePop.value },
         ) {
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
