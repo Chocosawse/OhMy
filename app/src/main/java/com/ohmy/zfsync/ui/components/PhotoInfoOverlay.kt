@@ -3,8 +3,8 @@ package com.ohmy.zfsync.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +33,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -261,6 +262,55 @@ fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Mod
                     }
                 },
         )
+    }
+}
+
+/**
+ * How the viewer shows when a photo was taken: imprinted on the photo like a film camera's date
+ * back, or as a vertical mono caption at the screen's top-right like the other captions. [key] is
+ * how the choice is saved, so it must not change.
+ */
+enum class DateStyle(val key: String) {
+    Imprint("imprint"),
+    Caption("caption"),
+    ;
+
+    companion object {
+        /** Unknown or missing keys fall back to [Imprint]. */
+        fun fromKey(key: String?): DateStyle = entries.firstOrNull { it.key == key } ?: Imprint
+    }
+}
+
+/** The caption date style: when the photo was taken, set vertically, reading down the screen's edge. */
+@Composable
+fun CaptureTimeTag(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = SmallMono,
+        color = infoTextColor(InfoBoxColor),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .rotatedClockwise()
+            .background(InfoBoxColor)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
+/**
+ * Lays the content out on its side, turned a quarter clockwise: measured with the incoming height
+ * as its width, and taking up its rotated (swapped) size, so it fits where it's put.
+ */
+private fun Modifier.rotatedClockwise(): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(
+        Constraints(maxWidth = constraints.maxHeight, maxHeight = constraints.maxWidth),
+    )
+    layout(placeable.height, placeable.width) {
+        // Rotating about its centre: move that centre to the centre of the swapped box.
+        placeable.placeWithLayer(
+            x = (placeable.height - placeable.width) / 2,
+            y = (placeable.width - placeable.height) / 2,
+        ) { rotationZ = 90f }
     }
 }
 

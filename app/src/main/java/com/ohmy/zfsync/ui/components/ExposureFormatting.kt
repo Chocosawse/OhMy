@@ -2,6 +2,8 @@ package com.ohmy.zfsync.ui.components
 
 import com.ohmy.zfsync.core.model.ExposureInfo
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.roundToLong
 
@@ -28,6 +30,13 @@ fun formatFocalLength(millimetres: Double): String = "${millimetres.trimmed()}mm
 
 /** "f/3.2". */
 fun formatAperture(fNumber: Double): String = "f/${fNumber.trimmed()}"
+
+private val CaptureDateFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+private val CaptureTimeFormat = DateTimeFormatter.ofLocalizedTime(FormatStyle.MEDIUM)
+
+/** "Nov 19, 2026 • 6:15:45 PM", in the device's locale: the caption date style. */
+fun formatCaptureTime(dateTime: LocalDateTime): String =
+    "${dateTime.format(CaptureDateFormat)} • ${dateTime.format(CaptureTimeFormat)}"
 
 /**
  * "'26 10 24  16:36": a film camera's date imprint, year month day then 24-hour time, always in

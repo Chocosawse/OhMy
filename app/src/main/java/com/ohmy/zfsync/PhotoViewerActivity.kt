@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.lifecycleScope
 import com.ohmy.zfsync.storage.DeviceAlbums
 import com.ohmy.zfsync.storage.ExternalPhoto
+import com.ohmy.zfsync.ui.components.DateStyle
 import com.ohmy.zfsync.ui.screens.CarouselStyle
 import com.ohmy.zfsync.ui.screens.PhotoViewerScreen
 import com.ohmy.zfsync.ui.theme.OhMyTheme
@@ -59,6 +60,7 @@ class PhotoViewerActivity : ComponentActivity() {
             val paletteName by app.themeStore.paletteName.collectAsState()
             val carouselStyleKey by app.galleryPreferences.carouselStyle.collectAsState()
             val showInfo by app.galleryPreferences.showPhotoInfo.collectAsState()
+            val dateStyleKey by app.galleryPreferences.dateStyle.collectAsState()
             // Deleting goes through the system's confirmation; after it, show what's left.
             val delete = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
                 if (result.resultCode == Activity.RESULT_OK) load(uri, afterDelete = true)
@@ -81,6 +83,7 @@ class PhotoViewerActivity : ComponentActivity() {
                             ownsPhotos = false,
                             canDelete = shown.inLibrary && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R,
                             loadExposure = { photoUri -> withContext(Dispatchers.IO) { deviceAlbums.readExposure(photoUri) } },
+                            dateStyle = DateStyle.fromKey(dateStyleKey),
                         )
                     }
                 }

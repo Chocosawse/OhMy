@@ -144,7 +144,9 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionFabMenu
+import com.ohmy.zfsync.ui.components.CaptureTimeTag
 import com.ohmy.zfsync.ui.components.DateImprint
+import com.ohmy.zfsync.ui.components.DateStyle
 import com.ohmy.zfsync.ui.components.ExposureCard
 import com.ohmy.zfsync.ui.components.ExposureLabels
 import com.ohmy.zfsync.ui.components.FabAction
@@ -153,6 +155,7 @@ import com.ohmy.zfsync.ui.components.PhotoTitleCard
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
 import com.ohmy.zfsync.ui.components.croppedGeometry
 import com.ohmy.zfsync.ui.components.editPhoto
+import com.ohmy.zfsync.ui.components.formatCaptureTime
 import com.ohmy.zfsync.ui.components.formatDateImprint
 import com.ohmy.zfsync.ui.components.openRaws
 import com.ohmy.zfsync.ui.components.sharePhotos
@@ -197,6 +200,7 @@ fun PhotoViewerScreen(
     ownsPhotos: Boolean = true,
     canDelete: Boolean = true,
     loadExposure: (suspend (Uri) -> ExposureInfo?)? = null,
+    dateStyle: DateStyle = DateStyle.Imprint,
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
@@ -364,7 +368,7 @@ fun PhotoViewerScreen(
                 // With the actions open, a tap on the photo just closes them.
                 onTap = { if (actionsExpanded) actionsExpanded = false else controlsVisible = !controlsVisible },
                 // Only with the camera's own capture time: no clock, no imprint.
-                imprint = exposureOf(photos[page])?.capturedAt?.let(::formatDateImprint),
+                imprint = exposureOf(photos[page])?.capturedAt?.takeIf { dateStyle == DateStyle.Imprint }?.let(::formatDateImprint),
                 imprintAlpha = { infoAlpha.value },
             )
         }
@@ -424,10 +428,23 @@ fun PhotoViewerScreen(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(barInsets)
-                // Under the close button.
-                .padding(start = 16.dp, top = 64.dp, end = 16.dp)
+                // Under the close button, and clear of the caption date on the right if shown.
+                .padding(start = 16.dp, top = 64.dp, end = if (dateStyle == DateStyle.Caption) 56.dp else 16.dp)
                 .graphicsLayer { alpha = infoAlpha.value },
         )
+        // The caption date style: the camera's capture time, vertical, under the info button.
+        if (dateStyle == DateStyle.Caption) {
+            currentExposure?.capturedAt?.let { capturedAt ->
+                CaptureTimeTag(
+                    text = formatCaptureTime(capturedAt),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .windowInsetsPadding(barInsets)
+                        .padding(top = 64.dp, end = 16.dp)
+                        .graphicsLayer { alpha = infoAlpha.value },
+                )
+            }
+        }
         Column(
             modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

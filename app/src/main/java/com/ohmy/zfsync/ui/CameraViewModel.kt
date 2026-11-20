@@ -6,8 +6,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ohmy.zfsync.OhMyApplication
-import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.Album
+import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.DownloadStatus
 import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
@@ -16,6 +16,7 @@ import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.service.CameraSyncService
 import com.ohmy.zfsync.storage.DeviceAlbums
 import com.ohmy.zfsync.sync.CameraSyncRepository
+import com.ohmy.zfsync.ui.components.DateStyle
 import com.ohmy.zfsync.ui.screens.CarouselStyle
 import com.ohmy.zfsync.ui.theme.ThemeChoice
 import com.ohmy.zfsync.ui.theme.paletteName
@@ -63,6 +64,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     val showPhotoInfo: StateFlow<Boolean> = galleryPreferences.showPhotoInfo
+
+    val dateStyle: StateFlow<DateStyle> = galleryPreferences.dateStyle
+        .map(DateStyle::fromKey)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, DateStyle.fromKey(galleryPreferences.dateStyle.value))
+
+    fun setDateStyle(style: DateStyle) {
+        galleryPreferences.setDateStyle(style.key)
+    }
 
     /** Read by the sync itself whenever it meets a RAW on the camera, so a change applies straight away. */
     val downloadRaws: StateFlow<Boolean> = syncPreferences.downloadRaws

@@ -81,6 +81,11 @@
     <string name="settings_carousel_amber_film_summary">Frames on translucent amber film, as negatives</string>
     <string name="settings_confirm_delete">Confirm before deleting</string>
     <string name="settings_confirm_delete_summary">Ask before deleting a photo from the gallery</string>
+    <string name="settings_section_date">Photo date</string>
+    <string name="settings_date_imprint">Film imprint</string>
+    <string name="settings_date_imprint_summary">Stamped on the photo in orange, like a film camera\'s date back</string>
+    <string name="settings_date_caption">Caption</string>
+    <string name="settings_date_caption_summary">A vertical caption at the screen\'s edge, with the full date and time</string>
     <string name="settings_section_sync">Sync</string>
     <string name="settings_download_raws">Download RAW files</string>
     <string name="settings_download_raws_summary">Also save each shot\'s RAW (e.g. NEF) with its JPEG. RAWs are large, so syncing takes longer.</string>
