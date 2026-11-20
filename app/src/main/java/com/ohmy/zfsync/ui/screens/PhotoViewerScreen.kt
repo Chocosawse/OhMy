@@ -807,13 +807,18 @@ private val SprocketInset = 9.dp
 private val EdgeLabelInset = 2.dp
 /** Film past the first and last frames, so the strip ends just beyond them. */
 private val FilmLeader = 4.dp
-private val FilmBase = Color(0xFF111111)
-
 // The two ends of the sepia negative's tone ramp: where the photo was brightest the film is
-// densest, a deep brown; where it was darkest the film is nearly clear, showing the amber base.
-// Amber rather than yellow (green about 60% of red), and kept dim: the film's base is dark.
-private val NegativeDense = floatArrayOf(0.11f, 0.055f, 0.025f)
-private val NegativeClear = floatArrayOf(0.84f, 0.52f, 0.24f)
+// densest, a deep red-brown; where it was darkest the film is nearly clear, showing the amber base.
+private val NegativeDenseColor = Color(0xFF612726)
+private val NegativeClearColor = Color(0xFFC65731)
+private val NegativeDense = floatArrayOf(NegativeDenseColor.red, NegativeDenseColor.green, NegativeDenseColor.blue)
+private val NegativeClear = floatArrayOf(NegativeClearColor.red, NegativeClearColor.green, NegativeClearColor.blue)
+
+/**
+ * The strip itself: clear film base, the same color as the frames' unexposed (darkest) areas, so
+ * strip and frames read as one piece of film.
+ */
+private val FilmBase = NegativeClearColor
 
 /**
  * Turns a thumbnail into a sepia-toned negative in a single color matrix: luminance (Rec. 601
@@ -836,7 +841,8 @@ private val SepiaNegativeFilter: ColorFilter = run {
 private val SprocketRim = Color.White.copy(alpha = 0.35f)
 private val SprocketRimWidth = 0.75.dp
 private val FilmEdgeTextStyle = TextStyle(
-    color = Color(0xCCE0A84A),
+    // Dark brown printed on the amber base (the old amber-on-black would vanish on it).
+    color = Color(0xFF3D1714),
     fontSize = 7.sp,
     fontFamily = FontFamily.Monospace,
     letterSpacing = 0.5.sp,
