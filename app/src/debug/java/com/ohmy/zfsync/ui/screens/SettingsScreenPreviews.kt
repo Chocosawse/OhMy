@@ -7,11 +7,17 @@ import com.ohmy.zfsync.ui.preview.ThemeChoiceProvider
 import com.ohmy.zfsync.ui.theme.OhMyTheme
 import com.ohmy.zfsync.ui.theme.ThemeChoice
 
-/** The picker in each theme, with that theme selected, as it looks right after picking it. */
+/** Settings in each theme, with that theme selected, as it looks right after picking it. */
 @PreviewLightDark
 @Composable
-private fun ThemePickerScreenPreview(@PreviewParameter(ThemeChoiceProvider::class) choice: ThemeChoice) {
+private fun SettingsScreenPreview(@PreviewParameter(ThemeChoiceProvider::class) choice: ThemeChoice) {
     OhMyTheme(choice = choice) {
-        ThemePickerScreen(current = choice, onSelect = {}, onClose = {})
+        SettingsScreen(
+            currentTheme = choice,
+            onSelectTheme = {},
+            filmStripCarousel = true,
+            onFilmStripCarouselChange = {},
+            onClose = {},
+        )
     }
 }
