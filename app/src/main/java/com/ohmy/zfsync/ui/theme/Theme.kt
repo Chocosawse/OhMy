@@ -23,7 +23,7 @@ sealed interface ThemeChoice {
 
     companion object {
         /** The app's own palettes, offered after the library's. */
-        private val appPalettes: List<ColorPalette> = listOf(NewspaperPalette)
+        private val appPalettes: List<ColorPalette> = listOf(NewspaperPalette, NikonYellowPalette)
 
         /** Every palette on offer: the library's built-ins (new ones appear automatically), then the app's. */
         private val palettes: List<ColorPalette> get() = ColorPalette.builtIns + appPalettes
@@ -66,7 +66,7 @@ fun OhMyTheme(
         is ThemeChoice.Palette -> AppTheme(activeToken = choice.palette, darkTheme = darkTheme) {
             val scheme = MaterialTheme.colorScheme
             WithAppTypography(
-                colorScheme = if (choice.palette == NewspaperPalette) NewspaperPalette.adjust(scheme, darkTheme) else scheme,
+                colorScheme = (choice.palette as? AdjustedPalette)?.adjust(scheme, darkTheme) ?: scheme,
                 content = content,
             )
         }

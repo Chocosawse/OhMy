@@ -39,7 +39,7 @@ import com.ohmy.zfsync.ui.theme.MonoFontFamily
 private val InfoBoxColor = Color.Black.copy(alpha = 0.72f)
 
 /** The two left-hand boxes (title and exposure), larger, so a little lighter on the photo. */
-private val LightInfoBoxColor = Color.Black.copy(alpha = 0.62f)
+private val LightInfoBoxColor = Color.Black.copy(alpha = 0.52f)
 
 /** Contrast the info text keeps against its box, even with the box over a white sky. */
 private const val INFO_TEXT_CONTRAST = 4.5f
