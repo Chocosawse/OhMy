@@ -47,6 +47,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
@@ -86,6 +87,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -618,6 +621,7 @@ private fun CarouselIndicator(
                 // the selection, and back as it shrinks. Derived, so a frame only recomposes as it
                 // starts or finishes doing so, not every animation frame.
                 val developing by remember(film) { derivedStateOf { film != null && scale > 1f } }
+                val frameShape = film?.frameShape ?: RectangleShape
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 CarouselSlot(
@@ -643,10 +647,15 @@ private fun CarouselIndicator(
                             .graphicsLayer {
                                 scaleX = scale
                                 scaleY = scale
+                                // Rounded film frames are clipped in this same layer: no extra one.
+                                if (frameShape != RectangleShape) {
+                                    shape = frameShape
+                                    clip = true
+                                }
                             }
                             .then(
                                 // Thinner before scaling, so it's 2dp once the thumbnail is enlarged.
-                                if (selected) Modifier.border((2f / SelectedThumbnailScale).dp, Color.White) else Modifier,
+                                if (selected) Modifier.border((2f / SelectedThumbnailScale).dp, Color.White, frameShape) else Modifier,
                             )
                             .clickable(enabled = visible) { latestOnSelect(index) },
                     ) {
@@ -848,7 +857,7 @@ private val FilmLeader = 4.dp
  * One film carousel style's materials: the strip's [base], the [negative] color filter its frames
  * are drawn through, its edge numbers' [edgeTextStyle], and whether the base is cleared from under
  * each frame ([clearBaseUnderFrames], for translucent film, where base under the frame would read
- * as a denser box).
+ * as a denser box), and the shape its frames are clipped to ([frameShape]).
  */
 @Immutable
 private class FilmLook(
@@ -856,6 +865,7 @@ private class FilmLook(
     val negative: ColorFilter,
     val edgeTextStyle: TextStyle,
     val clearBaseUnderFrames: Boolean,
+    val frameShape: Shape = RectangleShape,
 )
 
 private val CarouselStyle.filmLook: FilmLook?
@@ -875,6 +885,9 @@ private val BlackFilmLook = FilmLook(
     negative = negativeFilter(dense = Color(0xFF57200C), clear = Color(0xFFB56244)),
     edgeTextStyle = filmEdgeTextStyle(Color(0xCCE0A84A)),
     clearBaseUnderFrames = false,
+    // Slight squircles: a rounded rectangle (about 15% of the frame) rather than a true
+    // superellipse, which as a path clip is only anti-aliased by the GPU from Android 13.
+    frameShape = RoundedCornerShape(6.dp),
 )
 
 /**
