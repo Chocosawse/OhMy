@@ -807,11 +807,6 @@ private val SprocketInset = 9.dp
 private val EdgeLabelInset = 2.dp
 /** Film past the first and last frames, so the strip ends just beyond them. */
 private val FilmLeader = 4.dp
-// The two ends of the negative's tone ramp, modelled on color negative film seen backlit, as film
-// is looked at: where the photo was darkest the film is clear, showing the base's peach-orange
-// mask; where it was brightest it's densest, a dark warm brown rather than black (negatives are
-// low in contrast). Nearly opaque, as backlit film reads, with a hint of the photo behind
-// showing through; denser film lets even less through.
 // Sampled from a photo of color negatives on a light table: where the photo was darkest the film
 // is clear, showing the base's deep copper-orange; where it was brightest it's densest, a dark
 // red-brown. Both around a 15 degree hue and strongly saturated. Opaque: the frames sit on the
