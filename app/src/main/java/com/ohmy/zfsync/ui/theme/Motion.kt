@@ -15,8 +15,9 @@ import androidx.compose.ui.graphics.graphicsLayer
  * OvershootExitEasing), via overshootSpec / overshootExitSpec. Exceptions, which keep Compose's
  * default non-overshooting motion: the photo pager's own swipe/snap, where overshooting would
  * flash the neighbouring photo, the viewer's double-tap zoom, the gallery carousel's
- * scrolling (gliding and snapping to centre), and the photo's move between the list and the
- * viewer (photoTransitionSpec), which like the zoom is the full-screen photo changing size.
+ * scrolling (gliding and snapping to centre), the photo's move between the list and the
+ * viewer (photoTransitionSpec), which like the zoom is the full-screen photo changing size, and
+ * the viewer's floating photo info, which simply fades (fadeSpec).
  */
 
 private const val OVERSHOOT_TENSION = 1.5f
@@ -48,6 +49,9 @@ fun <T> overshootExitSpec(delayMillis: Int = 0): FiniteAnimationSpec<T> =
  */
 fun <T> photoTransitionSpec(): FiniteAnimationSpec<T> =
     tween(MOTION_DURATION_MILLIS, easing = FastOutSlowInEasing)
+
+/** A plain fade in or out, no overshoot: for things that should appear and disappear quietly. */
+fun <T> fadeSpec(): FiniteAnimationSpec<T> = tween(MOTION_DURATION_MILLIS, easing = FastOutSlowInEasing)
 
 private const val CASCADE_MAX_STEP_MILLIS = 60
 private const val CASCADE_MAX_SPREAD_MILLIS = 200

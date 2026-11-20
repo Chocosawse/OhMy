@@ -11,6 +11,8 @@ import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import java.io.IOException
 import java.io.OutputStream
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 private val ALBUM_RELATIVE_PATH = "${Environment.DIRECTORY_PICTURES}/OhMy/"
 
@@ -54,7 +56,7 @@ class PhotoSaver(private val context: Context) {
     }
 
     /**
-     * [uri]'s exposure settings from its EXIF, or null if it has none or can't be read. Zero
+     * [uri]'s shooting details from its EXIF, or null if it has none or can't be read. Zero
      * values count as missing: that's what manual (non-CPU) lenses record for focal length and
      * aperture.
      */
@@ -67,6 +69,12 @@ class PhotoSaver(private val context: Context) {
                 aperture = positive(ExifInterface.TAG_F_NUMBER),
                 exposureTimeSeconds = positive(ExifInterface.TAG_EXPOSURE_TIME),
                 lensName = exif.getAttribute(ExifInterface.TAG_LENS_MODEL)?.trim()?.takeIf { it.isNotEmpty() },
+                iso = exif.getAttributeInt(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0).takeIf { it > 0 },
+                cameraName = cameraName(
+                    make = exif.getAttribute(ExifInterface.TAG_MAKE),
+                    model = exif.getAttribute(ExifInterface.TAG_MODEL),
+                ),
+                capturedAt = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)?.let(::parseExifDateTime),
             ).takeIf { it != ExposureInfo() }
         }
     }.getOrNull()
@@ -100,3 +108,24 @@ class PhotoSaver(private val context: Context) {
         context.contentResolver.delete(uri, null, null)
     }
 }
+
+/**
+ * A camera's name from EXIF Make and Model. Most models already start with the brand ("NIKON Z f",
+ * "Canon EOS R6"); for those that don't ("X-T5" by "FUJIFILM", "ILCE-7M4" by "SONY") the make's
+ * first word goes in front, leaving out suffixes like "CORPORATION".
+ */
+internal fun cameraName(make: String?, model: String?): String? {
+    val cleanModel = model?.trim()?.takeIf { it.isNotEmpty() }
+    val brand = make?.trim()?.substringBefore(' ')?.takeIf { it.isNotEmpty() }
+    return when {
+        cleanModel == null -> brand
+        brand == null || cleanModel.startsWith(brand, ignoreCase = true) -> cleanModel
+        else -> "$brand $cleanModel"
+    }
+}
+
+private val ExifDateTimeFormat = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss")
+
+/** EXIF's "2026:11:19 18:15:45", or null if it's missing or malformed (cameras without a set clock write blanks). */
+internal fun parseExifDateTime(value: String): LocalDateTime? =
+    runCatching { LocalDateTime.parse(value.trim(), ExifDateTimeFormat) }.getOrNull()

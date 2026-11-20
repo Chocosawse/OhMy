@@ -53,7 +53,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -139,19 +141,28 @@ import coil.size.Size
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionFabMenu
+import com.ohmy.zfsync.ui.components.CaptureTimeTag
+import com.ohmy.zfsync.ui.components.ExposureCard
+import com.ohmy.zfsync.ui.components.ExposureLabels
 import com.ohmy.zfsync.ui.components.FabAction
 import com.ohmy.zfsync.ui.components.PhotoGeometry
+import com.ohmy.zfsync.ui.components.PhotoTitleCard
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
 import com.ohmy.zfsync.ui.components.croppedGeometry
+import com.ohmy.zfsync.ui.components.formatCaptureTime
 import com.ohmy.zfsync.ui.components.sharePhotos
 import com.ohmy.zfsync.ui.components.viewerGeometry
 import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.animatePop
 import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
+import com.ohmy.zfsync.ui.theme.fadeSpec
 import com.ohmy.zfsync.ui.theme.layerScale
 import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.photoTransitionSpec
 import com.ohmy.zfsync.ui.theme.pop
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -179,6 +190,8 @@ fun PhotoViewerScreen(
     photoTransition: PhotoTransitionState? = null,
     confirmDelete: Boolean = true,
     onConfirmDeleteChange: (Boolean) -> Unit = {},
+    showInfo: Boolean = true,
+    onShowInfoChange: (Boolean) -> Unit = {},
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
@@ -355,12 +368,77 @@ fun PhotoViewerScreen(
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
 
+        val barInsets = WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility)
+        // Top-right, mirroring the close button: shows or hides the floating info below.
+        IconButton(
+            onClick = { onShowInfoChange(!showInfo) },
+            enabled = controlsShown,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(barInsets)
+                .padding(8.dp)
+                .pop { closePop.value },
+        ) {
+            Icon(
+                // Filled while the info shows, outlined while it's hidden.
+                if (showInfo) Icons.Filled.Info else Icons.Outlined.Info,
+                contentDescription = stringResource(if (showInfo) R.string.viewer_hide_info else R.string.viewer_show_info),
+                tint = Color.White,
+            )
+        }
+
+        // The current photo's floating info: shown with the other controls, unless turned off.
+        val currentPhoto = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
+        // A plain fade, not the controls' pop: these are captions on the photo, not controls.
+        val infoAlpha = animateFloatAsState(
+            if (controlsShown && showInfo) 1f else 0f,
+            fadeSpec(),
+            label = "infoAlpha",
+        )
+        PhotoTitleCard(
+            filename = currentPhoto.filename,
+            exposure = currentPhoto.exposure,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .windowInsetsPadding(barInsets)
+                // Under the close button, and clear of the capture time on the right.
+                .padding(start = 16.dp, top = 64.dp, end = 56.dp)
+                .graphicsLayer { alpha = infoAlpha.value },
+        )
+        CaptureTimeTag(
+            // The camera's own clock; files without it fall back to when the app saved them.
+            text = formatCaptureTime(
+                currentPhoto.exposure?.capturedAt
+                    ?: LocalDateTime.ofInstant(Instant.ofEpochMilli(currentPhoto.savedAtMillis), ZoneId.systemDefault()),
+            ),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(barInsets)
+                // Under the info button, level with the title card.
+                .padding(top = 64.dp, end = 16.dp)
+                .graphicsLayer { alpha = infoAlpha.value },
+        )
+
         Column(
             modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Docked bottom-right, just above the carousel; its actions open upward over the photo.
             Box(modifier = Modifier.fillMaxWidth()) {
+                // Bottom-left, level with the FAB and kept clear of it (16 + 56 + 16dp).
+                ExposureCard(
+                    exposure = currentPhoto.exposure,
+                    labels = ExposureLabels(
+                        focalLength = stringResource(R.string.viewer_exposure_focal_length),
+                        aperture = stringResource(R.string.viewer_exposure_aperture),
+                        shutter = stringResource(R.string.viewer_exposure_shutter),
+                        iso = stringResource(R.string.viewer_exposure_iso),
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 16.dp, end = 88.dp)
+                        .graphicsLayer { alpha = infoAlpha.value },
+                )
                 ActionFabMenu(
                     actions = listOf(
                         FabAction(Icons.Default.Share, stringResource(R.string.viewer_share)) {

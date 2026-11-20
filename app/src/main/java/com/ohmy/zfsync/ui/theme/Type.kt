@@ -13,7 +13,8 @@ import com.ohmy.zfsync.R
 
 /*
  * Editorial, zine-like type: a high-contrast serif (Newsreader) for headings, section headers and
- * photo names, over a neutral grotesque (Inter) for reading text, labels and controls.
+ * photo names, over a neutral grotesque (Inter) for reading text, labels and controls, and a mono
+ * (JetBrains Mono, [MonoFontFamily]) for data readouts.
  *
  * Both are variable fonts, subset to Latin (licenses in licenses/fonts). Newsreader also has an
  * optical-size axis, which Android doesn't set from the text size, so each serif size range gets
@@ -55,6 +56,21 @@ private val Inter = FontFamily(
                 style = FontStyle.Italic,
                 variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
             ),
+        )
+    },
+)
+
+/**
+ * JetBrains Mono, for data readouts (file names, exposure, timestamps), where fixed-width digits
+ * keep values from jittering as they change. Variable, so real bold rather than a synthetic one.
+ */
+@OptIn(ExperimentalTextApi::class)
+val MonoFontFamily = FontFamily(
+    listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.Bold).map { weight ->
+        Font(
+            resId = R.font.jetbrains_mono,
+            weight = weight,
+            variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
         )
     },
 )
