@@ -95,6 +95,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -412,7 +413,6 @@ private fun CarouselIndicator(
                             scaleY = p
                             alpha = p.coerceIn(0f, 1f)
                         }
-                        .background(FilmBase)
                 } else {
                     Modifier
                 },
@@ -433,13 +433,15 @@ private fun CarouselIndicator(
             // Cascade delays go by position in the strip, placeholders included.
             items(inFlightCount, key = { "placeholder-$it" }) { index ->
                 val placeholderPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
-                CarouselSlot(film = film, frameNumber = null, textMeasurer = textMeasurer) {
+                CarouselSlot(
+                    film = film,
+                    frameNumber = null,
+                    textMeasurer = textMeasurer,
                     // Placeholders are always before the photos, so always on the selection's left.
-                    PlaceholderThumbnail(
-                        Modifier
-                            .pop { placeholderPop.value }
-                            .graphicsLayer { translationX = -SelectionShift.toPx() },
-                    )
+                    shift = { -SelectionShift },
+                    leadsStrip = index == 0,
+                ) {
+                    PlaceholderThumbnail(Modifier.pop { placeholderPop.value })
                 }
             }
             itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
@@ -458,9 +460,15 @@ private fun CarouselIndicator(
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 CarouselSlot(
                     film = film,
-                    // Printed every tenth frame, like the edge numbers on real film.
-                    frameNumber = (index + 1).takeIf { it % EDGE_NUMBER_EVERY == 0 },
+                    // Printed every tenth frame from 00, like the edge numbers on real film.
+                    frameNumber = index.takeIf { it % EDGE_NUMBER_EVERY == 0 },
                     textMeasurer = textMeasurer,
+                    shift = { shift },
+                    // Tracks the selected thumbnail's growth, which runs in step with its
+                    // neighbours' shift, so its film always just meets theirs.
+                    selectionGrowth = { (scale - 1f) / (SelectedThumbnailScale - 1f) },
+                    leadsStrip = inFlightCount == 0 && index == 0,
+                    endsStrip = index == photos.lastIndex,
                     // Above its neighbours in case they briefly overlap mid-animation.
                     modifier = Modifier.zIndex(if (selected) 1f else 0f),
                 ) {
@@ -472,7 +480,6 @@ private fun CarouselIndicator(
                             .size(ThumbnailSize)
                             .pop { thumbPop.value }
                             .graphicsLayer {
-                                translationX = shift.toPx()
                                 scaleX = scale
                                 scaleY = scale
                             }
@@ -489,17 +496,27 @@ private fun CarouselIndicator(
 }
 
 /**
- * One carousel item's slot. Classic: just the thumbnail. Film strip: the frame's full-height
- * stretch of film, drawing its sprocket holes and edge number behind the thumbnail. The edge
- * number ([frameNumber]; null for frames without one, and placeholders) is measured once and only
- * drawn after that.
+ * One carousel item's slot, drawn offset by [shift] (the outward shift that opens room around the
+ * selection) with everything in it. Classic: just the thumbnail. Film strip: the frame's own piece
+ * of film behind the thumbnail, so film and frame always move together: the base, sprocket holes
+ * above and below, and the edge number ([frameNumber]; null for unnumbered frames and
+ * placeholders), measured once and only drawn after that.
+ *
+ * Each piece spans its slot plus half the gap either side, so neighbours join seamlessly. The
+ * selected slot's piece widens by [selectionGrowth] (0 to 1) of the neighbours' shift, to bridge
+ * the gap that opens; [leadsStrip] / [endsStrip] add a short leader so the film ends just past
+ * the first and last frames.
  */
 @Composable
 private fun CarouselSlot(
     film: Boolean,
     frameNumber: Int?,
     textMeasurer: TextMeasurer,
+    shift: () -> Dp,
     modifier: Modifier = Modifier,
+    selectionGrowth: () -> Float = { 0f },
+    leadsStrip: Boolean = false,
+    endsStrip: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val slotModifier = if (film) {
@@ -509,19 +526,37 @@ private fun CarouselSlot(
         Modifier
             .width(ThumbnailSize)
             .fillMaxHeight()
-            .drawBehind { drawFilmEdges(edgeLabel) }
+            .drawBehind {
+                drawFilmPiece(
+                    edgeLabel = edgeLabel,
+                    widen = SelectionShift.toPx() * selectionGrowth(),
+                    lead = if (leadsStrip) FilmLeader.toPx() else 0f,
+                    tail = if (endsStrip) FilmLeader.toPx() else 0f,
+                )
+            }
     } else {
         Modifier
     }
-    Box(modifier = modifier.then(slotModifier), contentAlignment = Alignment.Center) { content() }
+    Box(
+        modifier = modifier
+            .graphicsLayer { translationX = shift().toPx() }
+            .then(slotModifier),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 /**
- * A frame's stretch of film edge: a row of sprocket holes above and below, spanning its slot and
- * the gap after it, plus the printed edge number above the top row. Every slot spaces its holes
- * the same, so neighbouring slots join into one continuous, evenly perforated edge.
+ * A frame's piece of film: the base across its slot and half the gap either side (plus [widen]
+ * both ways, and [lead] / [tail] at the ends of the strip), a row of sprocket holes above and
+ * below centred on the frame, and the printed edge number above the top row. Every piece spaces
+ * its holes the same, so neighbouring pieces join into one continuous, evenly perforated edge.
  */
-private fun DrawScope.drawFilmEdges(edgeLabel: TextLayoutResult?) {
+private fun DrawScope.drawFilmPiece(edgeLabel: TextLayoutResult?, widen: Float, lead: Float, tail: Float) {
+    val halfGap = ThumbnailSpacing.toPx() / 2
+    val left = -halfGap - widen - lead
+    val right = size.width + halfGap + widen + tail
+    drawRect(FilmBase, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
+
     val pitch = (ThumbnailSize + ThumbnailSpacing).toPx() / SPROCKETS_PER_FRAME
     val holeWidth = SprocketWidth.toPx()
     val holeHeight = SprocketHeight.toPx()
@@ -531,7 +566,8 @@ private fun DrawScope.drawFilmEdges(edgeLabel: TextLayoutResult?) {
     // Fully qualified: this file also imports Coil's Size, for full-resolution loading.
     val hole = androidx.compose.ui.geometry.Size(holeWidth, holeHeight)
     repeat(SPROCKETS_PER_FRAME) { i ->
-        val x = i * pitch + (pitch - holeWidth) / 2
+        // Centred on the frame: the holes span the slot plus half the gap either side.
+        val x = -halfGap + i * pitch + (pitch - holeWidth) / 2
         drawRoundRect(SprocketColor, Offset(x, topRow), hole, corner)
         drawRoundRect(SprocketColor, Offset(x, bottomRow), hole, corner)
     }
@@ -588,6 +624,8 @@ private val SprocketCornerRadius = 1.dp
 /** Distance of each sprocket row from its edge of the strip; the edge number sits above the top row. */
 private val SprocketInset = 9.dp
 private val EdgeLabelInset = 2.dp
+/** Film past the first and last frames, so the strip ends just beyond them. */
+private val FilmLeader = 4.dp
 private val FilmBase = Color(0xFF111111)
 private val SprocketColor = Color(0xFFE9E4D8)
 private val FilmEdgeTextStyle = TextStyle(
