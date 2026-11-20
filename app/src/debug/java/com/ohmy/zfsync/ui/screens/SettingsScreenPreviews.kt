@@ -17,6 +17,8 @@ private fun SettingsScreenPreview(@PreviewParameter(ThemeChoiceProvider::class) 
             onSelectTheme = {},
             carouselStyle = CarouselStyle.FilmStrip,
             onCarouselStyleChange = {},
+            confirmDelete = true,
+            onConfirmDeleteChange = {},
             onClose = {},
         )
     }

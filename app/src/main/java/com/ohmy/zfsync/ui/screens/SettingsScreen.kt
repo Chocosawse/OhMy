@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -23,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -48,6 +50,8 @@ fun SettingsScreen(
     onSelectTheme: (ThemeChoice) -> Unit,
     carouselStyle: CarouselStyle,
     onCarouselStyleChange: (CarouselStyle) -> Unit,
+    confirmDelete: Boolean,
+    onConfirmDeleteChange: (Boolean) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -83,6 +87,14 @@ fun SettingsScreen(
                         onClick = { onCarouselStyleChange(style) },
                     )
                 }
+                item(key = "confirm-delete") {
+                    SwitchRow(
+                        title = stringResource(R.string.settings_confirm_delete),
+                        summary = stringResource(R.string.settings_confirm_delete_summary),
+                        checked = confirmDelete,
+                        onCheckedChange = onConfirmDeleteChange,
+                    )
+                }
             }
         }
     }
@@ -99,6 +111,25 @@ private fun SettingsSectionHeader(title: String) {
             .padding(horizontal = ScreenHorizontalPadding)
             .padding(top = 24.dp, bottom = 8.dp),
     )
+}
+
+/** A setting toggled by tapping anywhere on the row; the switch shows the state. */
+@Composable
+private fun SwitchRow(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(horizontal = ScreenHorizontalPadding, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = null)
+    }
 }
 
 /** One of a set of choices, picked by tapping anywhere on the row; the radio button shows the state. */
