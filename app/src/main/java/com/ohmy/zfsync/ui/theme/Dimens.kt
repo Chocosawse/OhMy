@@ -3,8 +3,8 @@ package com.ohmy.zfsync.ui.theme
 import androidx.compose.ui.unit.dp
 
 /**
- * Side margin for a screen's titles, text and controls: Material 3's 16dp for compact (phone)
- * widths. Full-width lists don't take it: their rows use their own inset, and their headers use
- * this so they line up with the screen's text.
+ * Side margin for a screen's titles, text, controls and list rows. A generous 24dp, part of the
+ * editorial look, rather than Material's 16dp for phones. Full-width lists span the screen so
+ * their rows' highlight reaches the edges, and inset their content by this so it lines up.
  */
-val ScreenHorizontalPadding = 16.dp
+val ScreenHorizontalPadding = 24.dp

@@ -79,8 +79,12 @@ private val PillClearance = 88.dp + PillBottomMargin
 /** Rows span the screen, so they expand far less than small controls (PRESS_EXPAND_SCALE). */
 private const val ROW_PRESS_EXPAND_SCALE = 1.01f
 
-/** Inset of each row's content from the list's edges, so thumbnails don't touch the screen edge. */
-private val ListItemHorizontalPadding = 16.dp
+/** Each row's thumbnail; the rows' text sits alongside it. */
+private val ThumbnailSize = 72.dp
+
+/** A row's top and bottom padding, and the gap between its thumbnail and text. */
+private val RowVerticalPadding = 12.dp
+private val ThumbnailTextGap = 16.dp
 
 /**
  * The album as a selectable list: tap opens a photo, long-press (and drag) selects, and a
@@ -143,7 +147,7 @@ fun PhotoList(
                 onClick = { if (selectMode) toggle(photo) else onPhotoClick(startIndex + index) },
                 onLongPress = { toggle(photo) },
             )
-            HorizontalDivider()
+            RowDivider()
         }
     }
 
@@ -170,7 +174,7 @@ fun PhotoList(
                 item(key = "header-session") { SectionHeader(stringResource(R.string.sync_section_this_session)) }
                 items(inFlightCount, key = { "placeholder-$it" }) {
                     PlaceholderRow()
-                    HorizontalDivider()
+                    RowDivider()
                 }
                 if (sessionCount == 0 && inFlightCount == 0) {
                     item(key = "session-empty") { EmptyText(stringResource(R.string.sync_section_this_session_empty)) }
@@ -239,20 +243,20 @@ private fun EmptyText(text: String) {
 @Composable
 private fun PlaceholderRow() {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = ListItemHorizontalPadding, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenHorizontalPadding, vertical = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(ThumbnailTextGap),
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(ThumbnailSize)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
         }
         Column {
-            Text(stringResource(R.string.sync_placeholder_title), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.sync_placeholder_title), style = MaterialTheme.typography.titleLarge)
             Text(
                 stringResource(R.string.sync_placeholder_subtitle),
                 style = MaterialTheme.typography.bodySmall,
@@ -262,12 +266,19 @@ private fun PlaceholderRow() {
     }
 }
 
+/** Between rows: a hairline inset to the screen margins, like a rule in a printed list. */
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding))
+}
+
+/** A quiet serif heading, set in the secondary text color rather than an accent. */
 @Composable
 private fun SectionHeader(title: String) {
     Text(
         text = title,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = ScreenHorizontalPadding)
@@ -295,16 +306,16 @@ private fun PhotoRow(
             // would fire too and double-toggle); this exposes the same action to accessibility.
             .semantics { onLongClick { onLongPress(); true } }
             // Inside the background and click area, so the selection highlight still spans the row.
-            .padding(horizontal = ListItemHorizontalPadding, vertical = 8.dp),
+            .padding(horizontal = ScreenHorizontalPadding, vertical = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(ThumbnailTextGap),
     ) {
         Box {
             AsyncImage(
                 model = photo.uri,
                 contentDescription = photo.filename,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(56.dp),
+                modifier = Modifier.size(ThumbnailSize),
             )
             if (isSelected) {
                 Icon(
@@ -320,7 +331,7 @@ private fun PhotoRow(
             }
         }
         Column {
-            Text(photo.filename, style = MaterialTheme.typography.bodyLarge)
+            Text(photo.filename, style = MaterialTheme.typography.titleLarge)
             Text(
                 DateFormat.getDateTimeInstance().format(Date(photo.savedAtMillis)),
                 style = MaterialTheme.typography.bodySmall,

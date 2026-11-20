@@ -40,17 +40,17 @@ fun SyncScreen(
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(top = 24.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(top = 16.dp)) {
         // Only the controls get the side margin; the list spans the width and insets its own rows.
         Column(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding)) {
             Text(
                 text = stringResource(R.string.sync_connected_to, cameraIp),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.headlineLarge,
             )
             Text(
                 text = pluralStringResource(R.plurals.sync_photo_count, state.photos.size, state.photos.size),
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+                modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
             )
 
             if (downloadStatus is DownloadStatus.Downloading) {

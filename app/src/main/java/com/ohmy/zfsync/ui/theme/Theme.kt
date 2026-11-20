@@ -57,7 +57,18 @@ fun OhMyTheme(
     content: @Composable () -> Unit,
 ) {
     when (choice) {
-        is ThemeChoice.Palette -> AppTheme(activeToken = choice.palette, darkTheme = darkTheme, content = content)
-        ThemeChoice.System -> MaterialTheme(colorScheme = systemColorScheme(darkTheme), content = content)
+        is ThemeChoice.Palette -> AppTheme(activeToken = choice.palette, darkTheme = darkTheme) { WithAppTypography(content) }
+        ThemeChoice.System -> MaterialTheme(colorScheme = systemColorScheme(darkTheme)) { WithAppTypography(content) }
     }
+}
+
+/** Keeps whatever colors and shapes the enclosing theme set, with the app's own [AppTypography]. */
+@Composable
+private fun WithAppTypography(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme,
+        shapes = MaterialTheme.shapes,
+        typography = AppTypography,
+        content = content,
+    )
 }
