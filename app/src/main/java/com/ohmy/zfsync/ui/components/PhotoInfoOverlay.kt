@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
@@ -81,6 +82,9 @@ private fun contrast(a: Color, b: Color): Float {
     return (lighter + 0.05f) / (darker + 0.05f)
 }
 
+/** How far the file name tab steps left of the camera and lens box below it. */
+private val FilenameTabStep = (-4).dp
+
 private val SmallMono = TextStyle(fontFamily = MonoFontFamily, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.2.sp)
 
 /**
@@ -106,9 +110,13 @@ fun PhotoTitleCard(filename: String, exposure: ExposureInfo?, hasRaw: Boolean, r
             style = SmallMono,
             color = color,
             maxLines = 1,
-            // Tighter than the box below, so the file name sits a touch left of the gear line: a
-            // tab pasted on slightly askew, like a label on a print.
-            modifier = Modifier.background(LightInfoBoxColor).padding(horizontal = 8.dp, vertical = 4.dp),
+            // Stepped a little left of the box below, and tighter inside it, so both the tab and
+            // its text sit askew from the gear line: a label pasted on by hand. A draw-time offset,
+            // so the card's layout (and its alignment with the screen margin) is unchanged.
+            modifier = Modifier
+                .offset(x = FilenameTabStep)
+                .background(LightInfoBoxColor)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
         )
         exposure?.cameraAndLens()?.let { gear ->
             Text(
