@@ -32,6 +32,16 @@ class GalleryPreferencesStore(context: Context) {
         _confirmDelete.value = confirm
     }
 
+    private val _showPhotoInfo = MutableStateFlow(prefs.getBoolean(KEY_SHOW_PHOTO_INFO, true))
+
+    /** Whether the viewer shows its floating photo info (name, gear, exposure, time); on by default. */
+    val showPhotoInfo: StateFlow<Boolean> = _showPhotoInfo.asStateFlow()
+
+    fun setShowPhotoInfo(show: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_PHOTO_INFO, show).apply()
+        _showPhotoInfo.value = show
+    }
+
     /** Before there was a choice of styles there was an on/off film strip switch: on means the v2 film strip. */
     private fun loadCarouselStyle(): String? =
         prefs.getString(KEY_CAROUSEL_STYLE, null)
@@ -41,6 +51,7 @@ class GalleryPreferencesStore(context: Context) {
         const val PREFS_NAME = "gallery"
         const val KEY_CAROUSEL_STYLE = "carousel_style"
         const val KEY_CONFIRM_DELETE = "confirm_delete"
+        const val KEY_SHOW_PHOTO_INFO = "show_photo_info"
         const val KEY_LEGACY_FILM_STRIP_CAROUSEL = "film_strip_carousel"
         /** CarouselStyle.FilmStrip's key. */
         const val LEGACY_FILM_STRIP_STYLE_KEY = "film_strip"

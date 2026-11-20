@@ -49,6 +49,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     val themeChoice by viewModel.themeChoice.collectAsState()
     val carouselStyle by viewModel.carouselStyle.collectAsState()
     val confirmDelete by viewModel.confirmDelete.collectAsState()
+    val showPhotoInfo by viewModel.showPhotoInfo.collectAsState()
     // Saveable: rotation recreates the activity, and an open gallery or theme picker must survive it.
     var viewerIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -119,6 +120,8 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     photoTransition = photoTransition,
                     confirmDelete = confirmDelete,
                     onConfirmDeleteChange = viewModel::setConfirmDelete,
+                    showInfo = showPhotoInfo,
+                    onShowInfoChange = viewModel::setShowPhotoInfo,
                 )
             }
 

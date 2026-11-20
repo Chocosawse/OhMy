@@ -51,6 +51,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         galleryPreferences.setConfirmDelete(confirm)
     }
 
+    val showPhotoInfo: StateFlow<Boolean> = galleryPreferences.showPhotoInfo
+
+    fun setShowPhotoInfo(show: Boolean) {
+        galleryPreferences.setShowPhotoInfo(show)
+    }
+
     fun connect(ssid: String, password: String) {
         viewModelScope.launch {
             repository.connect(ssid, password)

@@ -53,7 +53,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -187,6 +189,8 @@ fun PhotoViewerScreen(
     photoTransition: PhotoTransitionState? = null,
     confirmDelete: Boolean = true,
     onConfirmDeleteChange: (Boolean) -> Unit = {},
+    showInfo: Boolean = true,
+    onShowInfoChange: (Boolean) -> Unit = {},
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
@@ -363,10 +367,28 @@ fun PhotoViewerScreen(
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
 
-        // The current photo's floating info, shown and hidden with the other controls.
-        val currentPhoto = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
-        val infoPop = animatePop(controlsShown)
         val barInsets = WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility)
+        // Top-right, mirroring the close button: shows or hides the floating info below.
+        IconButton(
+            onClick = { onShowInfoChange(!showInfo) },
+            enabled = controlsShown,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(barInsets)
+                .padding(8.dp)
+                .pop { closePop.value },
+        ) {
+            Icon(
+                // Filled while the info shows, outlined while it's hidden.
+                if (showInfo) Icons.Filled.Info else Icons.Outlined.Info,
+                contentDescription = stringResource(if (showInfo) R.string.viewer_hide_info else R.string.viewer_show_info),
+                tint = Color.White,
+            )
+        }
+
+        // The current photo's floating info: shown with the other controls, unless turned off.
+        val currentPhoto = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
+        val infoPop = animatePop(controlsShown && showInfo)
         PhotoTitleCard(
             filename = currentPhoto.filename,
             exposure = currentPhoto.exposure,
@@ -386,7 +408,8 @@ fun PhotoViewerScreen(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .windowInsetsPadding(barInsets)
-                .padding(top = 16.dp, end = 16.dp)
+                // Under the info button, level with the title card.
+                .padding(top = 64.dp, end = 16.dp)
                 .pop { infoPop.value },
         )
 
