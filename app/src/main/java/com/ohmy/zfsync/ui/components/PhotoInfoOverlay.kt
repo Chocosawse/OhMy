@@ -182,14 +182,15 @@ private const val IMPRINT_OPACITY = 0.7f
 /** The imprint's size: fixed, not relative to the photo, so it's never large on a big screen. */
 private val IMPRINT_SIZE = 14.sp
 
-/** Its inset from the photo's corner. */
+/** Its inset from the photo's corner: from the right edge, and (lower) from the top. */
 private val ImprintInset = 12.dp
+private val ImprintTopInset = 28.dp
 
 /** Space kept clear at the top for the close and info buttons (8 + 48 + 8dp), below the bars. */
 private val ImprintTopClearance = 64.dp
 
 /**
- * A film camera's date imprint, set vertically (reading down) at the photo's top-right corner:
+ * A film camera's date imprint, set vertically (reading up) at the photo's top-right corner:
  * orange seven-segment digits with a slight glow, e.g. "'26 10 24  16:36". Placed from the photo
  * as fitted (ContentScale.Fit) into this box, from its [imageSize], but kept inside the visible
  * area -- clear of the system bars and the top buttons, within the screen -- so it's never cut
@@ -237,7 +238,8 @@ fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Mod
         val inset = with(density) { ImprintInset.toPx() }
         // The photo's top-right corner, pulled inside the visible area.
         val right = min(photoRight, boxWidth - safeEnd) - inset
-        val top = maxOf(photoTop, safeTop + with(density) { ImprintTopClearance.toPx() }) + inset
+        val top = maxOf(photoTop, safeTop + with(density) { ImprintTopClearance.toPx() }) +
+            with(density) { ImprintTopInset.toPx() }
         Text(
             styled,
             style = style,
@@ -246,7 +248,7 @@ fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Mod
             modifier = Modifier
                 .layout { measurable, constraints ->
                     val placeable = measurable.measure(Constraints())
-                    // Turned a quarter clockwise, it takes the text's height as its width.
+                    // Turned a quarter counterclockwise, it takes the text's height as its width.
                     val turnedWidth = placeable.height
                     val turnedHeight = placeable.width
                     layout(constraints.maxWidth, constraints.maxHeight) {
@@ -257,7 +259,7 @@ fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Mod
                             x = (x + turnedWidth / 2f - placeable.width / 2f).roundToInt(),
                             y = (y + turnedHeight / 2f - placeable.height / 2f).roundToInt(),
                         ) {
-                            rotationZ = 90f
+                            rotationZ = -90f
                             this.alpha = alpha() * IMPRINT_OPACITY
                         }
                     }
@@ -282,7 +284,7 @@ enum class DateStyle(val key: String) {
     }
 }
 
-/** The caption date style: when the photo was taken, set vertically, reading down the screen's edge. */
+/** The caption date style: when the photo was taken, set vertically, reading up the screen's edge. */
 @Composable
 fun CaptureTimeTag(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -292,17 +294,18 @@ fun CaptureTimeTag(text: String, modifier: Modifier = Modifier) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
-            .rotatedClockwise()
+            .rotatedCounterclockwise()
             .background(InfoBoxColor)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     )
 }
 
 /**
- * Lays the content out on its side, turned a quarter clockwise: measured with the incoming height
+ * Lays the content out on its side, turned a quarter counterclockwise (reading bottom to top):
+ * measured with the incoming height
  * as its width, and taking up its rotated (swapped) size, so it fits where it's put.
  */
-private fun Modifier.rotatedClockwise(): Modifier = layout { measurable, constraints ->
+private fun Modifier.rotatedCounterclockwise(): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(
         Constraints(maxWidth = constraints.maxHeight, maxHeight = constraints.maxWidth),
     )
@@ -311,7 +314,7 @@ private fun Modifier.rotatedClockwise(): Modifier = layout { measurable, constra
         placeable.placeWithLayer(
             x = (placeable.height - placeable.width) / 2,
             y = (placeable.width - placeable.height) / 2,
-        ) { rotationZ = 90f }
+        ) { rotationZ = -90f }
     }
 }
 
