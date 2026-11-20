@@ -381,7 +381,8 @@ private fun CarouselIndicator(
         val info = listState.layoutInfo
         val item = info.visibleItemsInfo.firstOrNull { it.key == currentKey } ?: return@LaunchedEffect
         val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
-        listState.animateScrollBy((item.offset + item.size / 2 - viewportCenter).toFloat(), overshootSpec())
+        // Default (non-bouncing) spring: a scroll that overshoots its target reads as jitter.
+        listState.animateScrollBy((item.offset + item.size / 2 - viewportCenter).toFloat())
     }
 
     // Which thumbnails are on screen when the toggle happens decides each one's cascade delay.
@@ -556,7 +557,7 @@ private fun PlaceholderThumbnail(modifier: Modifier = Modifier) {
 
 private val ThumbnailSize = 40.dp
 
-private val SelectedThumbnailSize = 80.dp
+private val SelectedThumbnailSize = 56.dp
 
 /** The selected thumbnail is drawn at [SelectedThumbnailSize] by scaling its [ThumbnailSize] slot. */
 private val SelectedThumbnailScale = SelectedThumbnailSize / ThumbnailSize
@@ -565,7 +566,7 @@ private val SelectedThumbnailScale = SelectedThumbnailSize / ThumbnailSize
 private val ThumbnailSpacing = 4.dp
 
 /** ...except either side of the selected thumbnail. */
-private val SelectedThumbnailSpacing = 8.dp
+private val SelectedThumbnailSpacing = 4.dp
 
 /**
  * How far the thumbnails either side of the selection are drawn outward: enough to clear its
@@ -574,10 +575,10 @@ private val SelectedThumbnailSpacing = 8.dp
 private val SelectionShift = (SelectedThumbnailSize - ThumbnailSize) / 2 + (SelectedThumbnailSpacing - ThumbnailSpacing)
 
 /** Leaves room above and below the current thumbnail for its grow animation to overshoot. */
-private val CarouselHeight = 84.dp
+private val CarouselHeight = 60.dp
 
-// Film strip (v2): tall enough for the perforated edges around the frames. The selected frame is
-// deliberately larger and spills past the film's edges, as if pulled forward.
+// Film strip (v2): tall enough for the perforated edges around the frames; the selected frame
+// grows over them.
 private val FilmStripHeight = 72.dp
 private const val SPROCKETS_PER_FRAME = 4
 private const val EDGE_NUMBER_EVERY = 10
