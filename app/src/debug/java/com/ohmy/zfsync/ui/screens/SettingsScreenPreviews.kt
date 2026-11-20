@@ -15,8 +15,8 @@ private fun SettingsScreenPreview(@PreviewParameter(ThemeChoiceProvider::class) 
         SettingsScreen(
             currentTheme = choice,
             onSelectTheme = {},
-            filmStripCarousel = true,
-            onFilmStripCarouselChange = {},
+            carouselStyle = CarouselStyle.FilmStrip,
+            onCarouselStyleChange = {},
             onClose = {},
         )
     }

@@ -25,6 +25,7 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.DownloadStatus
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.ui.components.PhotoList
+import com.ohmy.zfsync.ui.components.PhotoTransitionState
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 
 @Composable
@@ -39,6 +40,7 @@ fun SyncScreen(
     onDeletePhotos: (List<Uri>) -> Unit,
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    photoTransition: PhotoTransitionState? = null,
 ) {
     Column(modifier = modifier.fillMaxSize().padding(top = 16.dp)) {
         // Only the controls get the side margin; the list spans the width and insets its own rows.
@@ -102,6 +104,7 @@ fun SyncScreen(
             onPhotoClick = onPhotoClick,
             onDeletePhotos = onDeletePhotos,
             onOpenMenu = onOpenMenu,
+            photoTransition = photoTransition,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )
     }

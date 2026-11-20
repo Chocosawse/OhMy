@@ -31,6 +31,7 @@ import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.ui.components.PhotoList
+import com.ohmy.zfsync.ui.components.PhotoTransitionState
 import com.ohmy.zfsync.ui.components.UnderlinedTextField
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 
@@ -43,6 +44,7 @@ fun ConnectScreen(
     onDeletePhotos: (List<Uri>) -> Unit,
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    photoTransition: PhotoTransitionState? = null,
 ) {
     val connectionState = state.connectionState
     var ssid by remember { mutableStateOf(savedCredentials?.ssid.orEmpty()) }
@@ -122,6 +124,7 @@ fun ConnectScreen(
             onPhotoClick = onPhotoClick,
             onDeletePhotos = onDeletePhotos,
             onOpenMenu = onOpenMenu,
+            photoTransition = photoTransition,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )
     }

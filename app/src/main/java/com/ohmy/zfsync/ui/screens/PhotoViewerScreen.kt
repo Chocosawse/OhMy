@@ -3,6 +3,7 @@ package com.ohmy.zfsync.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
@@ -46,6 +47,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
@@ -56,6 +58,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -65,6 +68,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.Snapshot
@@ -79,14 +83,22 @@ import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
@@ -101,29 +113,42 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.memory.MemoryCache
 import coil.request.ImageRequest
 import coil.size.Size
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionPill
+import com.ohmy.zfsync.ui.components.PhotoGeometry
+import com.ohmy.zfsync.ui.components.PhotoTransitionState
+import com.ohmy.zfsync.ui.components.croppedGeometry
 import com.ohmy.zfsync.ui.components.sharePhotos
+import com.ohmy.zfsync.ui.components.viewerGeometry
 import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.animatePop
-import com.ohmy.zfsync.ui.theme.layerScale
 import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
+import com.ohmy.zfsync.ui.theme.layerScale
 import com.ohmy.zfsync.ui.theme.overshootSpec
+import com.ohmy.zfsync.ui.theme.photoTransitionSpec
 import com.ohmy.zfsync.ui.theme.pop
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -143,9 +168,11 @@ fun PhotoViewerScreen(
     onClose: () -> Unit,
     inFlightCount: Int = 0,
     carouselStyle: CarouselStyle = CarouselStyle.Classic,
+    photoTransition: PhotoTransitionState? = null,
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
+    val latestOnClose by rememberUpdatedState(onClose)
     val pagerState = rememberPagerState(initialPage = initialIndex) { latestPhotos.size }
     var pendingDelete by remember { mutableStateOf<SyncedPhoto?>(null) }
     val context = LocalContext.current
@@ -157,14 +184,105 @@ fun PhotoViewerScreen(
     fun zoomStateFor(photo: SyncedPhoto) = zoomStates.getOrPut(photo.uri) { ZoomState() }
 
     if (photos.isEmpty()) {
-        LaunchedEffect(Unit) { onClose() }
+        LaunchedEffect(Unit) {
+            // Nothing left to fly back: just go, leaving the transition closed for next time.
+            photoTransition?.progress?.snapTo(0f)
+            onClose()
+        }
         return
     }
 
     // This screen is swapped in by Compose state, not a back-stack entry, so without this the
     // system back gesture has nothing of ours to intercept and falls through to the Activity,
     // closing the whole app instead of returning to the sync screen.
-    BackHandler(onBack = onClose)
+    // --- The photo's move between its list row and this screen (see PhotoTransitionState) ---
+    // 0 = in the list, 1 = here; without a transition (e.g. previews) the screen is simply open.
+    val progress: () -> Float = { photoTransition?.progress?.value ?: 1f }
+    var screenSize by remember { mutableStateOf(GeometrySize.Zero) }
+    // The photo on the move, drawn over the (hidden) pager until it lands.
+    var flight by remember { mutableStateOf<Flight?>(null) }
+    val imageLoader = context.imageLoader
+
+    /** Starts a flight for [uri] if Coil already has an image of it in memory; [geometry] gets its aspect ratio. */
+    fun beginFlight(uri: Uri, geometry: (aspectRatio: Float) -> Pair<PhotoGeometry, PhotoGeometry>) {
+        val screenSized = imageLoader.cachedScreenPhoto(uri)
+        val bitmap = screenSized ?: imageLoader.cachedThumbnail(uri) ?: return
+        val (list, viewer) = geometry(bitmap.width.toFloat() / bitmap.height)
+        flight = Flight(uri, bitmap.asImageBitmap(), screenSized = screenSized != null, list, viewer)
+    }
+
+    // Opening: the photo grows out of its thumbnail. Not after rotation, when it's already open.
+    var animateIn by rememberSaveable { mutableStateOf(true) }
+    if (photoTransition != null) {
+        LaunchedEffect(photoTransition) {
+            photoTransition.closing = false
+            if (!animateIn) {
+                photoTransition.progress.snapTo(1f)
+                return@LaunchedEffect
+            }
+            animateIn = false
+            photoTransition.progress.snapTo(0f)
+            val photo = latestPhotos.getOrNull(initialIndex)
+            val screen = snapshotFlow { screenSize }.first { it != GeometrySize.Zero }
+            val bounds = photo?.let { photoTransition.thumbnailBounds(it.uri) }
+            if (photo != null && bounds != null) {
+                beginFlight(photo.uri) { aspectRatio -> croppedGeometry(bounds, aspectRatio) to viewerGeometry(screen, aspectRatio) }
+                photoTransition.activeUri = photo.uri
+            }
+            // Without a flight (no row or image to fly from) the photo simply fades in.
+            photoTransition.progress.animateTo(1f, photoTransitionSpec())
+            flight = null
+            photoTransition.activeUri = null
+        }
+    }
+
+    // Closing: the current photo (maybe not the one opened) shrinks back into its row, which the
+    // list first scrolls into view. A zoomed-in photo shrinks from where it's zoomed to.
+    fun requestClose() {
+        if (photoTransition == null) {
+            onClose()
+            return
+        }
+        if (photoTransition.closing) return
+        photoTransition.closing = true
+        coroutineScope.launch {
+            val photo = latestPhotos.getOrNull(pagerState.currentPage)
+            if (photo != null && screenSize != GeometrySize.Zero) {
+                photoTransition.reveal(photo.uri)
+                val bounds = photoTransition.thumbnailBounds(photo.uri)
+                if (bounds != null) {
+                    val zoom = zoomStateFor(photo)
+                    beginFlight(photo.uri) { aspectRatio ->
+                        croppedGeometry(bounds, aspectRatio) to viewerGeometry(screenSize, aspectRatio, zoom.scale, zoom.offset)
+                    }
+                    photoTransition.activeUri = photo.uri
+                }
+            }
+            photoTransition.progress.animateTo(0f, photoTransitionSpec())
+            photoTransition.activeUri = null
+            latestOnClose()
+        }
+    }
+
+    // A flight that set off with the thumbnail switches to the screen-sized image as soon as the
+    // pager has it: a cache lookup per frame, only while flying.
+    LaunchedEffect(flight) {
+        val current = flight ?: return@LaunchedEffect
+        if (current.screenSized) return@LaunchedEffect
+        while (true) {
+            withFrameNanos { }
+            val bitmap = imageLoader.cachedScreenPhoto(current.uri) ?: continue
+            flight = current.copy(image = bitmap.asImageBitmap(), screenSized = true)
+            return@LaunchedEffect
+        }
+    }
+
+    // Fully here: not mid-transition. The controls only show then.
+    val entered by remember {
+        derivedStateOf { flight == null && photoTransition?.closing != true && progress() >= 1f }
+    }
+
+    BackHandler(onBack = ::requestClose)
     LightSystemBarIcons()
 
     // A photo swiped away from resets to 1x, so coming back to it starts fully zoomed out.
@@ -177,12 +295,23 @@ fun PhotoViewerScreen(
     // and returning to 1x brings them back; a single tap toggles them at any zoom.
     var controlsVisible by remember { mutableStateOf(true) }
     LaunchedEffect(currentZoomedOut) { controlsVisible = currentZoomedOut }
-    StatusBarHidden(hidden = !controlsVisible)
+    val controlsShown = controlsVisible && entered
+    StatusBarHidden(hidden = entered && !controlsVisible)
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { screenSize = it.toSize() }
+            // Read in the draw phase, so the fade doesn't recompose.
+            .drawBehind { drawRect(Color.Black, alpha = progress()) },
+    ) {
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize(),
+            // Hidden while a flight stands in for the current photo; otherwise fades with the
+            // screen (the fallback when there's no flight).
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = if (flight != null) 0f else progress() },
             key = { photos[it].uri },
             // Keeps the photos either side composed, so they start loading before they're swiped
             // to rather than as they slide in.
@@ -191,11 +320,13 @@ fun PhotoViewerScreen(
             ZoomableImage(photos[page], zoomStateFor(photos[page]), onTap = { controlsVisible = !controlsVisible })
         }
 
+        flight?.let { FlyingPhoto(it, progress) }
+
         // Shown and hidden with the other controls.
-        val closePop = animatePop(controlsVisible)
+        val closePop = animatePop(controlsShown)
         IconButton(
-            onClick = onClose,
-            enabled = controlsVisible,
+            onClick = ::requestClose,
+            enabled = controlsShown,
             // The photo itself runs edge to edge behind the system bars; controls stay clear of them.
             // Padded for where the status bar is even while it's hidden, so the button doesn't
             // jump up and down as zooming hides and shows the bar.
@@ -214,7 +345,7 @@ fun PhotoViewerScreen(
         ) {
             ActionPill(
                 // Shown and hidden with the other controls.
-                visible = controlsVisible,
+                visible = controlsShown,
                 onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
                 onDelete = { pendingDelete = photos[pagerState.currentPage] },
                 containerColor = Color.White.copy(alpha = 0.2f),
@@ -225,7 +356,7 @@ fun PhotoViewerScreen(
                 photos = photos,
                 inFlightCount = inFlightCount,
                 currentIndex = pagerState.currentPage,
-                visible = controlsVisible,
+                visible = controlsShown,
                 style = carouselStyle,
                 // Instant, not animated: dragging the strip changes photo many times a second.
                 onSelect = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
@@ -302,8 +433,21 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-/** The gallery carousel's look: v1 plain thumbnails, or v2 frames on a strip of film. */
-enum class CarouselStyle { Classic, FilmStrip }
+/**
+ * The gallery carousel's look: v1 plain thumbnails, or frames on a strip of film, either black
+ * (v2) or translucent amber (v3). [key] is how the choice is saved, so it must not change.
+ */
+enum class CarouselStyle(val key: String) {
+    Classic("classic"),
+    FilmStrip("film_strip"),
+    AmberFilm("amber_film"),
+    ;
+
+    companion object {
+        /** Unknown or missing keys fall back to [Classic]. */
+        fun fromKey(key: String?): CarouselStyle = entries.firstOrNull { it.key == key } ?: Classic
+    }
+}
 
 /**
  * Filmstrip of thumbnails: whichever thumbnail sits at the centre is the selected photo.
@@ -320,7 +464,8 @@ enum class CarouselStyle { Classic, FilmStrip }
  * Toggling [visible] pops the on-screen items in from both ends toward the middle, or out from
  * the middle toward both ends; while hidden the strip keeps its space but ignores touches.
  *
- * [CarouselStyle.FilmStrip] (v2) draws the same strip as film: a dark base, each frame's slot
+ * The film styles ([CarouselStyle.FilmStrip], v2, and [CarouselStyle.AmberFilm], v3; see
+ * [FilmLook]) draw the same strip as film: a base, each frame's slot
  * drawing its own sprocket holes above and below (see-through, like real perforations), and every
  * tenth frame a printed edge number. The slots share one
  * hole spacing, so neighbours join into continuous perforated edges. It's all drawn (a few rects
@@ -336,7 +481,7 @@ private fun CarouselIndicator(
     style: CarouselStyle,
     onSelect: (Int) -> Unit,
 ) {
-    val film = style == CarouselStyle.FilmStrip
+    val film = style.filmLook
     val textMeasurer = rememberTextMeasurer()
     val listState = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
@@ -414,9 +559,9 @@ private fun CarouselIndicator(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (film) FilmStripHeight else CarouselHeight)
+            .height(if (film != null) FilmStripHeight else CarouselHeight)
             .then(
-                if (film) {
+                if (film != null) {
                     Modifier
                         .graphicsLayer {
                             val p = stripPop.value
@@ -470,6 +615,13 @@ private fun CarouselIndicator(
                     overshootSpec(),
                     label = "thumbShift",
                 )
+                // 0 at normal size, 1 fully enlarged; the overshoot can briefly take it past either end.
+                val growth = { (scale - 1f) / (SelectedThumbnailScale - 1f) }
+                // On the film strip, a frame develops from negative into positive as it grows into
+                // the selection, and back as it shrinks. Derived, so a frame only recomposes as it
+                // starts or finishes doing so, not every animation frame.
+                val developing by remember(film) { derivedStateOf { film != null && scale > 1f } }
+                val frameShape = film?.frameShape ?: RectangleShape
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 CarouselSlot(
@@ -480,29 +632,64 @@ private fun CarouselIndicator(
                     shift = { shift },
                     // Tracks the selected thumbnail's growth, which runs in step with its
                     // neighbours' shift, so its film always just meets theirs.
-                    selectionGrowth = { (scale - 1f) / (SelectedThumbnailScale - 1f) },
+                    selectionGrowth = growth,
+                    // The image's drawn size: popping in or out, times its selection scale.
+                    frameScale = { thumbPop.value.coerceAtLeast(0f) * scale },
                     leadsStrip = inFlightCount == 0 && index == 0,
                     endsStrip = index == photos.lastIndex,
                     // Above its neighbours in case they briefly overlap mid-animation.
                     modifier = Modifier.zIndex(if (selected) 1f else 0f),
                 ) {
-                    AsyncImage(
-                        model = photo.uri,
-                        contentDescription = photo.filename,
-                        contentScale = ContentScale.Crop,
+                    Box(
                         modifier = Modifier
                             .size(ThumbnailSize)
                             .pop { thumbPop.value }
                             .graphicsLayer {
                                 scaleX = scale
                                 scaleY = scale
+                                // Rounded film frames are clipped in this same layer: no extra one.
+                                if (frameShape != RectangleShape) {
+                                    shape = frameShape
+                                    clip = true
+                                }
                             }
                             .then(
                                 // Thinner before scaling, so it's 2dp once the thumbnail is enlarged.
-                                if (selected) Modifier.border((2f / SelectedThumbnailScale).dp, Color.White) else Modifier,
+                                if (selected) Modifier.border((2f / SelectedThumbnailScale).dp, Color.White, frameShape) else Modifier,
                             )
                             .clickable(enabled = visible) { latestOnSelect(index) },
-                    )
+                    ) {
+                        // Developing: the positive underneath, the negative fading off it. Only
+                        // while developing (the selected frame, and one returning to the strip),
+                        // so every other frame stays a single draw with no extra layer. Both
+                        // load the same cached thumbnail.
+                        if (developing) {
+                            AsyncImage(
+                                model = photo.uri,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.matchParentSize(),
+                            )
+                        }
+                        AsyncImage(
+                            model = photo.uri,
+                            contentDescription = photo.filename,
+                            contentScale = ContentScale.Crop,
+                            // Frames on the film strip are its negatives.
+                            colorFilter = film?.negative,
+                            modifier = Modifier
+                                .matchParentSize()
+                                .then(
+                                    if (developing) {
+                                        // Read in the draw phase: the fade follows the enlarge
+                                        // animation without recomposing.
+                                        Modifier.graphicsLayer { alpha = 1f - growth().coerceIn(0f, 1f) }
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
+                        )
+                    }
                 }
             }
         }
@@ -523,29 +710,32 @@ private fun CarouselIndicator(
  */
 @Composable
 private fun CarouselSlot(
-    film: Boolean,
+    film: FilmLook?,
     frameNumber: Int?,
     textMeasurer: TextMeasurer,
     shift: () -> Dp,
     modifier: Modifier = Modifier,
     selectionGrowth: () -> Float = { 0f },
+    frameScale: () -> Float = { 0f },
     leadsStrip: Boolean = false,
     endsStrip: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val slotModifier = if (film) {
-        val edgeLabel = remember(frameNumber, textMeasurer) {
-            frameNumber?.let { textMeasurer.measure(it.toString().padStart(2, '0'), FilmEdgeTextStyle) }
+    val slotModifier = if (film != null) {
+        val edgeLabel = remember(frameNumber, textMeasurer, film) {
+            frameNumber?.let { textMeasurer.measure(it.toString().padStart(2, '0'), film.edgeTextStyle) }
         }
         Modifier
             .width(ThumbnailSize)
             .fillMaxHeight()
             .drawBehind {
                 drawFilmPiece(
+                    look = film,
                     edgeLabel = edgeLabel,
                     widen = SelectionShift.toPx() * selectionGrowth(),
                     lead = if (leadsStrip) FilmLeader.toPx() else 0f,
                     tail = if (endsStrip) FilmLeader.toPx() else 0f,
+                    frameSize = if (film.clearBaseUnderFrames) ThumbnailSize.toPx() * frameScale() else 0f,
                 )
             }
     } else {
@@ -565,11 +755,29 @@ private fun CarouselSlot(
  * below centred on the frame, and the printed edge number above the top row. Every piece spaces
  * its holes the same, so neighbouring pieces join into one continuous, evenly perforated edge.
  */
-private fun DrawScope.drawFilmPiece(edgeLabel: TextLayoutResult?, widen: Float, lead: Float, tail: Float) {
+private fun DrawScope.drawFilmPiece(
+    look: FilmLook,
+    edgeLabel: TextLayoutResult?,
+    widen: Float,
+    lead: Float,
+    tail: Float,
+    frameSize: Float,
+) {
     val halfGap = ThumbnailSpacing.toPx() / 2
     val left = -halfGap - widen - lead
     val right = size.width + halfGap + widen + tail
-    drawRect(FilmBase, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
+    drawRect(look.base, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
+    // Translucent film only: the base cleared from under the frame's image ([frameSize] square,
+    // centred, as currently drawn), since the negative's own clear areas already are the base.
+    // Without it the frame would read as a denser box.
+    if (frameSize > 0f) {
+        drawRect(
+            Color.Black,
+            topLeft = Offset((size.width - frameSize) / 2f, (size.height - frameSize) / 2f),
+            size = androidx.compose.ui.geometry.Size(frameSize, frameSize),
+            blendMode = BlendMode.Clear,
+        )
+    }
 
     val pitch = (ThumbnailSize + ThumbnailSpacing).toPx() / SPROCKETS_PER_FRAME
     val holeWidth = SprocketWidth.toPx()
@@ -645,17 +853,135 @@ private val SprocketInset = 9.dp
 private val EdgeLabelInset = 2.dp
 /** Film past the first and last frames, so the strip ends just beyond them. */
 private val FilmLeader = 4.dp
-private val FilmBase = Color(0xFF111111)
+/**
+ * One film carousel style's materials: the strip's [base], the [negative] color filter its frames
+ * are drawn through, its edge numbers' [edgeTextStyle], and whether the base is cleared from under
+ * each frame ([clearBaseUnderFrames], for translucent film, where base under the frame would read
+ * as a denser box), and the shape its frames are clipped to ([frameShape]).
+ */
+@Immutable
+private class FilmLook(
+    val base: Color,
+    val negative: ColorFilter,
+    val edgeTextStyle: TextStyle,
+    val clearBaseUnderFrames: Boolean,
+    val frameShape: Shape = RectangleShape,
+)
+
+private val CarouselStyle.filmLook: FilmLook?
+    get() = when (this) {
+        CarouselStyle.Classic -> null
+        CarouselStyle.FilmStrip -> BlackFilmLook
+        CarouselStyle.AmberFilm -> AmberFilmLook
+    }
+
+/**
+ * v2: a black strip, with negatives in colors sampled from a photo of color negatives on a light
+ * table. Where the photo was darkest the film is clear, showing the base's deep copper-orange;
+ * where it was brightest it's densest, a dark red-brown. Opaque, sitting on the black.
+ */
+private val BlackFilmLook = FilmLook(
+    base = Color(0xFF111111),
+    negative = negativeFilter(dense = Color(0xFF57200C), clear = Color(0xFFB56244)),
+    edgeTextStyle = filmEdgeTextStyle(Color(0xCCE0A84A)),
+    clearBaseUnderFrames = false,
+    // Slight squircles: a rounded rectangle (about 15% of the frame) rather than a true
+    // superellipse, which as a path clip is only anti-aliased by the GPU from Android 13.
+    frameShape = RoundedCornerShape(6.dp),
+)
+
+/**
+ * v3: the whole strip is translucent amber film base, and the frames' negatives run from that
+ * same amber (clear) to a deep red-brown (dense); denser film is less translucent, as on real
+ * film. Edge numbers in the dense color, opaque, to stay legible over the photo behind.
+ */
+private val AmberFilmClear = Color(0x88C65731)
+private val AmberFilmLook = FilmLook(
+    base = AmberFilmClear,
+    negative = negativeFilter(dense = Color(0xCC4A0003), clear = AmberFilmClear),
+    edgeTextStyle = filmEdgeTextStyle(Color(0xFF4A0003)),
+    clearBaseUnderFrames = true,
+)
+
+/**
+ * Turns a thumbnail into a toned negative in a single color matrix: luminance (Rec. 601 weights),
+ * inverted, then mapped onto the ramp from [clear] (where the photo was darkest) to [dense]
+ * (brightest). Per channel c, alpha included, so translucency can follow density:
+ * out = clear_c - (clear_c - dense_c) * luminance.
+ *
+ * Applied by the GPU as the thumbnail draws (the paint's color filter), so it costs nothing per
+ * frame and leaves Coil's cached images untouched (the same thumbnails serve the list and the
+ * viewer). One instance per style, shared by every frame on the strip.
+ */
+private fun negativeFilter(dense: Color, clear: Color): ColorFilter {
+    val (wr, wg, wb) = Triple(0.299f, 0.587f, 0.114f)
+    val denseChannels = floatArrayOf(dense.red, dense.green, dense.blue, dense.alpha)
+    val clearChannels = floatArrayOf(clear.red, clear.green, clear.blue, clear.alpha)
+    // Rows for red, green, blue and alpha; the thumbnail's own alpha (always opaque) isn't used.
+    val rows = (0..3).flatMap { c ->
+        val range = clearChannels[c] - denseChannels[c]
+        // Matrix offsets are on the 0-255 scale; the multipliers act on 0-255 channel values too.
+        listOf(-range * wr, -range * wg, -range * wb, 0f, clearChannels[c] * 255f)
+    }
+    return ColorFilter.colorMatrix(ColorMatrix(rows.toFloatArray()))
+}
+
 private val SprocketRim = Color.White.copy(alpha = 0.35f)
 private val SprocketRimWidth = 0.75.dp
-private val FilmEdgeTextStyle = TextStyle(
-    color = Color(0xCCE0A84A),
+private fun filmEdgeTextStyle(color: Color) = TextStyle(
+    color = color,
     fontSize = 7.sp,
     fontFamily = FontFamily.Monospace,
     letterSpacing = 0.5.sp,
 )
 
 @Stable
+/** Coil memory cache key of a photo's screen-sized image, as the viewer loads it. */
+private fun screenCacheKey(uri: Uri) = "$uri-screen"
+
+/** Coil's default memory cache key for a photo loaded by URI alone (no transformations), as the list's thumbnails are. */
+private fun thumbnailCacheKey(uri: Uri) = uri.toString()
+
+private fun ImageLoader.cachedScreenPhoto(uri: Uri): Bitmap? = memoryCache?.get(MemoryCache.Key(screenCacheKey(uri)))?.bitmap
+
+private fun ImageLoader.cachedThumbnail(uri: Uri): Bitmap? = memoryCache?.get(MemoryCache.Key(thumbnailCacheKey(uri)))?.bitmap
+
+/**
+ * The photo on its way between its list row ([list]) and this screen ([viewer]), drawn from an
+ * image already in memory: no decoding, so it's ready the moment the transition starts.
+ */
+@Immutable
+private data class Flight(
+    val uri: Uri,
+    val image: ImageBitmap,
+    val screenSized: Boolean,
+    val list: PhotoGeometry,
+    val viewer: PhotoGeometry,
+)
+
+/**
+ * Draws [flight] between its two layouts at [progress]: the whole image's rect and the crop it's
+ * seen through both move, so the square thumbnail uncrops into the full photo. Draw phase only:
+ * no layout or recomposition per frame.
+ */
+@Composable
+private fun FlyingPhoto(flight: Flight, progress: () -> Float) {
+    Spacer(
+        modifier = Modifier.fillMaxSize().drawBehind {
+            val geometry = flight.list.lerp(flight.viewer, progress())
+            val clip = geometry.clip
+            val image = geometry.image
+            clipRect(clip.left, clip.top, clip.right, clip.bottom) {
+                drawImage(
+                    flight.image,
+                    dstOffset = IntOffset(image.left.roundToInt(), image.top.roundToInt()),
+                    dstSize = IntSize(image.width.roundToInt(), image.height.roundToInt()),
+                )
+            }
+        },
+    )
+}
+
 private class ZoomState {
     var scale by mutableFloatStateOf(1f)
     var offset by mutableStateOf(Offset.Zero)
@@ -691,8 +1017,8 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
     val screenRequest = remember(photo.uri) {
         ImageRequest.Builder(context)
             .data(photo.uri)
-            .memoryCacheKey("${photo.uri}-screen")
-            .placeholderMemoryCacheKey(photo.uri.toString())
+            .memoryCacheKey(screenCacheKey(photo.uri))
+            .placeholderMemoryCacheKey(thumbnailCacheKey(photo.uri))
             .build()
     }
     val fullSizeRequest = remember(photo.uri) {
@@ -700,7 +1026,7 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
             .data(photo.uri)
             .size(Size.ORIGINAL)
             .memoryCacheKey("${photo.uri}-full")
-            .placeholderMemoryCacheKey("${photo.uri}-screen")
+            .placeholderMemoryCacheKey(screenCacheKey(photo.uri))
             .build()
     }
     val zoomedIn by remember(zoom) { derivedStateOf { zoom.scale > 1f } }

@@ -9,18 +9,29 @@ import kotlinx.coroutines.flow.asStateFlow
 class GalleryPreferencesStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val _filmStripCarousel = MutableStateFlow(prefs.getBoolean(KEY_FILM_STRIP_CAROUSEL, false))
+    private val _carouselStyle = MutableStateFlow(loadCarouselStyle())
 
-    /** Whether the gallery's carousel uses the v2 film strip look; off by default. */
-    val filmStripCarousel: StateFlow<Boolean> = _filmStripCarousel.asStateFlow()
+    /**
+     * The gallery carousel's style, as its saved key (see CarouselStyle), or null for the default.
+     * Stored as a string so the UI's styles can change without touching storage.
+     */
+    val carouselStyle: StateFlow<String?> = _carouselStyle.asStateFlow()
 
-    fun setFilmStripCarousel(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_FILM_STRIP_CAROUSEL, enabled).apply()
-        _filmStripCarousel.value = enabled
+    fun setCarouselStyle(key: String) {
+        prefs.edit().putString(KEY_CAROUSEL_STYLE, key).remove(KEY_LEGACY_FILM_STRIP_CAROUSEL).apply()
+        _carouselStyle.value = key
     }
+
+    /** Before there was a choice of styles there was an on/off film strip switch: on means the v2 film strip. */
+    private fun loadCarouselStyle(): String? =
+        prefs.getString(KEY_CAROUSEL_STYLE, null)
+            ?: LEGACY_FILM_STRIP_STYLE_KEY.takeIf { prefs.getBoolean(KEY_LEGACY_FILM_STRIP_CAROUSEL, false) }
 
     private companion object {
         const val PREFS_NAME = "gallery"
-        const val KEY_FILM_STRIP_CAROUSEL = "film_strip_carousel"
+        const val KEY_CAROUSEL_STYLE = "carousel_style"
+        const val KEY_LEGACY_FILM_STRIP_CAROUSEL = "film_strip_carousel"
+        /** CarouselStyle.FilmStrip's key. */
+        const val LEGACY_FILM_STRIP_STYLE_KEY = "film_strip"
     }
 }

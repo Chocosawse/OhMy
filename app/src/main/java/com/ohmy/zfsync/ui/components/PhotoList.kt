@@ -2,6 +2,7 @@ package com.ohmy.zfsync.ui.components
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,8 +23,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,7 +38,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,10 +48,17 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
@@ -67,6 +77,7 @@ import com.ohmy.zfsync.ui.theme.onSurfaceTertiary
 import com.ohmy.zfsync.ui.theme.pressExpand
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.flow.filterNotNull
 
 private val SelectionSaver = listSaver<Set<Uri>, Uri>(save = { it.toList() }, restore = { it.toSet() })
 
@@ -104,6 +115,7 @@ fun PhotoList(
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
     inFlightCount: Int = 0,
+    photoTransition: PhotoTransitionState? = null,
 ) {
     // Select mode is simply "something is selected": long-press selects the first photo, and
     // deselecting the last one (or Cancel / system back) leaves it.
@@ -114,6 +126,7 @@ fun PhotoList(
     val haptics = LocalHapticFeedback.current
 
     val ordered = state.photosNewestFirst()
+    val entries = listEntries(state, ordered, showSessionSections, inFlightCount)
 
     // A selected photo can vanish underneath us (deleted in another app, picked up on resume).
     LaunchedEffect(state.photos) {
@@ -138,16 +151,24 @@ fun PhotoList(
     if (selectMode) lastSelectedCount[0] = selected.size
     val pillCount = lastSelectedCount[0]
 
-    /** Rows for [photos], whose first element sits at [startIndex] in [ordered]. */
-    fun LazyListScope.photoRows(photos: List<SyncedPhoto>, startIndex: Int) {
-        itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
-            PhotoRow(
-                photo = photo,
-                isSelected = photo.uri in selected,
-                onClick = { if (selectMode) toggle(photo) else onPhotoClick(startIndex + index) },
-                onLongPress = { toggle(photo) },
-            )
-            RowDivider()
+    // A closing viewer asks for its photo's row, so it can shrink back into it: scroll it into
+    // view if it isn't, wait for the rows to lay out (and report where their thumbnails are),
+    // then answer.
+    if (photoTransition != null) {
+        val latestEntries by rememberUpdatedState(entries)
+        LaunchedEffect(photoTransition, listState) {
+            snapshotFlow { photoTransition.revealRequest }.filterNotNull().collect { uri ->
+                val index = latestEntries.indexOfFirst { it.key == uri }
+                if (index >= 0 && !listState.isFullyVisible(uri)) {
+                    // One row above it in view too, so it isn't right under the top fading edge.
+                    listState.scrollToItem((index - 1).coerceAtLeast(0))
+                }
+                // Either way, let the rows be placed before answering: the list isn't placed at
+                // all while the viewer is open, and only is again now that it's closing. A frame's
+                // layout runs after its frame callbacks, hence two.
+                repeat(2) { withFrameNanos { } }
+                photoTransition.onRevealed(uri)
+            }
         }
     }
 
@@ -169,27 +190,26 @@ fun PhotoList(
             // for them: the last row can scroll clear of both, plus the pill when it's showing.
             contentPadding = PaddingValues(bottom = bottomInset + if (selectMode) PillClearance else 0.dp),
         ) {
-            if (showSessionSections) {
-                val sessionCount = ordered.count { it.uri in state.sessionPhotoUris }
-                item(key = "header-session") { SectionHeader(stringResource(R.string.sync_section_this_session)) }
-                items(inFlightCount, key = { "placeholder-$it" }) {
-                    PlaceholderRow()
-                    RowDivider()
+            items(entries, key = { it.key }, contentType = { it.contentType }) { entry ->
+                when (entry) {
+                    is ListEntry.Header -> SectionHeader(stringResource(entry.title))
+                    is ListEntry.Empty -> EmptyText(stringResource(entry.text))
+                    is ListEntry.Placeholder -> {
+                        PlaceholderRow()
+                        RowDivider()
+                    }
+                    is ListEntry.Photo -> {
+                        val photo = entry.photo
+                        PhotoRow(
+                            photo = photo,
+                            isSelected = photo.uri in selected,
+                            onClick = { if (selectMode) toggle(photo) else onPhotoClick(entry.index) },
+                            onLongPress = { toggle(photo) },
+                            photoTransition = photoTransition,
+                        )
+                        RowDivider()
+                    }
                 }
-                if (sessionCount == 0 && inFlightCount == 0) {
-                    item(key = "session-empty") { EmptyText(stringResource(R.string.sync_section_this_session_empty)) }
-                }
-                photoRows(ordered.take(sessionCount), startIndex = 0)
-                if (ordered.size > sessionCount) {
-                    item(key = "header-earlier") { SectionHeader(stringResource(R.string.sync_section_earlier)) }
-                    photoRows(ordered.drop(sessionCount), startIndex = sessionCount)
-                }
-            } else {
-                item(key = "header-all") { SectionHeader(stringResource(R.string.photos_section_all)) }
-                if (ordered.isEmpty()) {
-                    item(key = "all-empty") { EmptyText(stringResource(R.string.photos_section_all_empty)) }
-                }
-                photoRows(ordered, startIndex = 0)
             }
         }
 
@@ -227,6 +247,81 @@ fun PhotoList(
         )
     }
 }
+
+/** One item of the list, in order; [Photo.index] is the photo's position in [photosNewestFirst]. */
+private sealed interface ListEntry {
+    val key: Any
+    val contentType: String
+
+    data class Header(@StringRes val title: Int, override val key: String) : ListEntry {
+        override val contentType get() = "header"
+    }
+
+    data class Empty(@StringRes val text: Int, override val key: String) : ListEntry {
+        override val contentType get() = "empty"
+    }
+
+    data class Placeholder(val number: Int) : ListEntry {
+        override val key get() = "placeholder-$number"
+        override val contentType get() = "placeholder"
+    }
+
+    data class Photo(val photo: SyncedPhoto, val index: Int) : ListEntry {
+        override val key: Any get() = photo.uri
+        override val contentType get() = "photo"
+    }
+}
+
+/**
+ * With [showSessionSections], photos downloaded this session (newest first in [ordered], so at
+ * its start) come under their own header, after a placeholder for each download in flight.
+ */
+private fun listEntries(
+    state: SyncUiState,
+    ordered: List<SyncedPhoto>,
+    showSessionSections: Boolean,
+    inFlightCount: Int,
+): List<ListEntry> = buildList {
+    if (showSessionSections) {
+        val sessionCount = ordered.count { it.uri in state.sessionPhotoUris }
+        add(ListEntry.Header(R.string.sync_section_this_session, key = "header-session"))
+        repeat(inFlightCount) { add(ListEntry.Placeholder(it)) }
+        if (sessionCount == 0 && inFlightCount == 0) {
+            add(ListEntry.Empty(R.string.sync_section_this_session_empty, key = "session-empty"))
+        }
+        ordered.take(sessionCount).forEachIndexed { index, photo -> add(ListEntry.Photo(photo, index)) }
+        if (ordered.size > sessionCount) {
+            add(ListEntry.Header(R.string.sync_section_earlier, key = "header-earlier"))
+            ordered.drop(sessionCount).forEachIndexed { index, photo -> add(ListEntry.Photo(photo, sessionCount + index)) }
+        }
+    } else {
+        add(ListEntry.Header(R.string.photos_section_all, key = "header-all"))
+        if (ordered.isEmpty()) add(ListEntry.Empty(R.string.photos_section_all_empty, key = "all-empty"))
+        ordered.forEachIndexed { index, photo -> add(ListEntry.Photo(photo, index)) }
+    }
+}
+
+/** Whether the item keyed [key] is entirely within the list's viewport (clear of the bottom content padding). */
+private fun LazyListState.isFullyVisible(key: Any): Boolean {
+    val info = layoutInfo
+    val item = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return false
+    return item.offset >= info.viewportStartOffset && item.offset + item.size <= info.viewportEndOffset - info.afterContentPadding
+}
+
+/** How much a row grows as it fades out behind its photo flying into the viewer. */
+private const val ROW_TRANSITION_EXPAND = 0.05f
+
+/**
+ * Scales the row up by [ROW_TRANSITION_EXPAND] and fades it out as [progress] goes 0 to 1. The
+ * scale is a draw transform rather than a layer one, so the row's (and its thumbnail's) reported
+ * position stays where it's laid out, which is where the photo flies back to.
+ */
+private fun Modifier.expandAndFade(progress: () -> Float): Modifier = this
+    .graphicsLayer { alpha = 1f - progress() }
+    .drawWithContent {
+        val factor = 1f + ROW_TRANSITION_EXPAND * progress()
+        scale(factor) { this@drawWithContent.drawContent() }
+    }
 
 @Composable
 private fun EmptyText(text: String) {
@@ -292,10 +387,23 @@ private fun PhotoRow(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
+    photoTransition: PhotoTransitionState?,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    // This row's photo is on its way into (or back from) the viewer. Derived, so a transition
+    // starting recomposes only the row it's about, not every visible one.
+    val inFlight by remember(photoTransition, photo.uri) {
+        derivedStateOf { photoTransition != null && photoTransition.activeUri == photo.uri }
+    }
+    val thumbnailCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    if (photoTransition != null) {
+        DisposableEffect(photoTransition, photo.uri) {
+            onDispose { photoTransition.onThumbnailDisposed(photo.uri, thumbnailCoordinates[0]) }
+        }
+    }
     Row(
         modifier = Modifier
+            .then(if (inFlight) Modifier.expandAndFade { photoTransition!!.progress.value } else Modifier)
             // Outermost, so the highlight grows with the content.
             .pressExpand(interactionSource, pressedScale = ROW_PRESS_EXPAND_SCALE)
             .fillMaxWidth()
@@ -315,7 +423,32 @@ private fun PhotoRow(
                 model = photo.uri,
                 contentDescription = photo.filename,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(ThumbnailSize),
+                modifier = Modifier
+                    .size(ThumbnailSize)
+                    .then(
+                        if (photoTransition == null) {
+                            Modifier
+                        } else {
+                            Modifier
+                                .onPlaced {
+                                    // The same coordinates object for the node's life, so this is a
+                                    // cheap identity check on every later placement (e.g. scrolling).
+                                    if (thumbnailCoordinates[0] !== it) {
+                                        thumbnailCoordinates[0] = it
+                                        photoTransition.onThumbnailPlaced(photo.uri, it)
+                                    }
+                                }
+                                // The flying copy stands in for it while the photo is on the move.
+                                // A layer only on the row in flight, not on every thumbnail.
+                                .then(
+                                    if (inFlight) {
+                                        Modifier.graphicsLayer { alpha = if (photoTransition.progress.value > 0f) 0f else 1f }
+                                    } else {
+                                        Modifier
+                                    },
+                                )
+                        },
+                    ),
             )
             if (isSelected) {
                 Icon(

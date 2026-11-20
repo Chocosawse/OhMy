@@ -1,6 +1,7 @@
 package com.ohmy.zfsync.ui.theme
 
 import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -13,8 +14,9 @@ import androidx.compose.ui.graphics.graphicsLayer
  * The app's motion language. Every animation uses OvershootEasing (exits use its mirror,
  * OvershootExitEasing), via overshootSpec / overshootExitSpec. Exceptions, which keep Compose's
  * default non-overshooting motion: the photo pager's own swipe/snap, where overshooting would
- * flash the neighbouring photo, the viewer's double-tap zoom, and the gallery carousel's
- * scrolling (gliding and snapping to centre).
+ * flash the neighbouring photo, the viewer's double-tap zoom, the gallery carousel's
+ * scrolling (gliding and snapping to centre), and the photo's move between the list and the
+ * viewer (photoTransitionSpec), which like the zoom is the full-screen photo changing size.
  */
 
 private const val OVERSHOOT_TENSION = 1.5f
@@ -38,6 +40,14 @@ fun <T> overshootSpec(delayMillis: Int = 0): FiniteAnimationSpec<T> =
 
 fun <T> overshootExitSpec(delayMillis: Int = 0): FiniteAnimationSpec<T> =
     tween(MOTION_DURATION_MILLIS, delayMillis, OvershootExitEasing)
+
+/**
+ * A photo growing from its list row into the viewer, or shrinking back: same duration as the rest
+ * of the app's motion, but without overshoot (see the exceptions above). The list row's expand
+ * and fade follow the same progress.
+ */
+fun <T> photoTransitionSpec(): FiniteAnimationSpec<T> =
+    tween(MOTION_DURATION_MILLIS, easing = FastOutSlowInEasing)
 
 private const val CASCADE_MAX_STEP_MILLIS = 60
 private const val CASCADE_MAX_SPREAD_MILLIS = 200

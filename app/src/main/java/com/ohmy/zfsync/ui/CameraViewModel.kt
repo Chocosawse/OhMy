@@ -11,6 +11,7 @@ import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.service.CameraSyncService
 import com.ohmy.zfsync.sync.CameraSyncRepository
+import com.ohmy.zfsync.ui.screens.CarouselStyle
 import com.ohmy.zfsync.ui.theme.ThemeChoice
 import com.ohmy.zfsync.ui.theme.paletteName
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,10 +37,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         themeStore.setPaletteName(choice.paletteName)
     }
 
-    val filmStripCarousel: StateFlow<Boolean> = galleryPreferences.filmStripCarousel
+    val carouselStyle: StateFlow<CarouselStyle> = galleryPreferences.carouselStyle
+        .map(CarouselStyle::fromKey)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, CarouselStyle.fromKey(galleryPreferences.carouselStyle.value))
 
-    fun setFilmStripCarousel(enabled: Boolean) {
-        galleryPreferences.setFilmStripCarousel(enabled)
+    fun setCarouselStyle(style: CarouselStyle) {
+        galleryPreferences.setCarouselStyle(style.key)
     }
 
     fun connect(ssid: String, password: String) {
