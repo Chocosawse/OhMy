@@ -6,8 +6,8 @@ import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -704,6 +704,23 @@ private fun CarouselIndicator(
         listState.animateScrollBy((item.offset + item.size / 2 - viewportCenter).toFloat())
     }
 
+    // The selection as one animated position along the strip (a fractional index), rather than an
+    // animation per frame. Each frame's size and slide derive from its distance to it, so however
+    // quickly the selection moves, neighbouring film pieces always meet: separate per-frame
+    // animations, started at different moments while scrolling, would open gaps between them.
+    val selectionPosition = remember { Animatable(currentIndex.toFloat()) }
+    val selectedKey = remember { arrayOfNulls<Any>(1) }
+    LaunchedEffect(currentIndex) {
+        val key = latestPhotos.getOrNull(currentIndex)?.uri
+        if (key != null && key == selectedKey[0]) {
+            // Same photo at a new index (a photo arrived ahead of it): no movement to show.
+            selectionPosition.snapTo(currentIndex.toFloat())
+        } else {
+            selectionPosition.animateTo(currentIndex.toFloat(), overshootSpec())
+        }
+        selectedKey[0] = key
+    }
+
     // Which thumbnails are on screen when the toggle happens decides each one's cascade delay.
     // Read without observation: it's a one-off snapshot per toggle, not something to recompose on.
     val onScreen = remember(visible) {
@@ -768,18 +785,14 @@ private fun CarouselIndicator(
             }
             itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
                 val selected = index == currentIndex
-                val scale by animateFloatAsState(if (selected) SelectedThumbnailScale else 1f, overshootSpec(), label = "thumbScale")
-                val shift by animateDpAsState(
-                    when {
-                        index < currentIndex -> -SelectionShift
-                        index > currentIndex -> SelectionShift
-                        else -> 0.dp
-                    },
-                    overshootSpec(),
-                    label = "thumbShift",
-                )
-                // 0 at normal size, 1 fully enlarged; the overshoot can briefly take it past either end.
-                val growth = { (scale - 1f) / (SelectedThumbnailScale - 1f) }
+                // Everything about the selection comes from this frame's distance to the shared
+                // selection position, read in the draw phase: 0 at normal size, 1 fully enlarged.
+                val distance = { index - selectionPosition.value }
+                val growth = { (1f - abs(distance())).coerceAtLeast(0f) }
+                val scale = { 1f + (SelectedThumbnailScale - 1f) * growth() }
+                // Slid aside by up to SelectionShift: exactly what the frames between it and the
+                // selection widen by, so neighbouring film pieces always meet.
+                val shift = { SelectionShift * distance().coerceIn(-1f, 1f) }
                 val frameShape = film?.frameShape ?: RectangleShape
                 // How lit the frame is, as a step through its look's backlit filters, following its
                 // growth into the selection. Derived, so it recomposes only on each step.
@@ -793,12 +806,12 @@ private fun CarouselIndicator(
                     // Printed every tenth frame from 00, like the edge numbers on real film.
                     frameNumber = index.takeIf { it % EDGE_NUMBER_EVERY == 0 },
                     textMeasurer = textMeasurer,
-                    shift = { shift },
+                    shift = shift,
                     // Tracks the selected thumbnail's growth, which runs in step with its
                     // neighbours' shift, so its film always just meets theirs.
                     selectionGrowth = growth,
                     // The image's drawn size: popping in or out, times its selection scale.
-                    frameScale = { thumbPop.value.coerceAtLeast(0f) * scale },
+                    frameScale = { thumbPop.value.coerceAtLeast(0f) * scale() },
                     leadsStrip = inFlightCount == 0 && index == 0,
                     endsStrip = index == photos.lastIndex,
                     // Above its neighbours in case they briefly overlap mid-animation.
@@ -809,8 +822,8 @@ private fun CarouselIndicator(
                             .size(ThumbnailSize)
                             .pop { thumbPop.value }
                             .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
+                                scaleX = scale()
+                                scaleY = scale()
                                 // Rounded film frames are clipped in this same layer: no extra one.
                                 if (frameShape != RectangleShape) {
                                     shape = frameShape
