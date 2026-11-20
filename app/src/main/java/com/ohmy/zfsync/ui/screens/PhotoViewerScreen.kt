@@ -92,6 +92,7 @@ import androidx.compose.ui.geometry.Size as GeometrySize
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -104,6 +105,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -779,6 +781,11 @@ private fun CarouselIndicator(
                 // 0 at normal size, 1 fully enlarged; the overshoot can briefly take it past either end.
                 val growth = { (scale - 1f) / (SelectedThumbnailScale - 1f) }
                 val frameShape = film?.frameShape ?: RectangleShape
+                // How lit the frame is, as a step through its look's backlit filters, following its
+                // growth into the selection. Derived, so it recomposes only on each step.
+                val litStep by remember(film) {
+                    derivedStateOf { (growth().coerceIn(0f, 1f) * (BACKLIT_STEPS - 1)).roundToInt() }
+                }
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 CarouselSlot(
@@ -820,9 +827,9 @@ private fun CarouselIndicator(
                             model = photo.uri,
                             contentDescription = photo.filename,
                             contentScale = ContentScale.Crop,
-                            // Frames on the film strip are its negatives, the selected one too:
-                            // its size and border mark it, without a positive drawing the eye.
-                            colorFilter = film?.negative,
+                            // Frames on the film strip are its negatives, the selected one too, but
+                            // backlit, as if on a light box; switching filters is free.
+                            colorFilter = film?.negativeSteps?.get(litStep),
                             modifier = Modifier.matchParentSize(),
                         )
                     }
@@ -872,6 +879,7 @@ private fun CarouselSlot(
                     lead = if (leadsStrip) FilmLeader.toPx() else 0f,
                     tail = if (endsStrip) FilmLeader.toPx() else 0f,
                     frameSize = if (film.clearBaseUnderFrames) ThumbnailSize.toPx() * frameScale() else 0f,
+                    glow = if (film.halo != null) selectionGrowth().coerceIn(0f, 1f) else 0f,
                 )
             }
     } else {
@@ -898,11 +906,29 @@ private fun DrawScope.drawFilmPiece(
     lead: Float,
     tail: Float,
     frameSize: Float,
+    glow: Float,
 ) {
     val halfGap = ThumbnailSpacing.toPx() / 2
     val left = -halfGap - widen - lead
     val right = size.width + halfGap + widen + tail
     drawRect(look.base, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
+    // The selected frame's light spilling onto the strip around it, as on a light table. Before
+    // the holes are punched, so they stay clear; only while the frame is (becoming) selected.
+    val halo = look.halo
+    if (halo != null && glow > 0f) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = SelectedThumbnailSize.toPx() * HALO_REACH
+        drawCircle(
+            brush = Brush.radialGradient(
+                0f to halo.copy(alpha = HALO_STRENGTH * glow),
+                1f to halo.copy(alpha = 0f),
+                center = center,
+                radius = radius,
+            ),
+            radius = radius,
+            center = center,
+        )
+    }
     // Translucent film only: the base cleared from under the frame's image ([frameSize] square,
     // centred, as currently drawn), since the negative's own clear areas already are the base.
     // Without it the frame would read as a denser box.
@@ -998,10 +1024,17 @@ private val FilmLeader = 4.dp
 @Immutable
 private class FilmLook(
     val base: Color,
-    val negative: ColorFilter,
+    /**
+     * The negative filter from unlit (first: every frame on the strip) to fully backlit (last:
+     * the selected frame, as if on a light box). A frame growing into the selection steps through
+     * them, so it lights up over the enlarge animation without building a filter per frame.
+     */
+    val negativeSteps: List<ColorFilter>,
     val edgeTextStyle: TextStyle,
     val clearBaseUnderFrames: Boolean,
     val frameShape: Shape = RectangleShape,
+    /** Warm light spilling onto the strip around the selected frame, or null for none. */
+    val halo: Color? = null,
 )
 
 private val CarouselStyle.filmLook: FilmLook?
@@ -1018,12 +1051,20 @@ private val CarouselStyle.filmLook: FilmLook?
  */
 private val BlackFilmLook = FilmLook(
     base = Color(0xFF111111),
-    negative = negativeFilter(dense = Color(0xFF57200C), clear = Color(0xFFB56244)),
+    // Backlit: the copper base glows toward a bright warm amber, the dense areas lift to a lit
+    // brown, and the wider range adds a little contrast.
+    negativeSteps = backlitSteps(
+        dense = Color(0xFF57200C),
+        clear = Color(0xFFB56244),
+        litDense = Color(0xFF7A3416),
+        litClear = Color(0xFFFFB46E),
+    ),
     edgeTextStyle = filmEdgeTextStyle(Color(0xCCE0A84A)),
     clearBaseUnderFrames = false,
     // Slight squircles: a rounded rectangle (about 15% of the frame) rather than a true
     // superellipse, which as a path clip is only anti-aliased by the GPU from Android 13.
     frameShape = RoundedCornerShape(6.dp),
+    halo = Color(0xFFFFB45A),
 )
 
 /**
@@ -1034,7 +1075,13 @@ private val BlackFilmLook = FilmLook(
 private val AmberFilmClear = Color(0x88C65731)
 private val AmberFilmLook = FilmLook(
     base = AmberFilmClear,
-    negative = negativeFilter(dense = Color(0xCC4A0003), clear = AmberFilmClear),
+    // Backlit: brighter and more opaque, the light coming through rather than the photo behind.
+    negativeSteps = backlitSteps(
+        dense = Color(0xCC4A0003),
+        clear = AmberFilmClear,
+        litDense = Color(0xE06A1A08),
+        litClear = Color(0xD0F09A5C),
+    ),
     edgeTextStyle = filmEdgeTextStyle(Color(0xFF4A0003)),
     clearBaseUnderFrames = true,
 )
@@ -1049,6 +1096,20 @@ private val AmberFilmLook = FilmLook(
  * frame and leaves Coil's cached images untouched (the same thumbnails serve the list and the
  * viewer). One instance per style, shared by every frame on the strip.
  */
+/** The halo's reach (as a multiple of the selected frame's size) and its peak opacity. */
+private const val HALO_REACH = 0.8f
+private const val HALO_STRENGTH = 0.45f
+
+/** How many filters a frame steps through from unlit to backlit: enough to read as a fade. */
+private const val BACKLIT_STEPS = 5
+
+/** The [negativeFilter]s from [dense]/[clear] (unlit) to [litDense]/[litClear] (backlit), evenly. */
+private fun backlitSteps(dense: Color, clear: Color, litDense: Color, litClear: Color): List<ColorFilter> =
+    List(BACKLIT_STEPS) { step ->
+        val lit = step / (BACKLIT_STEPS - 1f)
+        negativeFilter(dense = lerp(dense, litDense, lit), clear = lerp(clear, litClear, lit))
+    }
+
 private fun negativeFilter(dense: Color, clear: Color): ColorFilter {
     val (wr, wg, wb) = Triple(0.299f, 0.587f, 0.114f)
     val denseChannels = floatArrayOf(dense.red, dense.green, dense.blue, dense.alpha)
