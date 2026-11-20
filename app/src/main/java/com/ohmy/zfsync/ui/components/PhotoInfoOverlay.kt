@@ -16,7 +16,11 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -65,15 +69,25 @@ private fun contrast(a: Color, b: Color): Float {
 private val SmallMono = TextStyle(fontFamily = MonoFontFamily, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.2.sp)
 
 /**
- * Top-left: the file name in a small tab, over the camera and lens in a larger serif box, e.g.
- * "DSC_3785.JPG" above "NIKON Z f • Zuiko 90mm f/2". Without camera or lens, just the tab.
+ * Top-left: the file name in a small tab (tagged [rawTag] when [hasRaw]), over the camera and lens
+ * in a larger serif box, e.g. "DSC_3785.JPG +RAW" above "NIKON Z f • Zuiko 90mm f/2". Without
+ * camera or lens, just the tab.
  */
 @Composable
-fun PhotoTitleCard(filename: String, exposure: ExposureInfo?, modifier: Modifier = Modifier) {
+fun PhotoTitleCard(filename: String, exposure: ExposureInfo?, hasRaw: Boolean, rawTag: String, modifier: Modifier = Modifier) {
     val color = infoTextColor(LightInfoBoxColor)
     Column(modifier = modifier.fitWidth()) {
         Text(
-            filename,
+            // "DSC_3785.JPG +RAW": the shot's RAW is here too.
+            if (hasRaw) {
+                buildAnnotatedString {
+                    append(filename)
+                    append(' ')
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(rawTag) }
+                }
+            } else {
+                AnnotatedString(filename)
+            },
             style = SmallMono,
             color = color,
             maxLines = 1,

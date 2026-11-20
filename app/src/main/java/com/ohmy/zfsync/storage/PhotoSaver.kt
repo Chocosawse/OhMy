@@ -8,7 +8,9 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.exifinterface.media.ExifInterface
 import com.ohmy.zfsync.core.model.ExposureInfo
+import com.ohmy.zfsync.core.model.RawFormats
 import com.ohmy.zfsync.core.model.SyncedPhoto
+import com.ohmy.zfsync.core.model.pairRawFiles
 import java.io.IOException
 import java.io.OutputStream
 import java.time.LocalDateTime
@@ -16,11 +18,12 @@ import java.time.format.DateTimeFormatter
 
 private val ALBUM_RELATIVE_PATH = "${Environment.DIRECTORY_PICTURES}/OhMy/"
 
-/** Saves downloaded JPEGs into the shared Pictures/OhMy album via MediaStore (scoped storage). */
+/** Saves downloaded photos (JPEGs, and RAWs if enabled) into the shared Pictures/OhMy album via MediaStore (scoped storage). */
 class PhotoSaver(private val context: Context) {
 
     /**
-     * Every finished photo in the album, oldest first. Without a media-read permission, scoped
+     * Every finished photo in the album, oldest first, one item per shot: a RAW saved alongside a
+     * JPEG becomes that photo's [SyncedPhoto.rawUri] rather than an item of its own. Without a media-read permission, scoped
      * storage only returns rows this install of the app created -- which is every photo it synced,
      * but not ones from before an uninstall/reinstall or copied in by another app.
      */
@@ -48,11 +51,12 @@ class PhotoSaver(private val context: Context) {
                     filename = cursor.getString(nameCol),
                     savedAtMillis = cursor.getLong(dateCol) * 1000,
                     uri = uri,
-                    exposure = readExposure(uri),
                 )
             }
         }
-        return photos
+        // EXIF is read after pairing, once per shot: from the JPEG where there is one (the RAW's
+        // matches it), so a RAW+JPEG shot doesn't open its large RAW too.
+        return pairRawFiles(photos).map { it.copy(exposure = readExposure(it.uri)) }
     }
 
     /**
@@ -82,7 +86,8 @@ class PhotoSaver(private val context: Context) {
     fun createPendingImageUri(filename: String): Uri {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            // RAWs under their own image type (e.g. image/x-nikon-nef), so other apps know them.
+            put(MediaStore.Images.Media.MIME_TYPE, RawFormats.mimeType(filename) ?: "image/jpeg")
             put(MediaStore.Images.Media.RELATIVE_PATH, ALBUM_RELATIVE_PATH)
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }

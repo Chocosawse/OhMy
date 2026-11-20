@@ -45,10 +45,7 @@ fun SyncScreen(
     Column(modifier = modifier.fillMaxSize().padding(top = 16.dp)) {
         // Only the controls get the side margin; the list spans the width and insets its own rows.
         Column(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding)) {
-            Text(
-                text = stringResource(R.string.sync_connected_to, cameraIp),
-                style = MaterialTheme.typography.headlineLarge,
-            )
+            TitleWithMenu(stringResource(R.string.sync_connected_to, cameraIp), onOpenMenu)
             Text(
                 text = pluralStringResource(R.plurals.sync_photo_count, state.photos.size, state.photos.size),
                 style = MaterialTheme.typography.bodyMedium,
@@ -103,7 +100,6 @@ fun SyncScreen(
             inFlightCount = (downloadStatus as? DownloadStatus.Downloading)?.count ?: 0,
             onPhotoClick = onPhotoClick,
             onDeletePhotos = onDeletePhotos,
-            onOpenMenu = onOpenMenu,
             photoTransition = photoTransition,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )

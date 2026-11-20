@@ -9,11 +9,13 @@ import com.ohmy.zfsync.core.model.DownloadStatus
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
+import com.ohmy.zfsync.core.model.withFile
 import com.ohmy.zfsync.network.CameraWifiException
 import com.ohmy.zfsync.network.CameraWifiManager
 import com.ohmy.zfsync.ptpip.PtpEvent
 import com.ohmy.zfsync.ptpip.PtpEventCode
 import com.ohmy.zfsync.ptpip.PtpIpClient
+import com.ohmy.zfsync.ptpip.PtpObjectInfo
 import com.ohmy.zfsync.storage.CameraCredentialsStore
 import com.ohmy.zfsync.storage.PhotoSaver
 import kotlinx.coroutines.CoroutineScope
@@ -35,9 +37,10 @@ private const val TAG = "OhMyCameraSync"
 /**
  * Owns the whole camera connection lifecycle: joins the camera's Wi-Fi AP, opens a PTP/IP
  * session, remembers which object handles were already on the card so auto-sync only reacts to
- * genuinely new shots, and saves incoming JPEGs to shared storage.
+ * genuinely new shots, and saves incoming JPEGs (and RAWs, while [downloadRaws] says so) to
+ * shared storage.
  */
-class CameraSyncRepository(context: Context) {
+class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boolean) {
     private val appContext = context.applicationContext
     private val wifiManager = CameraWifiManager(appContext)
     private val photoSaver = PhotoSaver(appContext)
@@ -221,10 +224,13 @@ class CameraSyncRepository(context: Context) {
     /** Deletes previously-downloaded photos (the local copies only -- the camera's card is untouched).
      *  Each is attempted independently, so one failure doesn't leave the rest undeleted. */
     suspend fun deletePhotos(uris: Collection<Uri>) {
+        // A shot is one item: deleting it deletes its RAW too.
+        val raws = _state.value.photos.filter { it.uri in uris }.mapNotNull { it.rawUri }
+        val files = (uris + raws).toSet()
         val deleted = mutableSetOf<Uri>()
         var lastFailure: Throwable? = null
         withContext(Dispatchers.IO) {
-            for (uri in uris) {
+            for (uri in files) {
                 try {
                     photoSaver.delete(uri)
                     deleted += uri
@@ -233,10 +239,13 @@ class CameraSyncRepository(context: Context) {
                 }
             }
         }
-        val failedCount = uris.size - deleted.size
+        val failedCount = files.size - deleted.size
         _state.update {
             it.copy(
-                photos = it.photos.filterNot { photo -> photo.uri in deleted },
+                photos = it.photos
+                    .filterNot { photo -> photo.uri in deleted }
+                    // A JPEG whose RAW alone went (or failed to) keeps whatever's left.
+                    .map { photo -> if (photo.rawUri in deleted) photo.copy(rawUri = null) else photo },
                 sessionPhotoUris = it.sessionPhotoUris - deleted,
                 lastError = lastFailure?.let { t -> "Failed to delete $failedCount photo(s): ${t.message}" } ?: it.lastError,
             )
@@ -263,39 +272,47 @@ class CameraSyncRepository(context: Context) {
     private suspend fun downloadObject(handle: Long) {
         val client = ptpClient ?: return
         try {
-            // Checked before tracking so a RAW file (skipped here) never counts as a download in
-            // flight -- otherwise a RAW+JPEG shot briefly reports two incoming photos.
             val info = client.getObjectInfo(handle)
-            if (!info.isJpeg) return
+            when {
+                info.isJpeg -> Unit
+                info.isRaw && downloadRaws() -> {
+                    // Untracked: a RAW is part of a shot whose JPEG is counted, so a RAW+JPEG shot
+                    // doesn't report two incoming photos.
+                    saveObject(client, handle, info)
+                    return
+                }
+                else -> return
+            }
 
             // The photo is added to the list inside track(), before the in-flight count drops,
             // so UI showing a placeholder per in-flight download swaps it for the real row.
-            downloadStatusTracker.track {
-                val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
-                val uri = photoSaver.createPendingImageUri(filename)
-                try {
-                    photoSaver.openOutputStream(uri).use { out -> client.getObject(handle, out) }
-                    photoSaver.markComplete(uri)
-                } catch (t: Throwable) {
-                    photoSaver.deleteIncomplete(uri)
-                    throw t
-                }
-                // Manual syncs run from the main thread; reading EXIF is file I/O.
-                val exposure = withContext(Dispatchers.IO) { photoSaver.readExposure(uri) }
-
-                photosMutex.withLock {
-                    _state.update {
-                        val photos = if (it.photos.any { photo -> photo.uri == uri }) {
-                            it.photos
-                        } else {
-                            it.photos + SyncedPhoto(filename, System.currentTimeMillis(), uri, exposure)
-                        }
-                        it.copy(photos = photos, sessionPhotoUris = it.sessionPhotoUris + uri)
-                    }
-                }
-            }
+            downloadStatusTracker.track { saveObject(client, handle, info) }
         } catch (t: Throwable) {
             _state.update { it.copy(lastError = "Failed to download $handle: ${t.message}") }
+        }
+    }
+
+    /** Downloads one object into the album and adds it to [state], paired with its shot's other file if any. */
+    private suspend fun saveObject(client: PtpIpClient, handle: Long, info: PtpObjectInfo) {
+        val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
+        val uri = photoSaver.createPendingImageUri(filename)
+        try {
+            photoSaver.openOutputStream(uri).use { out -> client.getObject(handle, out) }
+            photoSaver.markComplete(uri)
+        } catch (t: Throwable) {
+            photoSaver.deleteIncomplete(uri)
+            throw t
+        }
+        // Manual syncs run from the main thread; reading EXIF is file I/O.
+        val exposure = withContext(Dispatchers.IO) { photoSaver.readExposure(uri) }
+
+        photosMutex.withLock {
+            _state.update {
+                val photos = it.photos.withFile(SyncedPhoto(filename, System.currentTimeMillis(), uri, exposure))
+                // The shot's item: the new file's own, or the one it just joined.
+                val item = photos.firstOrNull { photo -> photo.uri == uri || photo.rawUri == uri }?.uri ?: uri
+                it.copy(photos = photos, sessionPhotoUris = it.sessionPhotoUris + item)
+            }
         }
     }
 

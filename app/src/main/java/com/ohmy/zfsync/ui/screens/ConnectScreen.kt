@@ -57,7 +57,7 @@ fun ConnectScreen(
         // Spacing follows the editorial layout: tight within a group (title and its instructions,
         // the two fields), wider between groups.
         Column(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding)) {
-            Text(text = stringResource(R.string.connect_title), style = MaterialTheme.typography.headlineLarge)
+            TitleWithMenu(stringResource(R.string.connect_title), onOpenMenu)
             Spacer(modifier = Modifier.height(16.dp))
             val lead = stringResource(R.string.connect_instructions_lead)
             val instructions = stringResource(R.string.connect_instructions)
@@ -123,7 +123,6 @@ fun ConnectScreen(
             showSessionSections = false,
             onPhotoClick = onPhotoClick,
             onDeletePhotos = onDeletePhotos,
-            onOpenMenu = onOpenMenu,
             photoTransition = photoTransition,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )
