@@ -7,18 +7,18 @@ import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** WCAG contrast for the text roles the Nikon Yellow palette sets or relies on. */
-class NikonYellowPaletteTest {
+/** WCAG contrast for the text roles the Honey Gold palette sets or relies on. */
+class HoneyGoldPaletteTest {
 
-    private val light = NikonYellowPalette.adjust(lightColorScheme(), darkTheme = false)
-    private val dark = NikonYellowPalette.adjust(darkColorScheme(), darkTheme = true)
+    private val light = HoneyGoldPalette.adjust(lightColorScheme(), darkTheme = false)
+    private val dark = HoneyGoldPalette.adjust(darkColorScheme(), darkTheme = true)
 
     @Test
     fun `light text is readable`() {
         // cs-design maps body text to color900.
-        assertReadable(NikonYellowPalette.color900, light.surface, "text")
+        assertReadable(HoneyGoldPalette.color900, light.surface, "text")
         assertReadable(light.onSurfaceVariant, light.surface, "secondary text")
-        assertReadable(light.onPrimary, NikonYellowPalette.primary, "label on yellow")
+        assertReadable(light.onPrimary, HoneyGoldPalette.primary, "label on gold")
         assertReadable(light.onSecondaryContainer, light.secondaryContainer, "text on a selected row")
     }
 
@@ -27,8 +27,8 @@ class NikonYellowPaletteTest {
         // cs-design maps dark body text to white.
         assertReadable(Color.White, dark.surface, "text")
         assertReadable(dark.onSurfaceVariant, dark.surface, "secondary text")
-        assertReadable(dark.onPrimary, NikonYellowPalette.primaryNight, "label on yellow")
-        assertReadable(NikonYellowPalette.primaryNight, dark.surface, "yellow on black")
+        assertReadable(dark.onPrimary, HoneyGoldPalette.primaryNight, "label on gold")
+        assertReadable(HoneyGoldPalette.primaryNight, dark.surface, "gold on black")
         assertReadable(dark.onSecondaryContainer, dark.secondaryContainer, "text on a selected row")
     }
 

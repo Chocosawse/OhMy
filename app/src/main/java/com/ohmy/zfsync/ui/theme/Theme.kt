@@ -23,7 +23,7 @@ sealed interface ThemeChoice {
 
     companion object {
         /** The app's own palettes, offered after the library's. */
-        private val appPalettes: List<ColorPalette> = listOf(NewspaperPalette, NikonYellowPalette)
+        private val appPalettes: List<ColorPalette> = listOf(NewspaperPalette, HoneyGoldPalette)
 
         /** Every palette on offer: the library's built-ins (new ones appear automatically), then the app's. */
         private val palettes: List<ColorPalette> get() = ColorPalette.builtIns + appPalettes
@@ -31,9 +31,14 @@ sealed interface ThemeChoice {
         /** Everything the theme picker offers, in order. */
         val all: List<ThemeChoice> get() = listOf(System) + palettes.map(::Palette)
 
+        /** Names palettes used to have, mapped to their current ones, so a saved choice survives a rename. */
+        private val renamedPalettes = mapOf("Nikon Yellow" to "Honey Gold")
+
         /** Unknown or missing names (e.g. a palette a later library version dropped) fall back to [System]. */
-        fun fromPaletteName(name: String?): ThemeChoice =
-            palettes.firstOrNull { it.name == name }?.let(::Palette) ?: System
+        fun fromPaletteName(name: String?): ThemeChoice {
+            val current = renamedPalettes[name] ?: name
+            return palettes.firstOrNull { it.name == current }?.let(::Palette) ?: System
+        }
     }
 }
 
