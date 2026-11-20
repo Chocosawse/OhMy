@@ -615,8 +615,6 @@ private fun CarouselIndicator(
                     // Tracks the selected thumbnail's growth, which runs in step with its
                     // neighbours' shift, so its film always just meets theirs.
                     selectionGrowth = growth,
-                    // The image's drawn size: popping in or out, times its selection scale.
-                    frameScale = { thumbPop.value.coerceAtLeast(0f) * scale },
                     leadsStrip = inFlightCount == 0 && index == 0,
                     endsStrip = index == photos.lastIndex,
                     // Above its neighbours in case they briefly overlap mid-animation.
@@ -693,7 +691,6 @@ private fun CarouselSlot(
     shift: () -> Dp,
     modifier: Modifier = Modifier,
     selectionGrowth: () -> Float = { 0f },
-    frameScale: () -> Float = { 0f },
     leadsStrip: Boolean = false,
     endsStrip: Boolean = false,
     content: @Composable () -> Unit,
@@ -711,7 +708,6 @@ private fun CarouselSlot(
                     widen = SelectionShift.toPx() * selectionGrowth(),
                     lead = if (leadsStrip) FilmLeader.toPx() else 0f,
                     tail = if (endsStrip) FilmLeader.toPx() else 0f,
-                    frameSize = ThumbnailSize.toPx() * frameScale(),
                 )
             }
     } else {
@@ -731,24 +727,11 @@ private fun CarouselSlot(
  * below centred on the frame, and the printed edge number above the top row. Every piece spaces
  * its holes the same, so neighbouring pieces join into one continuous, evenly perforated edge.
  */
-/**
- * One frame's piece of the strip. [frameSize] is the frame's (square, centred) image as currently
- * drawn: the base is cleared from under it, since the film is translucent and the negative's own
- * clear areas already are the base -- without it the frame would read as a denser box.
- */
-private fun DrawScope.drawFilmPiece(edgeLabel: TextLayoutResult?, widen: Float, lead: Float, tail: Float, frameSize: Float) {
+private fun DrawScope.drawFilmPiece(edgeLabel: TextLayoutResult?, widen: Float, lead: Float, tail: Float) {
     val halfGap = ThumbnailSpacing.toPx() / 2
     val left = -halfGap - widen - lead
     val right = size.width + halfGap + widen + tail
     drawRect(FilmBase, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
-    if (frameSize > 0f) {
-        drawRect(
-            Color.Black,
-            topLeft = Offset((size.width - frameSize) / 2f, (size.height - frameSize) / 2f),
-            size = androidx.compose.ui.geometry.Size(frameSize, frameSize),
-            blendMode = BlendMode.Clear,
-        )
-    }
 
     val pitch = (ThumbnailSize + ThumbnailSpacing).toPx() / SPROCKETS_PER_FRAME
     val holeWidth = SprocketWidth.toPx()
@@ -829,27 +812,24 @@ private val FilmLeader = 4.dp
 // mask; where it was brightest it's densest, a dark warm brown rather than black (negatives are
 // low in contrast). Nearly opaque, as backlit film reads, with a hint of the photo behind
 // showing through; denser film lets even less through.
-// Sampled from a photo of color negatives on a light table: the clear base (the film's edges) is
-// a deep copper-orange, the densest areas a dark red-brown, both around a 15 degree hue and
-// strongly saturated.
-private val NegativeDenseColor = Color(0xFA57200C)
-private val NegativeClearColor = Color(0xF0B56244)
+// Sampled from a photo of color negatives on a light table: where the photo was darkest the film
+// is clear, showing the base's deep copper-orange; where it was brightest it's densest, a dark
+// red-brown. Both around a 15 degree hue and strongly saturated. Opaque: the frames sit on the
+// strip's black.
+private val NegativeDenseColor = Color(0xFF57200C)
+private val NegativeClearColor = Color(0xFFB56244)
 private val NegativeDense = NegativeDenseColor.channels()
 private val NegativeClear = NegativeClearColor.channels()
 
 /** Red, green, blue, alpha, each 0-1. */
 private fun Color.channels() = floatArrayOf(red, green, blue, alpha)
 
-/**
- * The strip itself: clear film base, the same color as the frames' unexposed (darkest) areas, so
- * strip and frames read as one piece of film.
- */
-private val FilmBase = NegativeClearColor
+private val FilmBase = Color(0xFF111111)
 
 /**
  * Turns a thumbnail into a sepia-toned negative in a single color matrix: luminance (Rec. 601
  * weights), inverted, then mapped onto the ramp from [NegativeClear] to [NegativeDense]. Per
- * channel c, alpha included (so the film's translucency follows its density):
+ * channel c (alpha included, should the ends ever differ in opacity):
  * out = clear_c - (clear_c - dense_c) * luminance.
  *
  * Applied by the GPU as the thumbnail draws (the paint's color filter), so it costs nothing per
@@ -870,9 +850,7 @@ private val SepiaNegativeFilter: ColorFilter = run {
 private val SprocketRim = Color.White.copy(alpha = 0.35f)
 private val SprocketRimWidth = 0.75.dp
 private val FilmEdgeTextStyle = TextStyle(
-    // The negative's dark color, printed on the amber base (amber-on-black would vanish on it);
-    // opaque, so it stays legible over whatever photo shows through the film.
-    color = NegativeDenseColor.copy(alpha = 1f),
+    color = Color(0xCCE0A84A),
     fontSize = 7.sp,
     fontFamily = FontFamily.Monospace,
     letterSpacing = 0.5.sp,
