@@ -598,6 +598,12 @@ private fun CarouselIndicator(
                     overshootSpec(),
                     label = "thumbShift",
                 )
+                // 0 at normal size, 1 fully enlarged; the overshoot can briefly take it past either end.
+                val growth = { (scale - 1f) / (SelectedThumbnailScale - 1f) }
+                // On the film strip, a frame develops from negative into positive as it grows into
+                // the selection, and back as it shrinks. Derived, so a frame only recomposes as it
+                // starts or finishes doing so, not every animation frame.
+                val developing by remember(film) { derivedStateOf { film && scale > 1f } }
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 CarouselSlot(
@@ -608,18 +614,13 @@ private fun CarouselIndicator(
                     shift = { shift },
                     // Tracks the selected thumbnail's growth, which runs in step with its
                     // neighbours' shift, so its film always just meets theirs.
-                    selectionGrowth = { (scale - 1f) / (SelectedThumbnailScale - 1f) },
+                    selectionGrowth = growth,
                     leadsStrip = inFlightCount == 0 && index == 0,
                     endsStrip = index == photos.lastIndex,
                     // Above its neighbours in case they briefly overlap mid-animation.
                     modifier = Modifier.zIndex(if (selected) 1f else 0f),
                 ) {
-                    AsyncImage(
-                        model = photo.uri,
-                        contentDescription = photo.filename,
-                        contentScale = ContentScale.Crop,
-                        // Frames on the film strip are its negatives.
-                        colorFilter = if (film) SepiaNegativeFilter else null,
+                    Box(
                         modifier = Modifier
                             .size(ThumbnailSize)
                             .pop { thumbPop.value }
@@ -632,7 +633,38 @@ private fun CarouselIndicator(
                                 if (selected) Modifier.border((2f / SelectedThumbnailScale).dp, Color.White) else Modifier,
                             )
                             .clickable(enabled = visible) { latestOnSelect(index) },
-                    )
+                    ) {
+                        // Developing: the positive underneath, the negative fading off it. Only
+                        // while developing (the selected frame, and one returning to the strip),
+                        // so every other frame stays a single draw with no extra layer. Both
+                        // load the same cached thumbnail.
+                        if (developing) {
+                            AsyncImage(
+                                model = photo.uri,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.matchParentSize(),
+                            )
+                        }
+                        AsyncImage(
+                            model = photo.uri,
+                            contentDescription = photo.filename,
+                            contentScale = ContentScale.Crop,
+                            // Frames on the film strip are its negatives.
+                            colorFilter = if (film) SepiaNegativeFilter else null,
+                            modifier = Modifier
+                                .matchParentSize()
+                                .then(
+                                    if (developing) {
+                                        // Read in the draw phase: the fade follows the enlarge
+                                        // animation without recomposing.
+                                        Modifier.graphicsLayer { alpha = 1f - growth().coerceIn(0f, 1f) }
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
+                        )
+                    }
                 }
             }
         }
