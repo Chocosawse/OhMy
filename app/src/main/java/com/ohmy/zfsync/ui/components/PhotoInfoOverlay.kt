@@ -182,8 +182,9 @@ private const val IMPRINT_OPACITY = 0.7f
 /** The imprint's size: fixed, not relative to the photo, so it's never large on a big screen. */
 private val IMPRINT_SIZE = 14.sp
 
-/** Its inset from the photo's corner. */
+/** Its inset from the photo's corner: from the right edge, and (lower) from the top. */
 private val ImprintInset = 12.dp
+private val ImprintTopInset = 28.dp
 
 /** Space kept clear at the top for the close and info buttons (8 + 48 + 8dp), below the bars. */
 private val ImprintTopClearance = 64.dp
@@ -237,7 +238,8 @@ fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Mod
         val inset = with(density) { ImprintInset.toPx() }
         // The photo's top-right corner, pulled inside the visible area.
         val right = min(photoRight, boxWidth - safeEnd) - inset
-        val top = maxOf(photoTop, safeTop + with(density) { ImprintTopClearance.toPx() }) + inset
+        val top = maxOf(photoTop, safeTop + with(density) { ImprintTopClearance.toPx() }) +
+            with(density) { ImprintTopInset.toPx() }
         Text(
             styled,
             style = style,
