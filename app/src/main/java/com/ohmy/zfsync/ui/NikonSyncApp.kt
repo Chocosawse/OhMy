@@ -1,5 +1,10 @@
 package com.ohmy.zfsync.ui
 
+import android.app.Activity
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,6 +19,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +33,7 @@ import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.DownloadStatus
 import com.ohmy.zfsync.core.model.photosNewestFirst
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
+import com.ohmy.zfsync.ui.screens.AlbumsScreen
 import com.ohmy.zfsync.ui.screens.ConnectScreen
 import com.ohmy.zfsync.ui.screens.PhotoViewerScreen
 import com.ohmy.zfsync.ui.screens.SettingsScreen
@@ -54,6 +61,17 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     // Saveable: rotation recreates the activity, and an open gallery or theme picker must survive it.
     var viewerIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    // Browsing the device's other albums: the album list, and the album open in a viewer over it.
+    var showAlbums by rememberSaveable { mutableStateOf(false) }
+    var openAlbumId by rememberSaveable { mutableStateOf<String?>(null) }
+    val albums by viewModel.albums.collectAsState()
+    val albumPhotos by viewModel.albumPhotos.collectAsState()
+    // Also reopens it after the activity is recreated (rotation), if the ViewModel didn't survive.
+    LaunchedEffect(openAlbumId) { openAlbumId?.let(viewModel::openAlbum) }
+    // Deleting another app's photo goes through the system's confirmation; reload once it's done.
+    val albumDelete = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) viewModel.reloadAlbum()
+    }
 
     // Links a photo's list row and the viewer, for the photo's move between them. Already open
     // when the viewer is restored (e.g. after rotation), so it doesn't replay.
@@ -88,6 +106,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                         onSyncNow = viewModel::syncNow,
                         onDisconnect = viewModel::disconnect,
                         onPhotoClick = { index -> viewerIndex = index },
+                        onBrowseAlbums = { showAlbums = true },
                         onDeletePhotos = viewModel::deletePhotos,
                         onOpenMenu = { showSettings = true },
                         photoTransition = photoTransition,
@@ -99,6 +118,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                         savedCredentials = viewModel.savedCredentials,
                         onConnect = viewModel::connect,
                         onPhotoClick = { index -> viewerIndex = index },
+                        onBrowseAlbums = { showAlbums = true },
                         onDeletePhotos = viewModel::deletePhotos,
                         onOpenMenu = { showSettings = true },
                         photoTransition = photoTransition,
@@ -143,6 +163,45 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     downloadRaws = downloadRaws,
                     onDownloadRawsChange = viewModel::setDownloadRaws,
                     onClose = { showSettings = false },
+                )
+            }
+
+            AnimatedVisibility(
+                visible = showAlbums,
+                enter = scaleIn(overshootSpec(), initialScale = 0.92f) + fadeIn(overshootSpec()),
+                exit = scaleOut(overshootExitSpec(), targetScale = 0.92f) + fadeOut(overshootExitSpec()),
+            ) {
+                AlbumsScreen(
+                    albums = albums,
+                    onAccessChanged = viewModel::loadAlbums,
+                    onOpenAlbum = { album -> openAlbumId = album.id },
+                    onClose = { showAlbums = false },
+                )
+            }
+
+            // An album from the list, in the same viewer: its photos newest first, read-only
+            // except through the system (delete asks, edit saves a copy), EXIF read as needed.
+            val album = albumPhotos
+            if (openAlbumId != null && album != null) {
+                val newestFirst = remember(album) { album.asReversed() }
+                PhotoViewerScreen(
+                    photos = newestFirst,
+                    initialIndex = 0,
+                    onDelete = { photo ->
+                        viewModel.deleteRequest(photo)?.let { albumDelete.launch(IntentSenderRequest.Builder(it).build()) }
+                    },
+                    onClose = {
+                        openAlbumId = null
+                        viewModel.closeAlbum()
+                    },
+                    carouselStyle = carouselStyle,
+                    // The system asks before deleting another app's photo; asking first too would be twice.
+                    confirmDelete = false,
+                    showInfo = showPhotoInfo,
+                    onShowInfoChange = viewModel::setShowPhotoInfo,
+                    ownsPhotos = false,
+                    canDelete = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R,
+                    loadExposure = viewModel::readExposure,
                 )
             }
         }

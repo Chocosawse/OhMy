@@ -1,5 +1,6 @@
 package com.ohmy.zfsync.core.model
 
+import android.net.Uri
 import kotlin.math.abs
 
 /**
@@ -42,6 +43,33 @@ fun List<SyncedPhoto>.withFile(file: SyncedPhoto): List<SyncedPhoto> {
     }
 }
 
-/** The album's files (each a JPEG or a RAW, in order) as the app shows them: see [withFile]. */
-fun pairRawFiles(files: List<SyncedPhoto>): List<SyncedPhoto> =
-    files.fold(emptyList()) { album, file -> album.withFile(file) }
+/**
+ * The album's files (each a JPEG or a RAW, in order) as the app shows them, the same as adding
+ * each with [withFile] -- but in one pass, looking matches up by name, so a device album of
+ * thousands of photos pairs in linear time rather than quadratic.
+ */
+fun pairRawFiles(files: List<SyncedPhoto>): List<SyncedPhoto> {
+    val album = ArrayList<SyncedPhoto>(files.size)
+    // Indices into [album] of the items whose name (lowercased, without extension) is the key.
+    val byBaseName = HashMap<String, MutableList<Int>>()
+    val seen = HashSet<Uri>()
+    for (file in files) {
+        if (!seen.add(file.uri)) continue
+        val candidates = byBaseName.getOrPut(file.filename.baseName().lowercase()) { mutableListOf() }
+        val isRaw = RawFormats.isRaw(file.filename)
+        val match = candidates.firstOrNull { index ->
+            val other = album[index]
+            abs(other.savedAtMillis - file.savedAtMillis) <= PAIRING_WINDOW_MILLIS &&
+                if (isRaw) other.rawUri == null else other.isRawOnly()
+        }
+        when {
+            match == null -> {
+                candidates += album.size
+                album += if (isRaw) file.copy(rawUri = file.uri) else file
+            }
+            isRaw -> album[match] = album[match].copy(rawUri = file.uri)
+            else -> album[match] = file.copy(rawUri = album[match].uri)
+        }
+    }
+    return album
+}

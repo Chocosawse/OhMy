@@ -116,6 +116,7 @@ fun PhotoList(
     modifier: Modifier = Modifier,
     inFlightCount: Int = 0,
     photoTransition: PhotoTransitionState? = null,
+    onBrowseAlbums: (() -> Unit)? = null,
 ) {
     // Select mode is simply "something is selected": long-press selects the first photo, and
     // deselecting the last one (or Cancel / system back) leaves it.
@@ -192,7 +193,17 @@ fun PhotoList(
         ) {
             items(entries, key = { it.key }, contentType = { it.contentType }) { entry ->
                 when (entry) {
-                    is ListEntry.Header -> SectionHeader(stringResource(entry.title))
+                    // The list's first header carries the way to the device's other albums.
+                    is ListEntry.Header -> SectionHeader(
+                        title = stringResource(entry.title),
+                        action = onBrowseAlbums?.takeIf { entry == entries.first() }?.let { browse ->
+                            {
+                                TextButton(onClick = browse, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                    Text(stringResource(R.string.albums_browse))
+                                }
+                            }
+                        },
+                    )
                     is ListEntry.Empty -> EmptyText(stringResource(entry.text))
                     is ListEntry.Placeholder -> {
                         PlaceholderRow()
@@ -372,16 +383,23 @@ private fun RowDivider() {
 
 /** A quiet serif heading, set in the secondary text color rather than an accent. */
 @Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+private fun SectionHeader(title: String, action: (@Composable () -> Unit)? = null) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = ScreenHorizontalPadding)
             .padding(top = 16.dp, bottom = 4.dp),
-    )
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        // Trailing, e.g. the Albums button; its own padding keeps the header's height close.
+        action?.invoke()
+    }
 }
 
 @Composable

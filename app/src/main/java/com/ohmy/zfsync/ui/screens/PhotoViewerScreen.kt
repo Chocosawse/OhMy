@@ -51,6 +51,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -73,6 +74,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -140,6 +142,7 @@ import coil.memory.MemoryCache
 import coil.request.ImageRequest
 import coil.size.Size
 import com.ohmy.zfsync.R
+import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionFabMenu
 import com.ohmy.zfsync.ui.components.CaptureTimeTag
@@ -150,6 +153,7 @@ import com.ohmy.zfsync.ui.components.PhotoGeometry
 import com.ohmy.zfsync.ui.components.PhotoTitleCard
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
 import com.ohmy.zfsync.ui.components.croppedGeometry
+import com.ohmy.zfsync.ui.components.editPhoto
 import com.ohmy.zfsync.ui.components.formatCaptureTime
 import com.ohmy.zfsync.ui.components.openRaws
 import com.ohmy.zfsync.ui.components.sharePhotos
@@ -194,6 +198,9 @@ fun PhotoViewerScreen(
     onConfirmDeleteChange: (Boolean) -> Unit = {},
     showInfo: Boolean = true,
     onShowInfoChange: (Boolean) -> Unit = {},
+    ownsPhotos: Boolean = true,
+    canDelete: Boolean = true,
+    loadExposure: (suspend (Uri) -> ExposureInfo?)? = null,
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
@@ -391,6 +398,15 @@ fun PhotoViewerScreen(
 
         // The current photo's floating info: shown with the other controls, unless turned off.
         val currentPhoto = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
+        // Photos from other albums arrive without EXIF (thousands of file reads up front), so it's
+        // read here as each one comes up, once.
+        val loadedExposures = remember { mutableStateMapOf<Uri, ExposureInfo?>() }
+        if (loadExposure != null && currentPhoto.exposure == null) {
+            LaunchedEffect(currentPhoto.uri) {
+                if (currentPhoto.uri !in loadedExposures) loadedExposures[currentPhoto.uri] = loadExposure(currentPhoto.uri)
+            }
+        }
+        val currentExposure = currentPhoto.exposure ?: loadedExposures[currentPhoto.uri]
         // A plain fade, not the controls' pop: these are captions on the photo, not controls.
         val infoAlpha = animateFloatAsState(
             if (controlsShown && showInfo) 1f else 0f,
@@ -399,7 +415,7 @@ fun PhotoViewerScreen(
         )
         PhotoTitleCard(
             filename = currentPhoto.filename,
-            exposure = currentPhoto.exposure,
+            exposure = currentExposure,
             hasRaw = currentPhoto.hasSeparateRaw,
             rawTag = stringResource(R.string.photo_raw_tag),
             modifier = Modifier
@@ -412,7 +428,7 @@ fun PhotoViewerScreen(
         CaptureTimeTag(
             // The camera's own clock; files without it fall back to when the app saved them.
             text = formatCaptureTime(
-                currentPhoto.exposure?.capturedAt
+                currentExposure?.capturedAt
                     ?: LocalDateTime.ofInstant(Instant.ofEpochMilli(currentPhoto.savedAtMillis), ZoneId.systemDefault()),
             ),
             modifier = Modifier
@@ -431,7 +447,7 @@ fun PhotoViewerScreen(
             Box(modifier = Modifier.fillMaxWidth()) {
                 // Bottom-left, level with the FAB and kept clear of it (16 + 56 + 16dp).
                 ExposureCard(
-                    exposure = currentPhoto.exposure,
+                    exposure = currentExposure,
                     labels = ExposureLabels(
                         focalLength = stringResource(R.string.viewer_exposure_focal_length),
                         aperture = stringResource(R.string.viewer_exposure_aperture),
@@ -448,14 +464,17 @@ fun PhotoViewerScreen(
                         FabAction(Icons.Default.Share, stringResource(R.string.viewer_share)) {
                             sharePhotos(context, listOf(photos[pagerState.currentPage]))
                         },
+                        FabAction(Icons.Default.Edit, stringResource(R.string.viewer_edit)) {
+                            editPhoto(context, photos[pagerState.currentPage], writable = ownsPhotos)
+                        },
                         // Only for a shot with a RAW: hands it to a RAW editor or viewer.
-                        FabAction(Icons.Default.Edit, stringResource(R.string.viewer_open_raw)) {
+                        FabAction(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.viewer_open_raw)) {
                             openRaws(context, listOf(photos[pagerState.currentPage]))
                         }.takeIf { currentPhoto.rawUri != null },
                         FabAction(Icons.Default.Delete, stringResource(R.string.viewer_delete)) {
                             val photo = photos[pagerState.currentPage]
                             if (confirmDelete) pendingDelete = photo else onDelete(photo)
-                        },
+                        }.takeIf { canDelete },
                     ),
                     expanded = actionsExpanded,
                     onExpandedChange = { actionsExpanded = it },

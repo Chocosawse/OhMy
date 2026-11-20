@@ -45,6 +45,7 @@ fun ConnectScreen(
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
+    onBrowseAlbums: (() -> Unit)? = null,
 ) {
     val connectionState = state.connectionState
     var ssid by remember { mutableStateOf(savedCredentials?.ssid.orEmpty()) }
@@ -124,6 +125,7 @@ fun ConnectScreen(
             onPhotoClick = onPhotoClick,
             onDeletePhotos = onDeletePhotos,
             photoTransition = photoTransition,
+            onBrowseAlbums = onBrowseAlbums,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )
     }
