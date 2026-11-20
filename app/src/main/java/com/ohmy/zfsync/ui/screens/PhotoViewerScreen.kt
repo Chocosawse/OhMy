@@ -28,13 +28,14 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.union
@@ -61,6 +62,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -74,6 +76,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size as GeometrySize
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -85,7 +89,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -99,6 +105,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -176,13 +183,25 @@ fun PhotoViewerScreen(
     LaunchedEffect(currentZoomedOut) { controlsVisible = currentZoomedOut }
     StatusBarHidden(hidden = !controlsVisible)
 
+    // Height of the bottom controls (pill + carousel, with their margin and the nav bar inset). At
+    // 1x the photo is fitted into the space above them rather than the whole screen, so they never
+    // cover it. Hiding the controls only scales them in the draw layer, so this doesn't change as
+    // they hide and show, and the photo doesn't jump.
+    var controlsHeightPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             key = { photos[it].uri },
         ) { page ->
-            ZoomableImage(photos[page], zoomStateFor(photos[page]), onTap = { controlsVisible = !controlsVisible })
+            ZoomableImage(
+                photos[page],
+                zoomStateFor(photos[page]),
+                bottomReserved = with(density) { controlsHeightPx.toDp() },
+                onTap = { controlsVisible = !controlsVisible },
+            )
         }
 
         // Shown and hidden with the other controls.
@@ -203,7 +222,12 @@ fun PhotoViewerScreen(
         }
 
         Column(
-            modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
+            // Measured outside the insets and margin, so the reserved space includes them.
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { controlsHeightPx = it.height }
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                .padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             ActionPill(
@@ -660,14 +684,27 @@ private class ZoomState {
     }
 }
 
+/** Double-tap zooms to at least this; more if that's what it takes for the photo to fill the screen. */
 private const val DOUBLE_TAP_ZOOM = 2f
 
+/** Pinch limit; raised to the fill scale for photos that need more than this to fill the screen. */
+private const val MAX_ZOOM = 5f
+
+/**
+ * A photo that, at 1x, is fitted into the screen above [bottomReserved] (the bottom controls) and
+ * top-aligned, so the controls don't cover it. Gestures work anywhere on the screen, and once
+ * zoomed the photo can spread over the whole screen, including the space the controls leave when
+ * they hide.
+ */
 @Composable
-private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit) {
-    // The tap detector below is set up once per photo, so it reads the latest callback through this.
+private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, bottomReserved: Dp, onTap: () -> Unit) {
+    // The gesture detectors below are set up once per photo, so they read the latest values through these.
     val latestOnTap by rememberUpdatedState(onTap)
+    val latestBottomReserved by rememberUpdatedState(bottomReserved)
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    // The decoded photo's size, known once it loads; needed to work out the fill-the-screen scale.
+    var imageSize by remember(photo.uri) { mutableStateOf(GeometrySize.Unspecified) }
 
     // The thumbnail/carousel rows load the same URI at a tiny size, and Coil's memory cache is
     // keyed by data + size by default -- without a size override here, this request can be
@@ -681,23 +718,17 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
             .build()
     }
 
-    AsyncImage(
-        model = fullSizeRequest,
-        contentDescription = photo.filename,
-        contentScale = ContentScale.Fit,
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(photo.uri) {
                 detectTapGestures(onTap = { latestOnTap() }, onDoubleTap = { tap ->
-                    // Toggle between 1x and 200%. Zooming in keeps the tapped spot under the
-                    // finger: with the default center transform origin, a point p lands at
-                    // center + (p - center) * scale + offset, so offset = (center - p) * (scale - 1).
-                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val geometry = ZoomGeometry(size, latestBottomReserved.toPx(), imageSize)
                     val fromScale = zoom.scale
                     val fromOffset = zoom.offset
                     val zoomingIn = zoom.scale <= 1f
-                    val toScale = if (zoomingIn) DOUBLE_TAP_ZOOM else 1f
-                    val toOffset = if (zoomingIn) (center - tap) * (DOUBLE_TAP_ZOOM - 1f) else Offset.Zero
+                    val toScale = if (zoomingIn) maxOf(DOUBLE_TAP_ZOOM, geometry.fillScale) else 1f
+                    val toOffset = if (zoomingIn) geometry.offsetFor(tap, toScale) else Offset.Zero
                     coroutineScope.launch {
                         // Default critically-damped spring, deliberately not the overshoot curve:
                         // zooming past the target and back reads as jitter on a full-screen photo.
@@ -718,19 +749,77 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
                         val event = awaitPointerEvent()
                         val multiTouch = event.changes.count { it.pressed } > 1
                         if (multiTouch || zoom.scale > 1f) {
-                            val newScale = (zoom.scale * event.calculateZoom()).coerceIn(1f, 5f)
+                            val maxScale = maxOf(MAX_ZOOM, ZoomGeometry(size, latestBottomReserved.toPx(), imageSize).fillScale)
+                            val newScale = (zoom.scale * event.calculateZoom()).coerceIn(1f, maxScale)
                             zoom.scale = newScale
                             zoom.offset = if (newScale <= 1f) Offset.Zero else zoom.offset + event.calculatePan()
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
                 }
-            }
-            .graphicsLayer(
-                scaleX = zoom.scale,
-                scaleY = zoom.scale,
-                translationX = zoom.offset.x,
-                translationY = zoom.offset.y,
-            ),
-    )
+            },
+    ) {
+        AsyncImage(
+            model = fullSizeRequest,
+            contentDescription = photo.filename,
+            contentScale = ContentScale.Fit,
+            onSuccess = { imageSize = it.painter.intrinsicSize },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = bottomReserved)
+                // Scales about the centre of the area above the controls; unclipped, so a zoomed
+                // photo spreads past that area over the rest of the screen.
+                .graphicsLayer(
+                    scaleX = zoom.scale,
+                    scaleY = zoom.scale,
+                    translationX = zoom.offset.x,
+                    translationY = zoom.offset.y,
+                ),
+        )
+    }
+}
+
+/**
+ * Where the photo sits, for working out zoom targets. All in the screen's pixels: the photo is
+ * fitted (ContentScale.Fit) into the area at the top of the [screen] above [bottomReserved], and a
+ * zoom scales it about that area's centre then translates it by an offset.
+ */
+private class ZoomGeometry(screen: IntSize, bottomReserved: Float, imageSize: GeometrySize) {
+    private val screenWidth = screen.width.toFloat()
+    private val screenHeight = screen.height.toFloat()
+    private val areaCenter = Offset(screenWidth / 2f, (screenHeight - bottomReserved).coerceAtLeast(1f) / 2f)
+
+    /** The photo's size on screen at 1x, or null until it has loaded. */
+    private val fitted: GeometrySize? = imageSize
+        .takeIf { it.isSpecified && it.width > 0f && it.height > 0f }
+        ?.let {
+            val fit = minOf(screenWidth / it.width, areaCenter.y * 2f / it.height)
+            GeometrySize(it.width * fit, it.height * fit)
+        }
+
+    /** The scale at which the photo covers the whole screen, with no black bars on any side. */
+    val fillScale: Float = fitted?.let { maxOf(screenWidth / it.width, screenHeight / it.height) } ?: 1f
+
+    /**
+     * The offset that, at [scale], keeps [tap] under the finger: a point p lands at
+     * center + (p - center) * scale + offset, so offset = (center - p) * (scale - 1). Then nudged
+     * just enough that the photo still covers the screen on each axis it's big enough to, and
+     * centred on the screen on any axis it isn't.
+     */
+    fun offsetFor(tap: Offset, scale: Float): Offset {
+        val keepTap = (areaCenter - tap) * (scale - 1f)
+        val size = fitted ?: return keepTap
+        return Offset(
+            cover(keepTap.x, areaCenter.x, size.width * scale, screenWidth),
+            cover(keepTap.y, areaCenter.y, size.height * scale, screenHeight),
+        )
+    }
+
+    /** One axis of [offsetFor]: the photo spans center + offset ± extent / 2, the screen 0..screenExtent. */
+    private fun cover(offset: Float, center: Float, extent: Float, screenExtent: Float): Float =
+        if (extent <= screenExtent) {
+            screenExtent / 2f - center
+        } else {
+            offset.coerceIn(screenExtent - center - extent / 2f, extent / 2f - center)
+        }
 }
