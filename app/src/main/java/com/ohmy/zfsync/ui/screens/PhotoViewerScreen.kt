@@ -1257,7 +1257,7 @@ private class ZoomState {
 }
 
 /** Behind the FAB's open actions: everything else, dimmed. */
-private val ActionsDimColor = Color.Black.copy(alpha = 0.5f)
+private val ActionsDimColor = Color.Black.copy(alpha = 0.3f)
 
 /** Double-tap zooms to at least this; more if that's what it takes for the photo to fill the screen. */
 private const val DOUBLE_TAP_ZOOM = 2f
