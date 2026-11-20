@@ -165,8 +165,10 @@ fun ActionFabMenu(
 
         Surface(
             shape = FabShape,
-            color = Color.White,
-            contentColor = Color.Black,
+            // The theme's primary pair: every theme sets it (cs-design palettes leave Material's
+            // usual FAB role, primaryContainer, at its stock lavender).
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             shadowElevation = 6.dp,
             modifier = Modifier
                 .pop { fabPop.value }
@@ -248,8 +250,9 @@ private fun ActionRow(action: FabAction, hovered: Boolean, enabled: Boolean, onC
     val scale by animateFloatAsState(if (hovered) ACTION_HOVER_SCALE else 1f, overshootSpec(), label = "actionHover")
     Surface(
         shape = RoundedCornerShape(50),
-        color = if (hovered) Color.White else Color.Black.copy(alpha = 0.6f),
-        contentColor = if (hovered) Color.Black else Color.White,
+        // Highlighted in the FAB's colors; otherwise dark, to read over any photo.
+        color = if (hovered) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.6f),
+        contentColor = if (hovered) MaterialTheme.colorScheme.onPrimary else Color.White,
         modifier = modifier
             .graphicsLayer {
                 scaleX = scale
