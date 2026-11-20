@@ -207,7 +207,8 @@ fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Mod
             fontWeight = FontWeight.Bold,
             fontSize = IMPRINT_SIZE,
             color = ImprintOrange,
-            shadow = Shadow(ImprintGlow, blurRadius = digitPx * 0.45f),
+            // A tight glow: enough to read as lit segments without smearing them.
+            shadow = Shadow(ImprintGlow, blurRadius = digitPx * 0.25f),
         )
     }
     val styled = remember(text) {
