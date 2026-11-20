@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.OhMy" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- The photo viewer opened from other apps: black from the first frame, like the viewer itself. -->
+    <style name="Theme.OhMy.Viewer">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

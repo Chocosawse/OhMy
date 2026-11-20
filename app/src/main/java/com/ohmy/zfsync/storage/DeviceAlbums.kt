@@ -6,6 +6,7 @@ import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import com.ohmy.zfsync.core.model.Album
 import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SyncedPhoto
@@ -85,6 +86,37 @@ class DeviceAlbums(context: Context) {
         return pairRawFiles(files)
     }
 
+    /**
+     * A photo another app asked to view, ready for the viewer: in its album (newest first, at its
+     * place) when it's in the device's photo library and the app can see that album, otherwise on
+     * its own. [ExternalPhoto.inLibrary] says whether it can be deleted (through the system).
+     */
+    fun openExternal(uri: Uri): ExternalPhoto {
+        val inLibrary = uri.authority == MediaStore.AUTHORITY
+        if (inLibrary) {
+            val bucket = runCatching {
+                resolver.query(uri, arrayOf(MediaStore.Images.Media.BUCKET_ID), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+            }.getOrNull()
+            if (bucket != null) {
+                val album = runCatching { loadAlbum(bucket) }.getOrDefault(emptyList()).asReversed()
+                // The same item can come as different URI forms (external vs external_primary), so by ID.
+                val id = uri.lastPathSegment?.toLongOrNull()
+                val index = album.indexOfFirst {
+                    it.uri.lastPathSegment?.toLongOrNull() == id || it.rawUri?.lastPathSegment?.toLongOrNull() == id
+                }
+                if (id != null && index >= 0) return ExternalPhoto(album, index, inLibrary = true)
+            }
+        }
+        val name = runCatching {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull() ?: uri.lastPathSegment.orEmpty()
+        return ExternalPhoto(listOf(SyncedPhoto(filename = name, savedAtMillis = System.currentTimeMillis(), uri = uri)), 0, inLibrary)
+    }
+
     /** One photo's EXIF, read when it's actually looked at. */
     fun readExposure(uri: Uri): ExposureInfo? = photoSaver.readExposure(uri)
 
@@ -98,3 +130,6 @@ class DeviceAlbums(context: Context) {
         return MediaStore.createDeleteRequest(resolver, uris).intentSender
     }
 }
+
+/** What [DeviceAlbums.openExternal] found: the photos to show, newest first, and which to start on. */
+data class ExternalPhoto(val photos: List<SyncedPhoto>, val initialIndex: Int, val inLibrary: Boolean)

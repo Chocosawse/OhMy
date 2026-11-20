@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OhMy Zf Sync</string>
+    <!-- How the viewer is listed in other apps' "Open with" choosers. -->
+    <string name="viewer_app_label">OhMy Gallery</string>
 
     <string name="connect_title">Connect to your Nikon Zf</string>
     <!-- Set in italics, as a lead-in to connect_instructions. -->

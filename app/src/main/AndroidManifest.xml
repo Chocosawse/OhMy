@@ -47,6 +47,22 @@
             </intent-filter>
         </activity>
 
+        <!-- The gallery viewer as an image viewer for other apps: listed under "Open with" for any
+             image (file managers, messengers, galleries), and as a camera app's review screen.
+             Opens in the caller's task, so back returns there. -->
+        <activity
+            android:name=".PhotoViewerActivity"
+            android:exported="true"
+            android:label="@string/viewer_app_label"
+            android:theme="@style/Theme.OhMy.Viewer">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.provider.action.REVIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".service.CameraSyncService"
             android:exported="false"
