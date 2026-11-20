@@ -40,7 +40,6 @@
     <string name="viewer_delete">Delete</string>
     <string name="viewer_open_raw">Open RAW</string>
     <string name="viewer_edit">Edit</string>
-    <string name="edit_chooser_title">Edit with</string>
     <string name="viewer_actions">Photo actions</string>
     <!-- Column labels over the viewer's exposure readout. -->
     <string name="viewer_exposure_focal_length">FOCAL</string>
