@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -282,8 +283,9 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
  * centred, and the main pager follows. Tapping a thumbnail selects it, and whenever the photo
  * changes any other way (a tap, or swiping the main photo) the strip glides it to the centre.
  *
- * Every thumbnail keeps a fixed slot and the selected one grows by scaling, drawn above its
- * neighbours: growing the slot itself would shift thumbnails under the finger mid-drag.
+ * Every thumbnail keeps a fixed slot: the selected one grows by scaling, and the thumbnails either
+ * side shift outward to open wider gaps around it, all drawn rather than laid out. Resizing slots
+ * instead would move thumbnails under the finger mid-drag and fight the snapping.
  *
  * In-flight downloads show as placeholders at the front, where new photos land. They shift strip
  * positions relative to page numbers, so photos are found by key (their URI), not position.
@@ -371,7 +373,7 @@ private fun CarouselIndicator(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = sidePadding),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(ThumbnailSpacing),
             verticalAlignment = Alignment.CenterVertically,
             userScrollEnabled = visible,
             // Snaps the nearest thumbnail to the centre when a drag or fling ends.
@@ -380,11 +382,25 @@ private fun CarouselIndicator(
             // Cascade delays go by position in the strip, placeholders included.
             items(inFlightCount, key = { "placeholder-$it" }) { index ->
                 val placeholderPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
-                PlaceholderThumbnail(Modifier.pop { placeholderPop.value })
+                // Placeholders are always before the photos, so always on the selection's left.
+                PlaceholderThumbnail(
+                    Modifier
+                        .pop { placeholderPop.value }
+                        .graphicsLayer { translationX = -SelectionShift.toPx() },
+                )
             }
             itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
                 val selected = index == currentIndex
                 val scale by animateFloatAsState(if (selected) SelectedThumbnailScale else 1f, overshootSpec(), label = "thumbScale")
+                val shift by animateDpAsState(
+                    when {
+                        index < currentIndex -> -SelectionShift
+                        index > currentIndex -> SelectionShift
+                        else -> 0.dp
+                    },
+                    overshootSpec(),
+                    label = "thumbShift",
+                )
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 AsyncImage(
@@ -392,11 +408,12 @@ private fun CarouselIndicator(
                     contentDescription = photo.filename,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        // Drawn above its neighbours, which its enlarged size overlaps slightly.
+                        // Above its neighbours in case they briefly overlap mid-animation.
                         .zIndex(if (selected) 1f else 0f)
                         .size(ThumbnailSize)
                         .pop { thumbPop.value }
                         .graphicsLayer {
+                            translationX = shift.toPx()
                             scaleX = scale
                             scaleY = scale
                         }
@@ -432,6 +449,18 @@ private val SelectedThumbnailSize = 56.dp
 
 /** The selected thumbnail is drawn at [SelectedThumbnailSize] by scaling its [ThumbnailSize] slot. */
 private val SelectedThumbnailScale = SelectedThumbnailSize / ThumbnailSize
+
+/** Gap between thumbnails throughout the strip... */
+private val ThumbnailSpacing = 4.dp
+
+/** ...except either side of the selected thumbnail. */
+private val SelectedThumbnailSpacing = 8.dp
+
+/**
+ * How far the thumbnails either side of the selection are drawn outward: enough to clear its
+ * growth and widen its two gaps from [ThumbnailSpacing] to [SelectedThumbnailSpacing].
+ */
+private val SelectionShift = (SelectedThumbnailSize - ThumbnailSize) / 2 + (SelectedThumbnailSpacing - ThumbnailSpacing)
 
 /** Leaves room above and below the current thumbnail for its grow animation to overshoot. */
 private val CarouselHeight = 60.dp
