@@ -695,7 +695,7 @@ private const val DOUBLE_TAP_ZOOM = 2f
 private const val MAX_ZOOM = 5f
 
 /**
- * A photo that, at 1x, is centred on the screen unless the bottom controls ([bottomReserved])
+ * A photo that, at 1x, is centred on the screen unless the carousel ([bottomReserved])
  * would cover it; then it's raised, and if need be shrunk, to sit just above them. Gestures work anywhere on the screen, and once
  * zoomed the photo can spread over the whole screen, including the space the controls leave when
  * they hide.
