@@ -75,8 +75,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.lerp
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -312,7 +315,8 @@ enum class CarouselStyle { Classic, FilmStrip }
  * the middle toward both ends; while hidden the strip keeps its space but ignores touches.
  *
  * [CarouselStyle.FilmStrip] (v2) draws the same strip as film: a dark base, each frame's slot
- * drawing its own sprocket holes above and below, and every tenth frame a printed edge number. The slots share one
+ * drawing its own sprocket holes above and below (see-through, like real perforations), and every
+ * tenth frame a printed edge number. The slots share one
  * hole spacing, so neighbours join into continuous perforated edges. It's all drawn (a few rects
  * and one pre-measured label per slot), never laid out, so scrolling stays cheap. Hiding folds the
  * strip shut after its frames cascade out; showing unfolds it first.
@@ -412,6 +416,10 @@ private fun CarouselIndicator(
                             val p = stripPop.value
                             scaleY = p
                             alpha = p.coerceIn(0f, 1f)
+                            // One offscreen layer for the whole strip, so the sprocket holes the
+                            // frames clear out of their film reveal the photo behind the strip,
+                            // rather than punching through to the window.
+                            compositingStrategy = CompositingStrategy.Offscreen
                         }
                 } else {
                     Modifier
@@ -565,11 +573,16 @@ private fun DrawScope.drawFilmPiece(edgeLabel: TextLayoutResult?, widen: Float, 
     val bottomRow = size.height - topRow - holeHeight
     // Fully qualified: this file also imports Coil's Size, for full-resolution loading.
     val hole = androidx.compose.ui.geometry.Size(holeWidth, holeHeight)
+    val rim = Stroke(width = SprocketRimWidth.toPx())
     repeat(SPROCKETS_PER_FRAME) { i ->
         // Centred on the frame: the holes span the slot plus half the gap either side.
         val x = -halfGap + i * pitch + (pitch - holeWidth) / 2
-        drawRoundRect(SprocketColor, Offset(x, topRow), hole, corner)
-        drawRoundRect(SprocketColor, Offset(x, bottomRow), hole, corner)
+        for (y in floatArrayOf(topRow, bottomRow)) {
+            // Real holes: cleared out of the film so the photo behind shows through, with a faint
+            // rim so they still read over dark photos.
+            drawRoundRect(Color.Black, Offset(x, y), hole, corner, blendMode = BlendMode.Clear)
+            drawRoundRect(SprocketRim, Offset(x, y), hole, corner, style = rim)
+        }
     }
     if (edgeLabel != null) {
         drawText(edgeLabel, topLeft = Offset(EdgeLabelInset.toPx(), (topRow - edgeLabel.size.height) / 2f))
@@ -627,7 +640,8 @@ private val EdgeLabelInset = 2.dp
 /** Film past the first and last frames, so the strip ends just beyond them. */
 private val FilmLeader = 4.dp
 private val FilmBase = Color(0xFF111111)
-private val SprocketColor = Color(0xFFE9E4D8)
+private val SprocketRim = Color.White.copy(alpha = 0.35f)
+private val SprocketRimWidth = 0.75.dp
 private val FilmEdgeTextStyle = TextStyle(
     color = Color(0xCCE0A84A),
     fontSize = 7.sp,
