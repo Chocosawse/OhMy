@@ -7,18 +7,22 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
@@ -34,7 +38,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -53,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +64,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -68,9 +73,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
@@ -81,7 +84,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -97,9 +102,8 @@ import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
 import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.pop
 import kotlin.math.abs
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 /**
@@ -148,8 +152,11 @@ fun PhotoViewerScreen(
         zoomStates.forEach { (uri, zoom) -> if (uri != current) zoom.reset() }
     }
     val currentZoomedOut = zoomStateFor(photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]).scale <= 1f
-    // Zoomed in, the photo gets the whole screen: the status bar hides along with the carousel and pill.
-    StatusBarHidden(hidden = !currentZoomedOut)
+    // Whether the controls (status bar, close button, carousel, pill) show. Zooming in hides them
+    // and returning to 1x brings them back; a single tap toggles them at any zoom.
+    var controlsVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(currentZoomedOut) { controlsVisible = currentZoomedOut }
+    StatusBarHidden(hidden = !controlsVisible)
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(
@@ -157,18 +164,22 @@ fun PhotoViewerScreen(
             modifier = Modifier.fillMaxSize(),
             key = { photos[it].uri },
         ) { page ->
-            ZoomableImage(photos[page], zoomStateFor(photos[page]))
+            ZoomableImage(photos[page], zoomStateFor(photos[page]), onTap = { controlsVisible = !controlsVisible })
         }
 
+        // Shown and hidden with the other controls.
+        val closePop = animatePop(controlsVisible)
         IconButton(
             onClick = onClose,
+            enabled = controlsVisible,
             // The photo itself runs edge to edge behind the system bars; controls stay clear of them.
             // Padded for where the status bar is even while it's hidden, so the button doesn't
             // jump up and down as zooming hides and shows the bar.
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility))
-                .padding(8.dp),
+                .padding(8.dp)
+                .pop { closePop.value },
         ) {
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
@@ -177,23 +188,22 @@ fun PhotoViewerScreen(
             modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CarouselIndicator(
-                photos = photos,
-                inFlightCount = inFlightCount,
-                currentIndex = pagerState.currentPage,
-                visible = currentZoomedOut,
-                onThumbnailClick = { index -> coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                // Instant, not animated: scrubbing changes photo many times a second.
-                onScrubTo = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
-            )
-            Spacer(modifier = Modifier.height(16.dp))
             ActionPill(
-                // Hidden with the carousel and status bar while zoomed in.
-                visible = currentZoomedOut,
+                // Shown and hidden with the other controls.
+                visible = controlsVisible,
                 onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
                 onDelete = { pendingDelete = photos[pagerState.currentPage] },
                 containerColor = Color.White.copy(alpha = 0.2f),
                 contentColor = Color.White,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            CarouselIndicator(
+                photos = photos,
+                inFlightCount = inFlightCount,
+                currentIndex = pagerState.currentPage,
+                visible = controlsVisible,
+                // Instant, not animated: dragging the strip changes photo many times a second.
+                onSelect = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
             )
         }
     }
@@ -268,13 +278,19 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /**
- * Thumbnail strip: a placeholder per in-flight download at the front (where new photos land),
- * then a thumbnail per photo, in page order. Toggling [visible] pops the on-screen items in from
- * both ends toward the middle, or out from the middle toward both ends. It keeps its space while
- * hidden, so the pill below doesn't jump, but stops taking touches.
+ * Filmstrip of thumbnails: whichever thumbnail sits at the centre is the selected photo.
+ * Dragging or flinging the strip scrolls through photos, snapping so a thumbnail always lands
+ * centred, and the main pager follows. Tapping a thumbnail selects it, and whenever the photo
+ * changes any other way (a tap, or swiping the main photo) the strip glides it to the centre.
  *
- * Placeholders shift the strip's item positions relative to page numbers, so photos are found by
- * key (their URI) rather than by position.
+ * Every thumbnail keeps a fixed slot: the selected one grows by scaling, and the thumbnails either
+ * side shift outward to open wider gaps around it, all drawn rather than laid out. Resizing slots
+ * instead would move thumbnails under the finger mid-drag and fight the snapping.
+ *
+ * In-flight downloads show as placeholders at the front, where new photos land. They shift strip
+ * positions relative to page numbers, so photos are found by key (their URI), not position.
+ * Toggling [visible] pops the on-screen items in from both ends toward the middle, or out from
+ * the middle toward both ends; while hidden the strip keeps its space but ignores touches.
  */
 @Composable
 private fun CarouselIndicator(
@@ -282,19 +298,55 @@ private fun CarouselIndicator(
     inFlightCount: Int,
     currentIndex: Int,
     visible: Boolean,
-    onThumbnailClick: (Int) -> Unit,
-    onScrubTo: (Int) -> Unit,
+    onSelect: (Int) -> Unit,
 ) {
     val listState = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
-    var scrubbing by remember { mutableStateOf(false) }
     val latestPhotos by rememberUpdatedState(photos)
+    val latestCurrentIndex by rememberUpdatedState(currentIndex)
+    val latestOnSelect by rememberUpdatedState(onSelect)
 
-    LaunchedEffect(currentIndex, inFlightCount, scrubbing) {
-        // Mid-scrub the strip must stay put under the finger; it recentres once the finger lifts.
-        if (scrubbing) return@LaunchedEffect
+    // The page whose thumbnail is nearest the strip's centre; placeholders don't count.
+    val centredPage by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+            info.visibleItemsInfo
+                .mapNotNull { item ->
+                    val page = latestPhotos.indexOfFirst { it.uri == item.key }.takeIf { it >= 0 }
+                    page?.let { it to abs(item.offset + item.size / 2f - centre) }
+                }
+                .minByOrNull { it.second }
+                ?.first
+        }
+    }
+
+    // Whether the strip is driving the selection: from the start of a drag until its fling and
+    // snap settle. Otherwise the photo drives the strip.
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    var stripDriven by remember { mutableStateOf(false) }
+    LaunchedEffect(dragged, listState.isScrollInProgress) {
+        if (dragged) stripDriven = true else if (!listState.isScrollInProgress) stripDriven = false
+    }
+
+    // Strip -> photo: while the strip is being scrolled, the centred thumbnail is the photo.
+    LaunchedEffect(listState) {
+        snapshotFlow { centredPage }
+            .filterNotNull()
+            .distinctUntilChanged()
+            .collect { page ->
+                if ((dragged || stripDriven) && page != latestCurrentIndex) {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    latestOnSelect(page)
+                }
+            }
+    }
+
+    // Photo -> strip: glide the current thumbnail to the centre; if it's off screen, jump near it
+    // first. Skipped while the strip itself is driving, since it's already centred there.
+    LaunchedEffect(currentIndex, inFlightCount, stripDriven) {
+        if (stripDriven) return@LaunchedEffect
         val currentKey = latestPhotos.getOrNull(currentIndex)?.uri ?: return@LaunchedEffect
-        // Glide the current thumbnail to the centre; if it's off screen, jump near it first.
         if (listState.layoutInfo.visibleItemsInfo.none { it.key == currentKey }) {
             listState.scrollToItem(inFlightCount + currentIndex)
             withFrameNanos { }
@@ -314,52 +366,64 @@ private fun CarouselIndicator(
         }
     }
 
-    LazyRow(
-        state = listState,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(CarouselHeight)
-            .carouselScrub(
-                listState = listState,
-                enabled = visible,
-                haptics = haptics,
-                onScrubbingChange = { scrubbing = it },
-                pageForKey = { key -> latestPhotos.indexOfFirst { it.uri == key }.takeIf { it >= 0 } },
-                onScrubTo = onScrubTo,
-            ),
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        // Dragging scrubs (carouselScrub) rather than scrolling; the strip scrolls itself at the edges.
-        userScrollEnabled = false,
-    ) {
-        // Cascade delays go by position in the strip, placeholders included.
-        items(inFlightCount, key = { "placeholder-$it" }) { index ->
-            val placeholderPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
-            PlaceholderThumbnail(Modifier.pop { placeholderPop.value })
-        }
-        itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
-            val selected = index == currentIndex
-            val size by animateDpAsState(if (selected) SelectedThumbnailSize else ThumbnailSize, overshootSpec(), label = "thumbSize")
-            val position = inFlightCount + index
-            val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
-            AsyncImage(
-                model = photo.uri,
-                contentDescription = photo.filename,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(size)
-                    .pop { thumbPop.value }
-                    .then(
-                        if (selected) {
-                            Modifier.border(2.dp, Color.White)
-                        } else {
-                            Modifier
-                        },
-                    )
-                    // Touches are handled by carouselScrub; this keeps a tap action for accessibility.
-                    .then(if (visible) Modifier.semantics { onClick { onThumbnailClick(index); true } } else Modifier),
-            )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(CarouselHeight)) {
+        // Half the strip on each side, so the first and last thumbnails can reach the centre.
+        val sidePadding = ((maxWidth - ThumbnailSize) / 2).coerceAtLeast(0.dp)
+        LazyRow(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = sidePadding),
+            horizontalArrangement = Arrangement.spacedBy(ThumbnailSpacing),
+            verticalAlignment = Alignment.CenterVertically,
+            userScrollEnabled = visible,
+            // Snaps the nearest thumbnail to the centre when a drag or fling ends.
+            flingBehavior = rememberSnapFlingBehavior(listState),
+        ) {
+            // Cascade delays go by position in the strip, placeholders included.
+            items(inFlightCount, key = { "placeholder-$it" }) { index ->
+                val placeholderPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
+                // Placeholders are always before the photos, so always on the selection's left.
+                PlaceholderThumbnail(
+                    Modifier
+                        .pop { placeholderPop.value }
+                        .graphicsLayer { translationX = -SelectionShift.toPx() },
+                )
+            }
+            itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
+                val selected = index == currentIndex
+                val scale by animateFloatAsState(if (selected) SelectedThumbnailScale else 1f, overshootSpec(), label = "thumbScale")
+                val shift by animateDpAsState(
+                    when {
+                        index < currentIndex -> -SelectionShift
+                        index > currentIndex -> SelectionShift
+                        else -> 0.dp
+                    },
+                    overshootSpec(),
+                    label = "thumbShift",
+                )
+                val position = inFlightCount + index
+                val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
+                AsyncImage(
+                    model = photo.uri,
+                    contentDescription = photo.filename,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        // Above its neighbours in case they briefly overlap mid-animation.
+                        .zIndex(if (selected) 1f else 0f)
+                        .size(ThumbnailSize)
+                        .pop { thumbPop.value }
+                        .graphicsLayer {
+                            translationX = shift.toPx()
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .then(
+                            // Thinner before scaling, so it's 2dp once the thumbnail is enlarged.
+                            if (selected) Modifier.border((2f / SelectedThumbnailScale).dp, Color.White) else Modifier,
+                        )
+                        .clickable(enabled = visible) { latestOnSelect(index) },
+                )
+            }
         }
     }
 }
@@ -379,94 +443,24 @@ private fun PlaceholderThumbnail(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Scrubbing: touching the strip jumps to the thumbnail under the finger, and dragging keeps
- * following it, with a haptic tick per photo. While the finger is near either end the strip
- * auto-scrolls (faster the closer it is), so the whole album can be scrubbed in one drag.
- */
-private fun Modifier.carouselScrub(
-    listState: LazyListState,
-    enabled: Boolean,
-    haptics: HapticFeedback,
-    onScrubbingChange: (Boolean) -> Unit,
-    /** The page for a strip item's key, or null for non-photo items (download placeholders). */
-    pageForKey: (Any) -> Int?,
-    onScrubTo: (Int) -> Unit,
-): Modifier = pointerInput(listState, enabled) {
-    if (!enabled) return@pointerInput
-    coroutineScope {
-        val edgePx = 48.dp.toPx()
-        val maxScrollPerFramePx = 20.dp.toPx()
-
-        awaitEachGesture {
-            // Initial pass, consumed throughout: the thumbnails and the photo pager underneath
-            // mustn't also react to the same touch.
-            val down = awaitFirstDown(pass = PointerEventPass.Initial)
-            down.consume()
-            var pointerX = down.position.x
-            var current: Int? = null
-
-            // The photo whose thumbnail centre is nearest the finger, so the gaps between thumbnails,
-            // the strip's end padding and download placeholders still pick a photo.
-            fun nearestPage(x: Float): Int? {
-                val info = listState.layoutInfo
-                // Item offsets start after the leading content padding; viewportStartOffset is minus that.
-                val contentX = x + info.viewportStartOffset
-                return info.visibleItemsInfo
-                    .mapNotNull { item -> pageForKey(item.key)?.let { page -> page to abs(item.offset + item.size / 2f - contentX) } }
-                    .minByOrNull { it.second }
-                    ?.first
-            }
-
-            fun followFinger() {
-                val index = nearestPage(pointerX) ?: return
-                if (index == current) return
-                if (current != null) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                current = index
-                onScrubTo(index)
-            }
-
-            fun scrollSpeed(x: Float): Float = when {
-                x < edgePx -> -maxScrollPerFramePx * (edgePx - x) / edgePx
-                x > size.width - edgePx -> maxScrollPerFramePx * (x - (size.width - edgePx)) / edgePx
-                else -> 0f
-            }
-
-            onScrubbingChange(true)
-            followFinger()
-            var autoScroll: Job? = null
-            try {
-                while (true) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    change.consume()
-                    if (!change.pressed) break
-                    pointerX = change.position.x
-                    followFinger()
-                    if (scrollSpeed(pointerX) != 0f && autoScroll?.isActive != true) {
-                        autoScroll = launch {
-                            while (isActive) {
-                                val speed = scrollSpeed(pointerX)
-                                if (speed == 0f) break
-                                withFrameNanos { }
-                                listState.scrollBy(speed)
-                                // Thumbnails slide under a still finger while the strip scrolls.
-                                followFinger()
-                            }
-                        }
-                    }
-                }
-            } finally {
-                autoScroll?.cancel()
-                onScrubbingChange(false)
-            }
-        }
-    }
-}
-
 private val ThumbnailSize = 40.dp
 
 private val SelectedThumbnailSize = 56.dp
+
+/** The selected thumbnail is drawn at [SelectedThumbnailSize] by scaling its [ThumbnailSize] slot. */
+private val SelectedThumbnailScale = SelectedThumbnailSize / ThumbnailSize
+
+/** Gap between thumbnails throughout the strip... */
+private val ThumbnailSpacing = 4.dp
+
+/** ...except either side of the selected thumbnail. */
+private val SelectedThumbnailSpacing = 8.dp
+
+/**
+ * How far the thumbnails either side of the selection are drawn outward: enough to clear its
+ * growth and widen its two gaps from [ThumbnailSpacing] to [SelectedThumbnailSpacing].
+ */
+private val SelectionShift = (SelectedThumbnailSize - ThumbnailSize) / 2 + (SelectedThumbnailSpacing - ThumbnailSpacing)
 
 /** Leaves room above and below the current thumbnail for its grow animation to overshoot. */
 private val CarouselHeight = 60.dp
@@ -485,7 +479,9 @@ private class ZoomState {
 private const val DOUBLE_TAP_ZOOM = 2f
 
 @Composable
-private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState) {
+private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit) {
+    // The tap detector below is set up once per photo, so it reads the latest callback through this.
+    val latestOnTap by rememberUpdatedState(onTap)
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -508,7 +504,7 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState) {
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(photo.uri) {
-                detectTapGestures(onDoubleTap = { tap ->
+                detectTapGestures(onTap = { latestOnTap() }, onDoubleTap = { tap ->
                     // Toggle between 1x and 200%. Zooming in keeps the tapped spot under the
                     // finger: with the default center transform origin, a point p lands at
                     // center + (p - center) * scale + offset, so offset = (center - p) * (scale - 1).
