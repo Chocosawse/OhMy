@@ -778,10 +778,6 @@ private fun CarouselIndicator(
                 )
                 // 0 at normal size, 1 fully enlarged; the overshoot can briefly take it past either end.
                 val growth = { (scale - 1f) / (SelectedThumbnailScale - 1f) }
-                // On the film strip, a frame develops from negative into positive as it grows into
-                // the selection, and back as it shrinks. Derived, so a frame only recomposes as it
-                // starts or finishes doing so, not every animation frame.
-                val developing by remember(film) { derivedStateOf { film != null && scale > 1f } }
                 val frameShape = film?.frameShape ?: RectangleShape
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
@@ -820,35 +816,14 @@ private fun CarouselIndicator(
                             )
                             .clickable(enabled = visible) { latestOnSelect(index) },
                     ) {
-                        // Developing: the positive underneath, the negative fading off it. Only
-                        // while developing (the selected frame, and one returning to the strip),
-                        // so every other frame stays a single draw with no extra layer. Both
-                        // load the same cached thumbnail.
-                        if (developing) {
-                            AsyncImage(
-                                model = photo.uri,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.matchParentSize(),
-                            )
-                        }
                         AsyncImage(
                             model = photo.uri,
                             contentDescription = photo.filename,
                             contentScale = ContentScale.Crop,
-                            // Frames on the film strip are its negatives.
+                            // Frames on the film strip are its negatives, the selected one too:
+                            // its size and border mark it, without a positive drawing the eye.
                             colorFilter = film?.negative,
-                            modifier = Modifier
-                                .matchParentSize()
-                                .then(
-                                    if (developing) {
-                                        // Read in the draw phase: the fade follows the enlarge
-                                        // animation without recomposing.
-                                        Modifier.graphicsLayer { alpha = 1f - growth().coerceIn(0f, 1f) }
-                                    } else {
-                                        Modifier
-                                    },
-                                ),
+                            modifier = Modifier.matchParentSize(),
                         )
                     }
                 }
