@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OhMy Zf Sync</string>
+    <!-- How the viewer is listed in other apps' "Open with" choosers. -->
+    <string name="viewer_app_label">OhMy Gallery</string>
 
     <string name="connect_title">Connect to your Nikon Zf</string>
     <!-- Set in italics, as a lead-in to connect_instructions. -->
@@ -37,6 +39,8 @@
     <string name="viewer_share_chooser_title">Share photo</string>
     <string name="viewer_delete">Delete</string>
     <string name="viewer_open_raw">Open RAW</string>
+    <string name="viewer_edit">Edit</string>
+    <string name="edit_chooser_title">Edit with</string>
     <string name="viewer_actions">Photo actions</string>
     <!-- Column labels over the viewer's exposure readout. -->
     <string name="viewer_exposure_focal_length">FOCAL</string>
@@ -58,6 +62,14 @@
     <!-- Tags a photo whose RAW file was downloaded too. -->
     <string name="photo_raw_tag">+RAW</string>
 
+    <string name="albums_title">Albums</string>
+    <string name="albums_browse">Albums</string>
+    <string name="albums_access_title">Browse your other albums</string>
+    <string name="albums_access_text">Allow access to your photos to view any album on your phone in the gallery.</string>
+    <string name="albums_access_button">Allow access</string>
+    <string name="albums_partial">Showing only the photos you\'ve allowed.</string>
+    <string name="albums_partial_change">Change</string>
+
     <string name="settings_title">Settings</string>
     <string name="settings_section_theme">Theme</string>
     <string name="settings_section_gallery">Gallery</string>
@@ -69,11 +81,21 @@
     <string name="settings_carousel_amber_film_summary">Frames on translucent amber film, as negatives</string>
     <string name="settings_confirm_delete">Confirm before deleting</string>
     <string name="settings_confirm_delete_summary">Ask before deleting a photo from the gallery</string>
+    <string name="settings_section_date">Photo date</string>
+    <string name="settings_date_imprint">Film imprint</string>
+    <string name="settings_date_imprint_summary">Stamped on the photo in orange, like a film camera\'s date back</string>
+    <string name="settings_date_caption">Caption</string>
+    <string name="settings_date_caption_summary">A vertical caption at the screen\'s edge, with the full date and time</string>
     <string name="settings_section_sync">Sync</string>
     <string name="settings_download_raws">Download RAW files</string>
     <string name="settings_download_raws_summary">Also save each shot\'s RAW (e.g. NEF) with its JPEG. RAWs are large, so syncing takes longer.</string>
     <string name="theme_system">System (Material You)</string>
     <string name="theme_close">Close</string>
+
+    <plurals name="albums_photo_count">
+        <item quantity="one">%1$d photo</item>
+        <item quantity="other">%1$d photos</item>
+    </plurals>
 
     <plurals name="select_count">
         <item quantity="one">%1$d selected</item>

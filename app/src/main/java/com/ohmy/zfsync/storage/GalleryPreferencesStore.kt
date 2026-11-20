@@ -42,6 +42,16 @@ class GalleryPreferencesStore(context: Context) {
         _showPhotoInfo.value = show
     }
 
+    private val _dateStyle = MutableStateFlow(prefs.getString(KEY_DATE_STYLE, null))
+
+    /** How the viewer shows a photo's date, as its saved key (see DateStyle), or null for the default. */
+    val dateStyle: StateFlow<String?> = _dateStyle.asStateFlow()
+
+    fun setDateStyle(key: String) {
+        prefs.edit().putString(KEY_DATE_STYLE, key).apply()
+        _dateStyle.value = key
+    }
+
     /** Before there was a choice of styles there was an on/off film strip switch: on means the v2 film strip. */
     private fun loadCarouselStyle(): String? =
         prefs.getString(KEY_CAROUSEL_STYLE, null)
@@ -52,6 +62,7 @@ class GalleryPreferencesStore(context: Context) {
         const val KEY_CAROUSEL_STYLE = "carousel_style"
         const val KEY_CONFIRM_DELETE = "confirm_delete"
         const val KEY_SHOW_PHOTO_INFO = "show_photo_info"
+        const val KEY_DATE_STYLE = "date_style"
         const val KEY_LEGACY_FILM_STRIP_CAROUSEL = "film_strip_carousel"
         /** CarouselStyle.FilmStrip's key. */
         const val LEGACY_FILM_STRIP_STYLE_KEY = "film_strip"

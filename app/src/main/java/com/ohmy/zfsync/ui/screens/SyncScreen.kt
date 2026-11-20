@@ -41,6 +41,7 @@ fun SyncScreen(
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
+    onBrowseAlbums: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxSize().padding(top = 16.dp)) {
         // Only the controls get the side margin; the list spans the width and insets its own rows.
@@ -101,6 +102,7 @@ fun SyncScreen(
             onPhotoClick = onPhotoClick,
             onDeletePhotos = onDeletePhotos,
             photoTransition = photoTransition,
+            onBrowseAlbums = onBrowseAlbums,
             modifier = Modifier.fillMaxWidth().weight(1f),
         )
     }

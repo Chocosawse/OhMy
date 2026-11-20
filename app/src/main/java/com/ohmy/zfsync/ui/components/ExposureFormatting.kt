@@ -4,6 +4,7 @@ import com.ohmy.zfsync.core.model.ExposureInfo
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 import kotlin.math.roundToLong
 
 /**
@@ -33,9 +34,20 @@ fun formatAperture(fNumber: Double): String = "f/${fNumber.trimmed()}"
 private val CaptureDateFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
 private val CaptureTimeFormat = DateTimeFormatter.ofLocalizedTime(FormatStyle.MEDIUM)
 
-/** "Nov 19, 2026 • 6:15:45 PM", in the device's locale. */
+/** "Nov 19, 2026 • 6:15:45 PM", in the device's locale: the caption date style. */
 fun formatCaptureTime(dateTime: LocalDateTime): String =
     "${dateTime.format(CaptureDateFormat)} • ${dateTime.format(CaptureTimeFormat)}"
+
+/**
+ * "'26 10 24  16:36": a film camera's date imprint, year month day then 24-hour time, always in
+ * that fixed form (date backs had no locales).
+ */
+fun formatDateImprint(dateTime: LocalDateTime): String =
+    // Locale.ROOT: plain 0-9 whatever the phone's language; the seven-segment font has no others.
+    "'%02d %02d %02d  %02d:%02d".format(
+        Locale.ROOT,
+        dateTime.year % 100, dateTime.monthValue, dateTime.dayOfMonth, dateTime.hour, dateTime.minute,
+    )
 
 /** Sub-second speeds as a fraction the way cameras show them (1/250 s, 1/2.5 s), longer ones in seconds. */
 fun formatShutterSpeed(seconds: Double): String {

@@ -3,6 +3,7 @@ package com.ohmy.zfsync.ui.screens
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
+import com.ohmy.zfsync.ui.components.DateStyle
 import com.ohmy.zfsync.ui.preview.ThemeChoiceProvider
 import com.ohmy.zfsync.ui.theme.OhMyTheme
 import com.ohmy.zfsync.ui.theme.ThemeChoice
@@ -21,6 +22,8 @@ private fun SettingsScreenPreview(@PreviewParameter(ThemeChoiceProvider::class) 
             onConfirmDeleteChange = {},
             downloadRaws = false,
             onDownloadRawsChange = {},
+            dateStyle = DateStyle.Imprint,
+            onDateStyleChange = {},
             onClose = {},
         )
     }

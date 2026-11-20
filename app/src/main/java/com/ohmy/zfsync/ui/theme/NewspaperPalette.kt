@@ -34,14 +34,14 @@ object NewspaperPalette : ColorPalette(
     color700 = Graphite,
     color900 = Ink,
     complement = Terracotta,
-) {
+), AdjustedPalette {
     /**
      * cs-design maps every palette's light surface to pure white, and its dark surface a step
      * lighter than the background. Newsprint is one flat sheet, so surfaces take the paper color,
      * and the roles cs-design leaves at Material's baseline (rules, fills, dialogs, errors) are
      * set to match instead of Material's cool lavender greys and red.
      */
-    fun adjust(scheme: ColorScheme, darkTheme: Boolean): ColorScheme = if (!darkTheme) {
+    override fun adjust(scheme: ColorScheme, darkTheme: Boolean): ColorScheme = if (!darkTheme) {
         scheme.copy(
             surface = Paper,
             surfaceVariant = PaperShade,

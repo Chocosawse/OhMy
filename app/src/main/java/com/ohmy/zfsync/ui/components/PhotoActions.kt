@@ -204,6 +204,24 @@ fun openRaws(context: Context, photos: List<SyncedPhoto>) {
     }
 }
 
+/**
+ * Opens a photo in an image editor (Google Photos, Snapseed, Lightroom...), via a chooser. Only
+ * the app's own photos are offered for writing back ([writable]); granting write access to
+ * another app's photo would need access the app doesn't have, so editors save a copy instead.
+ */
+fun editPhoto(context: Context, photo: SyncedPhoto, writable: Boolean) {
+    val uri = photo.uri
+    val intent = Intent(Intent.ACTION_EDIT)
+        .setDataAndType(uri, context.contentResolver.getType(uri) ?: "image/jpeg")
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        .apply { if (writable) addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+    try {
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.edit_chooser_title)))
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
+    }
+}
+
 /** Opens the system share sheet for one or more photos. */
 fun sharePhotos(context: Context, photos: List<SyncedPhoto>) {
     if (photos.isEmpty()) return

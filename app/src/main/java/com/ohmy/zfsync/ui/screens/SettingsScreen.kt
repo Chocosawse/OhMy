@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
+import com.ohmy.zfsync.ui.components.DateStyle
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import com.ohmy.zfsync.ui.theme.ThemeChoice
 import com.ohmy.zfsync.ui.theme.paletteName
@@ -54,6 +55,8 @@ fun SettingsScreen(
     onConfirmDeleteChange: (Boolean) -> Unit,
     downloadRaws: Boolean,
     onDownloadRawsChange: (Boolean) -> Unit,
+    dateStyle: DateStyle,
+    onDateStyleChange: (DateStyle) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -95,6 +98,19 @@ fun SettingsScreen(
                         summary = stringResource(R.string.settings_confirm_delete_summary),
                         checked = confirmDelete,
                         onCheckedChange = onConfirmDeleteChange,
+                    )
+                }
+                item(key = "header-date") { SettingsSectionHeader(stringResource(R.string.settings_section_date)) }
+                items(DateStyle.entries, key = { "date-${it.key}" }) { style ->
+                    val (title, summary) = when (style) {
+                        DateStyle.Imprint -> R.string.settings_date_imprint to R.string.settings_date_imprint_summary
+                        DateStyle.Caption -> R.string.settings_date_caption to R.string.settings_date_caption_summary
+                    }
+                    RadioRow(
+                        title = stringResource(title),
+                        summary = stringResource(summary),
+                        selected = style == dateStyle,
+                        onClick = { onDateStyleChange(style) },
                     )
                 }
                 item(key = "header-sync") { SettingsSectionHeader(stringResource(R.string.settings_section_sync)) }
