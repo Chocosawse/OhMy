@@ -105,7 +105,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -184,8 +183,7 @@ fun PhotoViewerScreen(
     StatusBarHidden(hidden = !controlsVisible)
 
     // Height of the bottom controls (pill + carousel, with their margin and the nav bar inset). At
-    // 1x the photo is fitted into the space above them rather than the whole screen, so they never
-    // cover it. Hiding the controls only scales them in the draw layer, so this doesn't change as
+    // 1x the photo is kept clear of them, so they never cover it. Hiding the controls only scales them in the draw layer, so this doesn't change as
     // they hide and show, and the photo doesn't jump.
     var controlsHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -691,8 +689,8 @@ private const val DOUBLE_TAP_ZOOM = 2f
 private const val MAX_ZOOM = 5f
 
 /**
- * A photo that, at 1x, is fitted into the screen above [bottomReserved] (the bottom controls) and
- * top-aligned, so the controls don't cover it. Gestures work anywhere on the screen, and once
+ * A photo that, at 1x, is centred on the screen unless the bottom controls ([bottomReserved])
+ * would cover it; then it's raised, and if need be shrunk, to sit just above them. Gestures work anywhere on the screen, and once
  * zoomed the photo can spread over the whole screen, including the space the controls leave when
  * they hide.
  */
@@ -723,7 +721,7 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, bottomReserved: D
             .fillMaxSize()
             .pointerInput(photo.uri) {
                 detectTapGestures(onTap = { latestOnTap() }, onDoubleTap = { tap ->
-                    val geometry = ZoomGeometry(size, latestBottomReserved.toPx(), imageSize)
+                    val geometry = ZoomGeometry(size.width.toFloat(), size.height.toFloat(), latestBottomReserved.toPx(), imageSize)
                     val fromScale = zoom.scale
                     val fromOffset = zoom.offset
                     val zoomingIn = zoom.scale <= 1f
@@ -749,7 +747,7 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, bottomReserved: D
                         val event = awaitPointerEvent()
                         val multiTouch = event.changes.count { it.pressed } > 1
                         if (multiTouch || zoom.scale > 1f) {
-                            val maxScale = maxOf(MAX_ZOOM, ZoomGeometry(size, latestBottomReserved.toPx(), imageSize).fillScale)
+                            val maxScale = maxOf(MAX_ZOOM, ZoomGeometry(size.width.toFloat(), size.height.toFloat(), latestBottomReserved.toPx(), imageSize).fillScale)
                             val newScale = (zoom.scale * event.calculateZoom()).coerceIn(1f, maxScale)
                             zoom.scale = newScale
                             zoom.offset = if (newScale <= 1f) Offset.Zero else zoom.offset + event.calculatePan()
@@ -767,35 +765,51 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, bottomReserved: D
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = bottomReserved)
-                // Scales about the centre of the area above the controls; unclipped, so a zoomed
-                // photo spreads past that area over the rest of the screen.
-                .graphicsLayer(
-                    scaleX = zoom.scale,
-                    scaleY = zoom.scale,
-                    translationX = zoom.offset.x,
-                    translationY = zoom.offset.y,
-                ),
+                // Fitted into the area above the controls, then moved down within the screen to
+                // centre it where there's room (see ZoomGeometry). Unclipped, so a zoomed photo
+                // spreads past that area over the rest of the screen.
+                .graphicsLayer {
+                    val reserved = bottomReserved.toPx()
+                    val geometry = ZoomGeometry(size.width, size.height + reserved, reserved, imageSize)
+                    scaleX = zoom.scale
+                    scaleY = zoom.scale
+                    translationX = zoom.offset.x
+                    translationY = geometry.restingShift + zoom.offset.y
+                },
         )
     }
 }
 
 /**
- * Where the photo sits, for working out zoom targets. All in the screen's pixels: the photo is
- * fitted (ContentScale.Fit) into the area at the top of the [screen] above [bottomReserved], and a
- * zoom scales it about that area's centre then translates it by an offset.
+ * Where the photo sits, in the screen's pixels. At 1x it's fitted (ContentScale.Fit) into the
+ * area above [bottomReserved], then centred on the screen -- or as near the centre as it can be
+ * without its bottom edge going below that area. A zoom scales it about its 1x centre, then
+ * translates it by an offset.
  */
-private class ZoomGeometry(screen: IntSize, bottomReserved: Float, imageSize: GeometrySize) {
-    private val screenWidth = screen.width.toFloat()
-    private val screenHeight = screen.height.toFloat()
-    private val areaCenter = Offset(screenWidth / 2f, (screenHeight - bottomReserved).coerceAtLeast(1f) / 2f)
+private class ZoomGeometry(
+    private val screenWidth: Float,
+    private val screenHeight: Float,
+    bottomReserved: Float,
+    imageSize: GeometrySize,
+) {
+    private val areaHeight = (screenHeight - bottomReserved).coerceAtLeast(1f)
 
     /** The photo's size on screen at 1x, or null until it has loaded. */
     private val fitted: GeometrySize? = imageSize
         .takeIf { it.isSpecified && it.width > 0f && it.height > 0f }
         ?.let {
-            val fit = minOf(screenWidth / it.width, areaCenter.y * 2f / it.height)
+            val fit = minOf(screenWidth / it.width, areaHeight / it.height)
             GeometrySize(it.width * fit, it.height * fit)
         }
+
+    /** The photo's centre at 1x. Until it loads, the area's centre. */
+    private val photoCenter = Offset(
+        screenWidth / 2f,
+        fitted?.let { minOf(screenHeight / 2f, areaHeight - it.height / 2f) } ?: (areaHeight / 2f),
+    )
+
+    /** How far down the photo is moved from the centre of the area it's fitted into, at 1x. */
+    val restingShift: Float = photoCenter.y - areaHeight / 2f
 
     /** The scale at which the photo covers the whole screen, with no black bars on any side. */
     val fillScale: Float = fitted?.let { maxOf(screenWidth / it.width, screenHeight / it.height) } ?: 1f
@@ -807,11 +821,11 @@ private class ZoomGeometry(screen: IntSize, bottomReserved: Float, imageSize: Ge
      * centred on the screen on any axis it isn't.
      */
     fun offsetFor(tap: Offset, scale: Float): Offset {
-        val keepTap = (areaCenter - tap) * (scale - 1f)
+        val keepTap = (photoCenter - tap) * (scale - 1f)
         val size = fitted ?: return keepTap
         return Offset(
-            cover(keepTap.x, areaCenter.x, size.width * scale, screenWidth),
-            cover(keepTap.y, areaCenter.y, size.height * scale, screenHeight),
+            cover(keepTap.x, photoCenter.x, size.width * scale, screenWidth),
+            cover(keepTap.y, photoCenter.y, size.height * scale, screenHeight),
         )
     }
 
