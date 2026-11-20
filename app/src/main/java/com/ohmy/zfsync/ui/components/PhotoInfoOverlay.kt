@@ -3,6 +3,7 @@ package com.ohmy.zfsync.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -193,6 +194,8 @@ private val ImprintTopClearance = 64.dp
  * off, whatever the photo's shape. A fixed size, so it isn't drawn in the photo's zoom layer (the
  * info hides while zoomed anyway). [alpha] is read in the draw phase.
  */
+// statusBarsIgnoringVisibility: room for the status bar even while zooming has hidden it.
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
