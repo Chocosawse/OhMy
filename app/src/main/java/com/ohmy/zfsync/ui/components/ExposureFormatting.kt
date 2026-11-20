@@ -2,6 +2,7 @@ package com.ohmy.zfsync.ui.components
 
 import com.ohmy.zfsync.core.model.ExposureInfo
 import java.time.LocalDateTime
+import java.util.Locale
 import kotlin.math.roundToLong
 
 /**
@@ -33,7 +34,9 @@ fun formatAperture(fNumber: Double): String = "f/${fNumber.trimmed()}"
  * that fixed form (date backs had no locales).
  */
 fun formatDateImprint(dateTime: LocalDateTime): String =
+    // Locale.ROOT: plain 0-9 whatever the phone's language; the seven-segment font has no others.
     "'%02d %02d %02d  %02d:%02d".format(
+        Locale.ROOT,
         dateTime.year % 100, dateTime.monthValue, dateTime.dayOfMonth, dateTime.hour, dateTime.minute,
     )
 
