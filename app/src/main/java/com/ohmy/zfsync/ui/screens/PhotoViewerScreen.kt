@@ -86,7 +86,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size as GeometrySize
@@ -787,21 +786,8 @@ private fun CarouselIndicator(
             itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
                 val selected = index == currentIndex
                 // Everything about the selection comes from this frame's distance to the shared
-                // selection position. Only a frame within one step of it changes as it moves;
-                // farther ones are simply fully left or right (-1 / 1). Derived, so a far frame
-                // isn't redrawn on every animation frame, only when it crosses into or out of reach.
-                val side by remember(index) {
-                    derivedStateOf {
-                        val d = index - selectionPosition.value
-                        when {
-                            d <= -1f -> -1
-                            d >= 1f -> 1
-                            else -> 0
-                        }
-                    }
-                }
-                // Read in the draw phase; reads the position itself only while within reach.
-                val distance = { if (side == 0) index - selectionPosition.value else side.toFloat() }
+                // selection position, read in the draw phase: 0 at normal size, 1 fully enlarged.
+                val distance = { index - selectionPosition.value }
                 val growth = { (1f - abs(distance())).coerceAtLeast(0f) }
                 val scale = { 1f + (SelectedThumbnailScale - 1f) * growth() }
                 // Slid aside by up to SelectionShift: exactly what the frames between it and the
@@ -898,17 +884,7 @@ private fun CarouselSlot(
         Modifier
             .width(ThumbnailSize)
             .fillMaxHeight()
-            // The halo's gradient depends only on the slot's size: built once per size, not per frame.
-            .drawWithCache {
-                val haloBrush = film.halo?.let { halo ->
-                    Brush.radialGradient(
-                        0f to halo.copy(alpha = HALO_STRENGTH),
-                        1f to halo.copy(alpha = 0f),
-                        center = Offset(size.width / 2f, size.height / 2f),
-                        radius = SelectedThumbnailSize.toPx() * HALO_REACH,
-                    )
-                }
-                onDrawBehind {
+            .drawBehind {
                 drawFilmPiece(
                     look = film,
                     edgeLabel = edgeLabel,
@@ -917,9 +893,7 @@ private fun CarouselSlot(
                     tail = if (endsStrip) FilmLeader.toPx() else 0f,
                     frameSize = if (film.clearBaseUnderFrames) ThumbnailSize.toPx() * frameScale() else 0f,
                     glow = if (film.halo != null) selectionGrowth().coerceIn(0f, 1f) else 0f,
-                    haloBrush = haloBrush,
                 )
-                }
             }
     } else {
         Modifier
@@ -946,7 +920,6 @@ private fun DrawScope.drawFilmPiece(
     tail: Float,
     frameSize: Float,
     glow: Float,
-    haloBrush: Brush?,
 ) {
     val halfGap = ThumbnailSpacing.toPx() / 2
     val left = -halfGap - widen - lead
@@ -954,12 +927,19 @@ private fun DrawScope.drawFilmPiece(
     drawRect(look.base, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
     // The selected frame's light spilling onto the strip around it, as on a light table. Before
     // the holes are punched, so they stay clear; only while the frame is (becoming) selected.
-    if (haloBrush != null && glow > 0f) {
+    val halo = look.halo
+    if (halo != null && glow > 0f) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = SelectedThumbnailSize.toPx() * HALO_REACH
         drawCircle(
-            brush = haloBrush,
-            radius = SelectedThumbnailSize.toPx() * HALO_REACH,
-            center = Offset(size.width / 2f, size.height / 2f),
-            alpha = glow,
+            brush = Brush.radialGradient(
+                0f to halo.copy(alpha = HALO_STRENGTH * glow),
+                1f to halo.copy(alpha = 0f),
+                center = center,
+                radius = radius,
+            ),
+            radius = radius,
+            center = center,
         )
     }
     // Translucent film only: the base cleared from under the frame's image ([frameSize] square,
