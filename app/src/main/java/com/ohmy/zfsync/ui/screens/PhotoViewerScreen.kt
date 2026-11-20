@@ -824,11 +824,13 @@ private val SprocketInset = 9.dp
 private val EdgeLabelInset = 2.dp
 /** Film past the first and last frames, so the strip ends just beyond them. */
 private val FilmLeader = 4.dp
-// The two ends of the sepia negative's tone ramp: where the photo was brightest the film is
-// densest, a deep red-brown; where it was darkest the film is nearly clear, showing the amber
-// base. Both translucent, like real film: denser film lets less of what's behind it through.
-private val NegativeDenseColor = Color(0xCC4A0003)
-private val NegativeClearColor = Color(0x88C65731)
+// The two ends of the negative's tone ramp, modelled on color negative film seen backlit, as film
+// is looked at: where the photo was darkest the film is clear, showing the base's peach-orange
+// mask; where it was brightest it's densest, a dark warm brown rather than black (negatives are
+// low in contrast). Nearly opaque, as backlit film reads, with a hint of the photo behind
+// showing through; denser film lets even less through.
+private val NegativeDenseColor = Color(0xFA3B2416)
+private val NegativeClearColor = Color(0xF0D2894E)
 private val NegativeDense = NegativeDenseColor.channels()
 private val NegativeClear = NegativeClearColor.channels()
 
