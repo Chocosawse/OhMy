@@ -184,6 +184,9 @@ fun PhotoViewerScreen(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             key = { photos[it].uri },
+            // Keeps the photos either side composed, so they start loading before they're swiped
+            // to rather than as they slide in.
+            beyondViewportPageCount = 1,
         ) { page ->
             ZoomableImage(photos[page], zoomStateFor(photos[page]), onTap = { controlsVisible = !controlsVisible })
         }
@@ -678,22 +681,37 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
     // The decoded photo's size, known once it loads; needed to work out the fill-the-screen scale.
     var imageSize by remember(photo.uri) { mutableStateOf(GeometrySize.Unspecified) }
 
-    // The thumbnail/carousel rows load the same URI at a tiny size, and Coil's memory cache is
-    // keyed by data + size by default -- without a size override here, this request can be
-    // satisfied by whichever request to this URI the cache saw first, which upscales a tiny
-    // cached bitmap instead of decoding the photo at full resolution.
+    // Two sizes, each under its own cache key so neither is mistaken for the other (or for the
+    // thumbnails, cached under the bare URI):
+    // - Screen-sized, for viewing at 1x: no size given, so Coil sizes it to this composable, and
+    //   decodes by subsampling -- far quicker than a full ~24MP decode, which is what left pages
+    //   black while they slid in. Shows the thumbnail meanwhile.
+    // - Full resolution, only once the photo is zoomed in, showing the screen-sized one meanwhile.
+    //   Kept for the rest of the page's life, so zooming out and in again doesn't reload it.
+    val screenRequest = remember(photo.uri) {
+        ImageRequest.Builder(context)
+            .data(photo.uri)
+            .memoryCacheKey("${photo.uri}-screen")
+            .placeholderMemoryCacheKey(photo.uri.toString())
+            .build()
+    }
     val fullSizeRequest = remember(photo.uri) {
         ImageRequest.Builder(context)
             .data(photo.uri)
             .size(Size.ORIGINAL)
             .memoryCacheKey("${photo.uri}-full")
+            .placeholderMemoryCacheKey("${photo.uri}-screen")
             .build()
     }
+    val zoomedIn by remember(zoom) { derivedStateOf { zoom.scale > 1f } }
+    var fullSizeWanted by remember(photo.uri) { mutableStateOf(false) }
+    LaunchedEffect(zoomedIn) { if (zoomedIn) fullSizeWanted = true }
 
     AsyncImage(
-        model = fullSizeRequest,
+        model = if (fullSizeWanted) fullSizeRequest else screenRequest,
         contentDescription = photo.filename,
         contentScale = ContentScale.Fit,
+        // Only the size's aspect ratio is used, and both requests share it.
         onSuccess = { imageSize = it.painter.intrinsicSize },
         modifier = Modifier
             .fillMaxSize()
