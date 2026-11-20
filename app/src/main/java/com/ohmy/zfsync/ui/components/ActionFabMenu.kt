@@ -69,7 +69,8 @@ private const val ACTION_HOVER_SCALE = 1.08f
 /** Stagger between actions popping in (nearest the FAB first) or out (farthest first). */
 private const val ACTION_CASCADE_STEP_MILLIS = 50
 
-private val FabSize = 56.dp
+/** Material's small FAB: present without outweighing the photo. */
+private val FabSize = 40.dp
 private val FabShape = CircleShape
 
 /**
@@ -169,7 +170,7 @@ fun ActionFabMenu(
             // usual FAB role, primaryContainer, at its stock lavender).
             color = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            shadowElevation = 6.dp,
+            shadowElevation = 4.dp,
             modifier = Modifier
                 .pop { fabPop.value }
                 .onPlaced { fabCoordinates[0] = it }

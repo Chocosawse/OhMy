@@ -4,6 +4,7 @@ import com.ohmy.zfsync.core.model.ExposureInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDateTime
 
 class ExposureFormattingTest {
 
@@ -63,5 +64,11 @@ class ExposureFormattingTest {
         assertEquals("90mm", formatFocalLength(90.0))
         assertEquals("f/3.2", formatAperture(3.2))
         assertEquals("1/60 s", formatShutterSpeed(1.0 / 60))
+    }
+
+    @Test
+    fun `date imprint reads like a film camera's date back`() {
+        assertEquals("'26 10 24  16:36", formatDateImprint(LocalDateTime.of(2026, 10, 24, 16, 36, 16)))
+        assertEquals("'27 01 05  09:05", formatDateImprint(LocalDateTime.of(2027, 1, 5, 9, 5)))
     }
 }

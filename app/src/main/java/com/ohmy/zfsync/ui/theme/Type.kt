@@ -75,6 +75,13 @@ val MonoFontFamily = FontFamily(
     },
 )
 
+/**
+ * DSEG7 Classic (OFL, shipped unmodified: its license reserves the name for the original), a
+ * seven-segment face for the photo's date imprint, like a film camera's LED date back. Digits,
+ * spaces and the colon only; no apostrophe.
+ */
+val DateImprintFontFamily = FontFamily(Font(R.font.dseg7_classic_bold, FontWeight.Bold))
+
 private fun serif(family: FontFamily, size: Int, lineHeight: Int, letterSpacing: Float) = TextStyle(
     fontFamily = family,
     fontWeight = FontWeight.Normal,

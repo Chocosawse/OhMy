@@ -145,7 +145,7 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionFabMenu
-import com.ohmy.zfsync.ui.components.CaptureTimeTag
+import com.ohmy.zfsync.ui.components.DateImprint
 import com.ohmy.zfsync.ui.components.ExposureCard
 import com.ohmy.zfsync.ui.components.ExposureLabels
 import com.ohmy.zfsync.ui.components.FabAction
@@ -154,7 +154,7 @@ import com.ohmy.zfsync.ui.components.PhotoTitleCard
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
 import com.ohmy.zfsync.ui.components.croppedGeometry
 import com.ohmy.zfsync.ui.components.editPhoto
-import com.ohmy.zfsync.ui.components.formatCaptureTime
+import com.ohmy.zfsync.ui.components.formatDateImprint
 import com.ohmy.zfsync.ui.components.openRaws
 import com.ohmy.zfsync.ui.components.sharePhotos
 import com.ohmy.zfsync.ui.components.viewerGeometry
@@ -166,9 +166,6 @@ import com.ohmy.zfsync.ui.theme.layerScale
 import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.photoTransitionSpec
 import com.ohmy.zfsync.ui.theme.pop
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -331,6 +328,18 @@ fun PhotoViewerScreen(
     var actionsExpanded by remember { mutableStateOf(false) }
     StatusBarHidden(hidden = entered && !controlsVisible)
 
+    // Photos from other albums arrive without EXIF (thousands of file reads up front), so it's
+    // read as each one comes up, once (below), and kept here.
+    val loadedExposures = remember { mutableStateMapOf<Uri, ExposureInfo?>() }
+    fun exposureOf(photo: SyncedPhoto) = photo.exposure ?: loadedExposures[photo.uri]
+    // The photo's info -- the captions, and the date imprinted on the photo itself -- fades with the
+    // other controls, or with the info button. A plain fade: it's part of the picture, not a control.
+    val infoAlpha = animateFloatAsState(
+        if (controlsShown && showInfo) 1f else 0f,
+        fadeSpec(),
+        label = "infoAlpha",
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -355,6 +364,9 @@ fun PhotoViewerScreen(
                 zoomStateFor(photos[page]),
                 // With the actions open, a tap on the photo just closes them.
                 onTap = { if (actionsExpanded) actionsExpanded = false else controlsVisible = !controlsVisible },
+                // Only with the camera's own capture time: no clock, no imprint.
+                imprint = exposureOf(photos[page])?.capturedAt?.let(::formatDateImprint),
+                imprintAlpha = { infoAlpha.value },
             )
         }
 
@@ -398,21 +410,12 @@ fun PhotoViewerScreen(
 
         // The current photo's floating info: shown with the other controls, unless turned off.
         val currentPhoto = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
-        // Photos from other albums arrive without EXIF (thousands of file reads up front), so it's
-        // read here as each one comes up, once.
-        val loadedExposures = remember { mutableStateMapOf<Uri, ExposureInfo?>() }
         if (loadExposure != null && currentPhoto.exposure == null) {
             LaunchedEffect(currentPhoto.uri) {
                 if (currentPhoto.uri !in loadedExposures) loadedExposures[currentPhoto.uri] = loadExposure(currentPhoto.uri)
             }
         }
-        val currentExposure = currentPhoto.exposure ?: loadedExposures[currentPhoto.uri]
-        // A plain fade, not the controls' pop: these are captions on the photo, not controls.
-        val infoAlpha = animateFloatAsState(
-            if (controlsShown && showInfo) 1f else 0f,
-            fadeSpec(),
-            label = "infoAlpha",
-        )
+        val currentExposure = exposureOf(currentPhoto)
         PhotoTitleCard(
             filename = currentPhoto.filename,
             exposure = currentExposure,
@@ -421,31 +424,17 @@ fun PhotoViewerScreen(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(barInsets)
-                // Under the close button, and clear of the capture time on the right.
-                .padding(start = 16.dp, top = 64.dp, end = 56.dp)
+                // Under the close button.
+                .padding(start = 16.dp, top = 64.dp, end = 16.dp)
                 .graphicsLayer { alpha = infoAlpha.value },
         )
-        CaptureTimeTag(
-            // The camera's own clock; files without it fall back to when the app saved them.
-            text = formatCaptureTime(
-                currentExposure?.capturedAt
-                    ?: LocalDateTime.ofInstant(Instant.ofEpochMilli(currentPhoto.savedAtMillis), ZoneId.systemDefault()),
-            ),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .windowInsetsPadding(barInsets)
-                // Under the info button, level with the title card.
-                .padding(top = 64.dp, end = 16.dp)
-                .graphicsLayer { alpha = infoAlpha.value },
-        )
-
         Column(
             modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Docked bottom-right, just above the carousel; its actions open upward over the photo.
             Box(modifier = Modifier.fillMaxWidth()) {
-                // Bottom-left, level with the FAB and kept clear of it (16 + 56 + 16dp).
+                // Bottom-left, level with the FAB and kept clear of it (16 + 40 + 16dp).
                 ExposureCard(
                     exposure = currentExposure,
                     labels = ExposureLabels(
@@ -456,7 +445,7 @@ fun PhotoViewerScreen(
                     ),
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(start = 16.dp, end = 88.dp)
+                        .padding(start = 16.dp, end = 72.dp)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
                 ActionFabMenu(
@@ -1154,7 +1143,13 @@ private const val DOUBLE_TAP_ZOOM = 2f
 private const val MAX_ZOOM = 5f
 
 @Composable
-private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit) {
+private fun ZoomableImage(
+    photo: SyncedPhoto,
+    zoom: ZoomState,
+    onTap: () -> Unit,
+    imprint: String? = null,
+    imprintAlpha: () -> Float = { 1f },
+) {
     // The gesture detectors below are set up once per photo, so they read the latest callback through this.
     val latestOnTap by rememberUpdatedState(onTap)
     val context = LocalContext.current
@@ -1188,12 +1183,9 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
     var fullSizeWanted by remember(photo.uri) { mutableStateOf(false) }
     LaunchedEffect(zoomedIn) { if (zoomedIn) fullSizeWanted = true }
 
-    AsyncImage(
-        model = if (fullSizeWanted) fullSizeRequest else screenRequest,
-        contentDescription = photo.filename,
-        contentScale = ContentScale.Fit,
-        // Only the size's aspect ratio is used, and both requests share it.
-        onSuccess = { imageSize = it.painter.intrinsicSize },
+    // The photo, and the date imprinted on it, in one zoomed layer: the imprint is part of the
+    // picture, so it zooms and pans with it.
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(photo.uri) {
@@ -1239,7 +1231,20 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
                 translationX = zoom.offset.x,
                 translationY = zoom.offset.y,
             ),
-    )
+    ) {
+        AsyncImage(
+            model = if (fullSizeWanted) fullSizeRequest else screenRequest,
+            contentDescription = photo.filename,
+            contentScale = ContentScale.Fit,
+            // Only the size's aspect ratio is used, and both requests share it.
+            onSuccess = { imageSize = it.painter.intrinsicSize },
+            modifier = Modifier.fillMaxSize(),
+        )
+        // Placed from the photo's fitted size, so only once it's loaded.
+        if (imprint != null && imageSize.isSpecified && imageSize.width > 0f && imageSize.height > 0f) {
+            DateImprint(text = imprint, imageSize = imageSize, alpha = imprintAlpha)
+        }
+    }
 }
 
 /**
