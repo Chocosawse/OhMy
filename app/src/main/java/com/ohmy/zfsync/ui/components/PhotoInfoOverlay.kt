@@ -134,7 +134,8 @@ fun ExposureCard(exposure: ExposureInfo?, labels: ExposureLabels, modifier: Modi
         modifier = modifier
             .fitWidth()
             .background(LightInfoBoxColor)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            // 5 + 14 (label) + 24 (value) + 5 = 48dp, the FAB's height, so the two line up exactly.
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         for ((label, value) in readings) {
@@ -166,6 +167,9 @@ private fun withSmallUnit(text: String, unit: String): AnnotatedString = buildAn
 /** The imprint's lit segments, and the glow they cast on the film. */
 private val ImprintOrange = Color(0xFFFF7A1A)
 private val ImprintGlow = Color(0xCCFF5500)
+
+/** How strongly the imprint shows: a little faded, as a real one is on the print. */
+private const val IMPRINT_OPACITY = 0.7f
 
 /** The imprint's digit height and inset, as fractions of the photo's shorter side. */
 private const val IMPRINT_SIZE = 0.042f
@@ -224,7 +228,7 @@ fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Mod
                         placeable.place((right - placeable.width).roundToInt(), (bottom - placeable.height).roundToInt())
                     }
                 }
-                .graphicsLayer { this.alpha = alpha() },
+                .graphicsLayer { this.alpha = alpha() * IMPRINT_OPACITY },
         )
     }
 }

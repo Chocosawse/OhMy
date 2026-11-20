@@ -434,7 +434,7 @@ fun PhotoViewerScreen(
         ) {
             // Docked bottom-right, just above the carousel; its actions open upward over the photo.
             Box(modifier = Modifier.fillMaxWidth()) {
-                // Bottom-left, level with the FAB and kept clear of it (16 + 40 + 16dp).
+                // Bottom-left, level with the FAB (both 48dp tall, bottom-aligned) and clear of it (16 + 48 + 16dp).
                 ExposureCard(
                     exposure = currentExposure,
                     labels = ExposureLabels(
@@ -445,7 +445,7 @@ fun PhotoViewerScreen(
                     ),
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(start = 16.dp, end = 72.dp)
+                        .padding(start = 16.dp, end = 80.dp)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
                 ActionFabMenu(
