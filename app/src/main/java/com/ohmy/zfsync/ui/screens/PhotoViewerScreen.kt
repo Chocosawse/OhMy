@@ -311,7 +311,7 @@ enum class CarouselStyle { Classic, FilmStrip }
  * the middle toward both ends; while hidden the strip keeps its space but ignores touches.
  *
  * [CarouselStyle.FilmStrip] (v2) draws the same strip as film: a dark base, each frame's slot
- * drawing its own sprocket holes above and below plus a printed edge number. The slots share one
+ * drawing its own sprocket holes above and below, and every tenth frame a printed edge number. The slots share one
  * hole spacing, so neighbours join into continuous perforated edges. It's all drawn (a few rects
  * and one pre-measured label per slot), never laid out, so scrolling stays cheap. Hiding folds the
  * strip shut after its frames cascade out; showing unfolds it first.
@@ -457,7 +457,8 @@ private fun CarouselIndicator(
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 CarouselSlot(
                     film = film,
-                    frameNumber = index + 1,
+                    // Printed every tenth frame, like the edge numbers on real film.
+                    frameNumber = (index + 1).takeIf { it % EDGE_NUMBER_EVERY == 0 },
                     textMeasurer = textMeasurer,
                     // Above its neighbours in case they briefly overlap mid-animation.
                     modifier = Modifier.zIndex(if (selected) 1f else 0f),
@@ -489,7 +490,8 @@ private fun CarouselIndicator(
 /**
  * One carousel item's slot. Classic: just the thumbnail. Film strip: the frame's full-height
  * stretch of film, drawing its sprocket holes and edge number behind the thumbnail. The edge
- * number ([frameNumber], none for placeholders) is measured once and only drawn after that.
+ * number ([frameNumber]; null for frames without one, and placeholders) is measured once and only
+ * drawn after that.
  */
 @Composable
 private fun CarouselSlot(
@@ -554,7 +556,7 @@ private fun PlaceholderThumbnail(modifier: Modifier = Modifier) {
 
 private val ThumbnailSize = 40.dp
 
-private val SelectedThumbnailSize = 56.dp
+private val SelectedThumbnailSize = 80.dp
 
 /** The selected thumbnail is drawn at [SelectedThumbnailSize] by scaling its [ThumbnailSize] slot. */
 private val SelectedThumbnailScale = SelectedThumbnailSize / ThumbnailSize
@@ -572,11 +574,13 @@ private val SelectedThumbnailSpacing = 8.dp
 private val SelectionShift = (SelectedThumbnailSize - ThumbnailSize) / 2 + (SelectedThumbnailSpacing - ThumbnailSpacing)
 
 /** Leaves room above and below the current thumbnail for its grow animation to overshoot. */
-private val CarouselHeight = 60.dp
+private val CarouselHeight = 84.dp
 
-// Film strip (v2): taller than the classic strip to fit the perforated edges around the frames.
+// Film strip (v2): tall enough for the perforated edges around the frames. The selected frame is
+// deliberately larger and spills past the film's edges, as if pulled forward.
 private val FilmStripHeight = 72.dp
 private const val SPROCKETS_PER_FRAME = 4
+private const val EDGE_NUMBER_EVERY = 10
 private val SprocketWidth = 5.dp
 private val SprocketHeight = 4.dp
 private val SprocketCornerRadius = 1.dp
