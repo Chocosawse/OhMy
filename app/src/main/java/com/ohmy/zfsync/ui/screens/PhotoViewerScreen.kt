@@ -3,6 +3,7 @@ package com.ohmy.zfsync.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
@@ -56,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -65,6 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.Snapshot
@@ -80,13 +83,17 @@ import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
@@ -101,29 +108,42 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.memory.MemoryCache
 import coil.request.ImageRequest
 import coil.size.Size
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionPill
+import com.ohmy.zfsync.ui.components.PhotoGeometry
+import com.ohmy.zfsync.ui.components.PhotoTransitionState
+import com.ohmy.zfsync.ui.components.croppedGeometry
 import com.ohmy.zfsync.ui.components.sharePhotos
+import com.ohmy.zfsync.ui.components.viewerGeometry
 import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.animatePop
-import com.ohmy.zfsync.ui.theme.layerScale
 import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
+import com.ohmy.zfsync.ui.theme.layerScale
 import com.ohmy.zfsync.ui.theme.overshootSpec
+import com.ohmy.zfsync.ui.theme.photoTransitionSpec
 import com.ohmy.zfsync.ui.theme.pop
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -143,9 +163,11 @@ fun PhotoViewerScreen(
     onClose: () -> Unit,
     inFlightCount: Int = 0,
     carouselStyle: CarouselStyle = CarouselStyle.Classic,
+    photoTransition: PhotoTransitionState? = null,
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
+    val latestOnClose by rememberUpdatedState(onClose)
     val pagerState = rememberPagerState(initialPage = initialIndex) { latestPhotos.size }
     var pendingDelete by remember { mutableStateOf<SyncedPhoto?>(null) }
     val context = LocalContext.current
@@ -157,14 +179,105 @@ fun PhotoViewerScreen(
     fun zoomStateFor(photo: SyncedPhoto) = zoomStates.getOrPut(photo.uri) { ZoomState() }
 
     if (photos.isEmpty()) {
-        LaunchedEffect(Unit) { onClose() }
+        LaunchedEffect(Unit) {
+            // Nothing left to fly back: just go, leaving the transition closed for next time.
+            photoTransition?.progress?.snapTo(0f)
+            onClose()
+        }
         return
     }
 
     // This screen is swapped in by Compose state, not a back-stack entry, so without this the
     // system back gesture has nothing of ours to intercept and falls through to the Activity,
     // closing the whole app instead of returning to the sync screen.
-    BackHandler(onBack = onClose)
+    // --- The photo's move between its list row and this screen (see PhotoTransitionState) ---
+    // 0 = in the list, 1 = here; without a transition (e.g. previews) the screen is simply open.
+    val progress: () -> Float = { photoTransition?.progress?.value ?: 1f }
+    var screenSize by remember { mutableStateOf(GeometrySize.Zero) }
+    // The photo on the move, drawn over the (hidden) pager until it lands.
+    var flight by remember { mutableStateOf<Flight?>(null) }
+    val imageLoader = context.imageLoader
+
+    /** Starts a flight for [uri] if Coil already has an image of it in memory; [geometry] gets its aspect ratio. */
+    fun beginFlight(uri: Uri, geometry: (aspectRatio: Float) -> Pair<PhotoGeometry, PhotoGeometry>) {
+        val screenSized = imageLoader.cachedScreenPhoto(uri)
+        val bitmap = screenSized ?: imageLoader.cachedThumbnail(uri) ?: return
+        val (list, viewer) = geometry(bitmap.width.toFloat() / bitmap.height)
+        flight = Flight(uri, bitmap.asImageBitmap(), screenSized = screenSized != null, list, viewer)
+    }
+
+    // Opening: the photo grows out of its thumbnail. Not after rotation, when it's already open.
+    var animateIn by rememberSaveable { mutableStateOf(true) }
+    if (photoTransition != null) {
+        LaunchedEffect(photoTransition) {
+            photoTransition.closing = false
+            if (!animateIn) {
+                photoTransition.progress.snapTo(1f)
+                return@LaunchedEffect
+            }
+            animateIn = false
+            photoTransition.progress.snapTo(0f)
+            val photo = latestPhotos.getOrNull(initialIndex)
+            val screen = snapshotFlow { screenSize }.first { it != GeometrySize.Zero }
+            val bounds = photo?.let { photoTransition.thumbnailBounds(it.uri) }
+            if (photo != null && bounds != null) {
+                beginFlight(photo.uri) { aspectRatio -> croppedGeometry(bounds, aspectRatio) to viewerGeometry(screen, aspectRatio) }
+                photoTransition.activeUri = photo.uri
+            }
+            // Without a flight (no row or image to fly from) the photo simply fades in.
+            photoTransition.progress.animateTo(1f, photoTransitionSpec())
+            flight = null
+            photoTransition.activeUri = null
+        }
+    }
+
+    // Closing: the current photo (maybe not the one opened) shrinks back into its row, which the
+    // list first scrolls into view. A zoomed-in photo shrinks from where it's zoomed to.
+    fun requestClose() {
+        if (photoTransition == null) {
+            onClose()
+            return
+        }
+        if (photoTransition.closing) return
+        photoTransition.closing = true
+        coroutineScope.launch {
+            val photo = latestPhotos.getOrNull(pagerState.currentPage)
+            if (photo != null && screenSize != GeometrySize.Zero) {
+                photoTransition.reveal(photo.uri)
+                val bounds = photoTransition.thumbnailBounds(photo.uri)
+                if (bounds != null) {
+                    val zoom = zoomStateFor(photo)
+                    beginFlight(photo.uri) { aspectRatio ->
+                        croppedGeometry(bounds, aspectRatio) to viewerGeometry(screenSize, aspectRatio, zoom.scale, zoom.offset)
+                    }
+                    photoTransition.activeUri = photo.uri
+                }
+            }
+            photoTransition.progress.animateTo(0f, photoTransitionSpec())
+            photoTransition.activeUri = null
+            latestOnClose()
+        }
+    }
+
+    // A flight that set off with the thumbnail switches to the screen-sized image as soon as the
+    // pager has it: a cache lookup per frame, only while flying.
+    LaunchedEffect(flight) {
+        val current = flight ?: return@LaunchedEffect
+        if (current.screenSized) return@LaunchedEffect
+        while (true) {
+            withFrameNanos { }
+            val bitmap = imageLoader.cachedScreenPhoto(current.uri) ?: continue
+            flight = current.copy(image = bitmap.asImageBitmap(), screenSized = true)
+            return@LaunchedEffect
+        }
+    }
+
+    // Fully here: not mid-transition. The controls only show then.
+    val entered by remember {
+        derivedStateOf { flight == null && photoTransition?.closing != true && progress() >= 1f }
+    }
+
+    BackHandler(onBack = ::requestClose)
     LightSystemBarIcons()
 
     // A photo swiped away from resets to 1x, so coming back to it starts fully zoomed out.
@@ -177,12 +290,23 @@ fun PhotoViewerScreen(
     // and returning to 1x brings them back; a single tap toggles them at any zoom.
     var controlsVisible by remember { mutableStateOf(true) }
     LaunchedEffect(currentZoomedOut) { controlsVisible = currentZoomedOut }
-    StatusBarHidden(hidden = !controlsVisible)
+    val controlsShown = controlsVisible && entered
+    StatusBarHidden(hidden = entered && !controlsVisible)
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { screenSize = it.toSize() }
+            // Read in the draw phase, so the fade doesn't recompose.
+            .drawBehind { drawRect(Color.Black, alpha = progress()) },
+    ) {
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize(),
+            // Hidden while a flight stands in for the current photo; otherwise fades with the
+            // screen (the fallback when there's no flight).
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = if (flight != null) 0f else progress() },
             key = { photos[it].uri },
             // Keeps the photos either side composed, so they start loading before they're swiped
             // to rather than as they slide in.
@@ -191,11 +315,13 @@ fun PhotoViewerScreen(
             ZoomableImage(photos[page], zoomStateFor(photos[page]), onTap = { controlsVisible = !controlsVisible })
         }
 
+        flight?.let { FlyingPhoto(it, progress) }
+
         // Shown and hidden with the other controls.
-        val closePop = animatePop(controlsVisible)
+        val closePop = animatePop(controlsShown)
         IconButton(
-            onClick = onClose,
-            enabled = controlsVisible,
+            onClick = ::requestClose,
+            enabled = controlsShown,
             // The photo itself runs edge to edge behind the system bars; controls stay clear of them.
             // Padded for where the status bar is even while it's hidden, so the button doesn't
             // jump up and down as zooming hides and shows the bar.
@@ -214,7 +340,7 @@ fun PhotoViewerScreen(
         ) {
             ActionPill(
                 // Shown and hidden with the other controls.
-                visible = controlsVisible,
+                visible = controlsShown,
                 onShare = { sharePhotos(context, listOf(photos[pagerState.currentPage])) },
                 onDelete = { pendingDelete = photos[pagerState.currentPage] },
                 containerColor = Color.White.copy(alpha = 0.2f),
@@ -225,7 +351,7 @@ fun PhotoViewerScreen(
                 photos = photos,
                 inFlightCount = inFlightCount,
                 currentIndex = pagerState.currentPage,
-                visible = controlsVisible,
+                visible = controlsShown,
                 style = carouselStyle,
                 // Instant, not animated: dragging the strip changes photo many times a second.
                 onSelect = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
@@ -656,6 +782,52 @@ private val FilmEdgeTextStyle = TextStyle(
 )
 
 @Stable
+/** Coil memory cache key of a photo's screen-sized image, as the viewer loads it. */
+private fun screenCacheKey(uri: Uri) = "$uri-screen"
+
+/** Coil's default memory cache key for a photo loaded by URI alone (no transformations), as the list's thumbnails are. */
+private fun thumbnailCacheKey(uri: Uri) = uri.toString()
+
+private fun ImageLoader.cachedScreenPhoto(uri: Uri): Bitmap? = memoryCache?.get(MemoryCache.Key(screenCacheKey(uri)))?.bitmap
+
+private fun ImageLoader.cachedThumbnail(uri: Uri): Bitmap? = memoryCache?.get(MemoryCache.Key(thumbnailCacheKey(uri)))?.bitmap
+
+/**
+ * The photo on its way between its list row ([list]) and this screen ([viewer]), drawn from an
+ * image already in memory: no decoding, so it's ready the moment the transition starts.
+ */
+@Immutable
+private data class Flight(
+    val uri: Uri,
+    val image: ImageBitmap,
+    val screenSized: Boolean,
+    val list: PhotoGeometry,
+    val viewer: PhotoGeometry,
+)
+
+/**
+ * Draws [flight] between its two layouts at [progress]: the whole image's rect and the crop it's
+ * seen through both move, so the square thumbnail uncrops into the full photo. Draw phase only:
+ * no layout or recomposition per frame.
+ */
+@Composable
+private fun FlyingPhoto(flight: Flight, progress: () -> Float) {
+    Spacer(
+        modifier = Modifier.fillMaxSize().drawBehind {
+            val geometry = flight.list.lerp(flight.viewer, progress())
+            val clip = geometry.clip
+            val image = geometry.image
+            clipRect(clip.left, clip.top, clip.right, clip.bottom) {
+                drawImage(
+                    flight.image,
+                    dstOffset = IntOffset(image.left.roundToInt(), image.top.roundToInt()),
+                    dstSize = IntSize(image.width.roundToInt(), image.height.roundToInt()),
+                )
+            }
+        },
+    )
+}
+
 private class ZoomState {
     var scale by mutableFloatStateOf(1f)
     var offset by mutableStateOf(Offset.Zero)
@@ -691,8 +863,8 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
     val screenRequest = remember(photo.uri) {
         ImageRequest.Builder(context)
             .data(photo.uri)
-            .memoryCacheKey("${photo.uri}-screen")
-            .placeholderMemoryCacheKey(photo.uri.toString())
+            .memoryCacheKey(screenCacheKey(photo.uri))
+            .placeholderMemoryCacheKey(thumbnailCacheKey(photo.uri))
             .build()
     }
     val fullSizeRequest = remember(photo.uri) {
@@ -700,7 +872,7 @@ private fun ZoomableImage(photo: SyncedPhoto, zoom: ZoomState, onTap: () -> Unit
             .data(photo.uri)
             .size(Size.ORIGINAL)
             .memoryCacheKey("${photo.uri}-full")
-            .placeholderMemoryCacheKey("${photo.uri}-screen")
+            .placeholderMemoryCacheKey(screenCacheKey(photo.uri))
             .build()
     }
     val zoomedIn by remember(zoom) { derivedStateOf { zoom.scale > 1f } }
