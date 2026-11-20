@@ -68,7 +68,17 @@ fun animatePop(visible: Boolean, delayMillis: Int = 0): State<Float> = animateFl
 /** Scales and fades by a pop progress. Read in the draw layer, so animating it doesn't recompose. */
 fun Modifier.pop(progress: () -> Float): Modifier = graphicsLayer {
     val p = progress()
-    scaleX = p
-    scaleY = p
+    scaleX = layerScale(p)
+    scaleY = layerScale(p)
     alpha = p.coerceIn(0f, 1f)
 }
+
+/**
+ * Smallest scale a popped layer is given; invisibly small, and fully transparent by then anyway.
+ * At exactly 0 a layer's transform can't be inverted, which is how touches are mapped into it,
+ * and a layer that stays composed while hidden could stop receiving touches once shown again.
+ */
+private const val MIN_LAYER_SCALE = 0.001f
+
+/** [scale] for a layer that may still be touched once it's back: kept just above 0 (see [MIN_LAYER_SCALE]). */
+fun layerScale(scale: Float): Float = scale.coerceAtLeast(MIN_LAYER_SCALE)
