@@ -6,8 +6,8 @@ import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -86,12 +86,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size as GeometrySize
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -104,6 +106,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -449,7 +452,7 @@ fun PhotoViewerScreen(
             modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Docked bottom-right, just above the carousel; its actions open upward over the photo.
+            // The row the FAB docks at the end of (the FAB itself is drawn above the dim, below).
             Box(modifier = Modifier.fillMaxWidth()) {
                 // Bottom-left, level with the FAB (both 48dp tall, bottom-aligned) and clear of it (16 + 48 + 16dp).
                 ExposureCard(
@@ -465,31 +468,6 @@ fun PhotoViewerScreen(
                         .padding(start = 16.dp, end = 80.dp)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
-                ActionFabMenu(
-                    actions = listOfNotNull(
-                        FabAction(Icons.Default.Share, stringResource(R.string.viewer_share)) {
-                            sharePhotos(context, listOf(photos[pagerState.currentPage]))
-                        },
-                        FabAction(Icons.Default.Edit, stringResource(R.string.viewer_edit)) {
-                            editPhoto(context, photos[pagerState.currentPage], writable = ownsPhotos)
-                        },
-                        // Only for a shot with a RAW: hands it to a RAW editor or viewer.
-                        FabAction(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.viewer_open_raw)) {
-                            openRaws(context, listOf(photos[pagerState.currentPage]))
-                        }.takeIf { currentPhoto.rawUri != null },
-                        FabAction(Icons.Default.Delete, stringResource(R.string.viewer_delete)) {
-                            val photo = photos[pagerState.currentPage]
-                            if (confirmDelete) pendingDelete = photo else onDelete(photo)
-                        }.takeIf { canDelete },
-                    ),
-                    expanded = actionsExpanded,
-                    onExpandedChange = { actionsExpanded = it },
-                    // Shown and hidden with the other controls.
-                    visible = controlsShown,
-                    contentDescription = stringResource(R.string.viewer_actions),
-                    closeDescription = stringResource(R.string.viewer_actions_close),
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp),
-                )
             }
             Spacer(modifier = Modifier.height(16.dp))
             CarouselIndicator(
@@ -502,6 +480,65 @@ fun PhotoViewerScreen(
                 onSelect = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
             )
         }
+
+        // With the FAB's actions open, everything else dims (a plain fade), so they stand out;
+        // any touch on the dim just closes them. Composed only while it shows.
+        val actionsDim = animateFloatAsState(if (actionsExpanded) 1f else 0f, fadeSpec(), label = "actionsDim")
+        val dimShown by remember { derivedStateOf { actionsDim.value > 0f } }
+        if (actionsExpanded || dimShown) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = actionsDim.value }
+                    .background(ActionsDimColor)
+                    .pointerInput(actionsExpanded) {
+                        if (!actionsExpanded) return@pointerInput
+                        // Takes the whole gesture, so nothing beneath scrolls or zooms meanwhile.
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            do {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                            actionsExpanded = false
+                        }
+                    },
+            )
+        }
+
+        ActionFabMenu(
+            actions = listOfNotNull(
+                FabAction(Icons.Default.Share, stringResource(R.string.viewer_share)) {
+                    sharePhotos(context, listOf(photos[pagerState.currentPage]))
+                },
+                FabAction(Icons.Default.Edit, stringResource(R.string.viewer_edit)) {
+                    editPhoto(context, photos[pagerState.currentPage], writable = ownsPhotos)
+                },
+                // Only for a shot with a RAW: hands it to a RAW editor or viewer.
+                FabAction(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.viewer_open_raw)) {
+                    openRaws(context, listOf(photos[pagerState.currentPage]))
+                }.takeIf { currentPhoto.rawUri != null },
+                FabAction(Icons.Default.Delete, stringResource(R.string.viewer_delete)) {
+                    val photo = photos[pagerState.currentPage]
+                    if (confirmDelete) pendingDelete = photo else onDelete(photo)
+                }.takeIf { canDelete },
+            ),
+            expanded = actionsExpanded,
+            onExpandedChange = { actionsExpanded = it },
+            // Shown and hidden with the other controls.
+            visible = controlsShown,
+            contentDescription = stringResource(R.string.viewer_actions),
+            closeDescription = stringResource(R.string.viewer_actions_close),
+            // Docked bottom-right, just above the carousel, level with the exposure card: the
+            // bottom column's insets and margin, plus the carousel and the gap above it.
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .safeDrawingPadding()
+                .padding(
+                    end = 16.dp,
+                    bottom = 24.dp + (if (carouselStyle.filmLook != null) FilmStripHeight else CarouselHeight) + 16.dp,
+                ),
+        )
     }
 
     pendingDelete?.let { photo ->
@@ -702,6 +739,23 @@ private fun CarouselIndicator(
         listState.animateScrollBy((item.offset + item.size / 2 - viewportCenter).toFloat())
     }
 
+    // The selection as one animated position along the strip (a fractional index), rather than an
+    // animation per frame. Each frame's size and slide derive from its distance to it, so however
+    // quickly the selection moves, neighbouring film pieces always meet: separate per-frame
+    // animations, started at different moments while scrolling, would open gaps between them.
+    val selectionPosition = remember { Animatable(currentIndex.toFloat()) }
+    val selectedKey = remember { arrayOfNulls<Any>(1) }
+    LaunchedEffect(currentIndex) {
+        val key = latestPhotos.getOrNull(currentIndex)?.uri
+        if (key != null && key == selectedKey[0]) {
+            // Same photo at a new index (a photo arrived ahead of it): no movement to show.
+            selectionPosition.snapTo(currentIndex.toFloat())
+        } else {
+            selectionPosition.animateTo(currentIndex.toFloat(), overshootSpec())
+        }
+        selectedKey[0] = key
+    }
+
     // Which thumbnails are on screen when the toggle happens decides each one's cascade delay.
     // Read without observation: it's a one-off snapshot per toggle, not something to recompose on.
     val onScreen = remember(visible) {
@@ -766,23 +820,33 @@ private fun CarouselIndicator(
             }
             itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
                 val selected = index == currentIndex
-                val scale by animateFloatAsState(if (selected) SelectedThumbnailScale else 1f, overshootSpec(), label = "thumbScale")
-                val shift by animateDpAsState(
-                    when {
-                        index < currentIndex -> -SelectionShift
-                        index > currentIndex -> SelectionShift
-                        else -> 0.dp
-                    },
-                    overshootSpec(),
-                    label = "thumbShift",
-                )
-                // 0 at normal size, 1 fully enlarged; the overshoot can briefly take it past either end.
-                val growth = { (scale - 1f) / (SelectedThumbnailScale - 1f) }
-                // On the film strip, a frame develops from negative into positive as it grows into
-                // the selection, and back as it shrinks. Derived, so a frame only recomposes as it
-                // starts or finishes doing so, not every animation frame.
-                val developing by remember(film) { derivedStateOf { film != null && scale > 1f } }
+                // Everything about the selection comes from this frame's distance to the shared
+                // selection position. Only a frame within one step of it changes as it moves;
+                // farther ones are simply fully left or right (-1 / 1). Derived, so a far frame
+                // isn't redrawn on every animation frame, only when it crosses into or out of reach.
+                val side by remember(index) {
+                    derivedStateOf {
+                        val d = index - selectionPosition.value
+                        when {
+                            d <= -1f -> -1
+                            d >= 1f -> 1
+                            else -> 0
+                        }
+                    }
+                }
+                // Read in the draw phase; reads the position itself only while within reach.
+                val distance = { if (side == 0) index - selectionPosition.value else side.toFloat() }
+                val growth = { (1f - abs(distance())).coerceAtLeast(0f) }
+                val scale = { 1f + (SelectedThumbnailScale - 1f) * growth() }
+                // Slid aside by up to SelectionShift: exactly what the frames between it and the
+                // selection widen by, so neighbouring film pieces always meet.
+                val shift = { SelectionShift * distance().coerceIn(-1f, 1f) }
                 val frameShape = film?.frameShape ?: RectangleShape
+                // How lit the frame is, as a step through its look's backlit filters, following its
+                // growth into the selection. Derived, so it recomposes only on each step.
+                val litStep by remember(film) {
+                    derivedStateOf { (growth().coerceIn(0f, 1f) * (BACKLIT_STEPS - 1)).roundToInt() }
+                }
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 CarouselSlot(
@@ -790,12 +854,12 @@ private fun CarouselIndicator(
                     // Printed every tenth frame from 00, like the edge numbers on real film.
                     frameNumber = index.takeIf { it % EDGE_NUMBER_EVERY == 0 },
                     textMeasurer = textMeasurer,
-                    shift = { shift },
+                    shift = shift,
                     // Tracks the selected thumbnail's growth, which runs in step with its
                     // neighbours' shift, so its film always just meets theirs.
                     selectionGrowth = growth,
                     // The image's drawn size: popping in or out, times its selection scale.
-                    frameScale = { thumbPop.value.coerceAtLeast(0f) * scale },
+                    frameScale = { thumbPop.value.coerceAtLeast(0f) * scale() },
                     leadsStrip = inFlightCount == 0 && index == 0,
                     endsStrip = index == photos.lastIndex,
                     // Above its neighbours in case they briefly overlap mid-animation.
@@ -806,8 +870,8 @@ private fun CarouselIndicator(
                             .size(ThumbnailSize)
                             .pop { thumbPop.value }
                             .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
+                                scaleX = scale()
+                                scaleY = scale()
                                 // Rounded film frames are clipped in this same layer: no extra one.
                                 if (frameShape != RectangleShape) {
                                     shape = frameShape
@@ -820,35 +884,14 @@ private fun CarouselIndicator(
                             )
                             .clickable(enabled = visible) { latestOnSelect(index) },
                     ) {
-                        // Developing: the positive underneath, the negative fading off it. Only
-                        // while developing (the selected frame, and one returning to the strip),
-                        // so every other frame stays a single draw with no extra layer. Both
-                        // load the same cached thumbnail.
-                        if (developing) {
-                            AsyncImage(
-                                model = photo.uri,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.matchParentSize(),
-                            )
-                        }
                         AsyncImage(
                             model = photo.uri,
                             contentDescription = photo.filename,
                             contentScale = ContentScale.Crop,
-                            // Frames on the film strip are its negatives.
-                            colorFilter = film?.negative,
-                            modifier = Modifier
-                                .matchParentSize()
-                                .then(
-                                    if (developing) {
-                                        // Read in the draw phase: the fade follows the enlarge
-                                        // animation without recomposing.
-                                        Modifier.graphicsLayer { alpha = 1f - growth().coerceIn(0f, 1f) }
-                                    } else {
-                                        Modifier
-                                    },
-                                ),
+                            // Frames on the film strip are its negatives, the selected one too, but
+                            // backlit, as if on a light box; switching filters is free.
+                            colorFilter = film?.negativeSteps?.get(litStep),
+                            modifier = Modifier.matchParentSize(),
                         )
                     }
                 }
@@ -889,7 +932,17 @@ private fun CarouselSlot(
         Modifier
             .width(ThumbnailSize)
             .fillMaxHeight()
-            .drawBehind {
+            // The halo's gradient depends only on the slot's size: built once per size, not per frame.
+            .drawWithCache {
+                val haloBrush = film.halo?.let { halo ->
+                    Brush.radialGradient(
+                        0f to halo.copy(alpha = HALO_STRENGTH),
+                        1f to halo.copy(alpha = 0f),
+                        center = Offset(size.width / 2f, size.height / 2f),
+                        radius = SelectedThumbnailSize.toPx() * HALO_REACH,
+                    )
+                }
+                onDrawBehind {
                 drawFilmPiece(
                     look = film,
                     edgeLabel = edgeLabel,
@@ -897,7 +950,10 @@ private fun CarouselSlot(
                     lead = if (leadsStrip) FilmLeader.toPx() else 0f,
                     tail = if (endsStrip) FilmLeader.toPx() else 0f,
                     frameSize = if (film.clearBaseUnderFrames) ThumbnailSize.toPx() * frameScale() else 0f,
+                    glow = if (film.halo != null) selectionGrowth().coerceIn(0f, 1f) else 0f,
+                    haloBrush = haloBrush,
                 )
+                }
             }
     } else {
         Modifier
@@ -923,11 +979,23 @@ private fun DrawScope.drawFilmPiece(
     lead: Float,
     tail: Float,
     frameSize: Float,
+    glow: Float,
+    haloBrush: Brush?,
 ) {
     val halfGap = ThumbnailSpacing.toPx() / 2
     val left = -halfGap - widen - lead
     val right = size.width + halfGap + widen + tail
     drawRect(look.base, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
+    // The selected frame's light spilling onto the strip around it, as on a light table. Before
+    // the holes are punched, so they stay clear; only while the frame is (becoming) selected.
+    if (haloBrush != null && glow > 0f) {
+        drawCircle(
+            brush = haloBrush,
+            radius = SelectedThumbnailSize.toPx() * HALO_REACH,
+            center = Offset(size.width / 2f, size.height / 2f),
+            alpha = glow,
+        )
+    }
     // Translucent film only: the base cleared from under the frame's image ([frameSize] square,
     // centred, as currently drawn), since the negative's own clear areas already are the base.
     // Without it the frame would read as a denser box.
@@ -1023,10 +1091,17 @@ private val FilmLeader = 4.dp
 @Immutable
 private class FilmLook(
     val base: Color,
-    val negative: ColorFilter,
+    /**
+     * The negative filter from unlit (first: every frame on the strip) to fully backlit (last:
+     * the selected frame, as if on a light box). A frame growing into the selection steps through
+     * them, so it lights up over the enlarge animation without building a filter per frame.
+     */
+    val negativeSteps: List<ColorFilter>,
     val edgeTextStyle: TextStyle,
     val clearBaseUnderFrames: Boolean,
     val frameShape: Shape = RectangleShape,
+    /** Warm light spilling onto the strip around the selected frame, or null for none. */
+    val halo: Color? = null,
 )
 
 private val CarouselStyle.filmLook: FilmLook?
@@ -1043,12 +1118,20 @@ private val CarouselStyle.filmLook: FilmLook?
  */
 private val BlackFilmLook = FilmLook(
     base = Color(0xFF111111),
-    negative = negativeFilter(dense = Color(0xFF57200C), clear = Color(0xFFB56244)),
+    // Backlit: the copper base glows toward a bright warm amber, the dense areas lift to a lit
+    // brown, and the wider range adds a little contrast.
+    negativeSteps = backlitSteps(
+        dense = Color(0xFF57200C),
+        clear = Color(0xFFB56244),
+        litDense = Color(0xFF7A3416),
+        litClear = Color(0xFFFFB46E),
+    ),
     edgeTextStyle = filmEdgeTextStyle(Color(0xCCE0A84A)),
     clearBaseUnderFrames = false,
     // Slight squircles: a rounded rectangle (about 15% of the frame) rather than a true
     // superellipse, which as a path clip is only anti-aliased by the GPU from Android 13.
     frameShape = RoundedCornerShape(6.dp),
+    halo = Color(0xFFFFB45A),
 )
 
 /**
@@ -1059,7 +1142,13 @@ private val BlackFilmLook = FilmLook(
 private val AmberFilmClear = Color(0x88C65731)
 private val AmberFilmLook = FilmLook(
     base = AmberFilmClear,
-    negative = negativeFilter(dense = Color(0xCC4A0003), clear = AmberFilmClear),
+    // Backlit: brighter and more opaque, the light coming through rather than the photo behind.
+    negativeSteps = backlitSteps(
+        dense = Color(0xCC4A0003),
+        clear = AmberFilmClear,
+        litDense = Color(0xE06A1A08),
+        litClear = Color(0xD0F09A5C),
+    ),
     edgeTextStyle = filmEdgeTextStyle(Color(0xFF4A0003)),
     clearBaseUnderFrames = true,
 )
@@ -1074,6 +1163,20 @@ private val AmberFilmLook = FilmLook(
  * frame and leaves Coil's cached images untouched (the same thumbnails serve the list and the
  * viewer). One instance per style, shared by every frame on the strip.
  */
+/** The halo's reach (as a multiple of the selected frame's size) and its peak opacity. */
+private const val HALO_REACH = 0.8f
+private const val HALO_STRENGTH = 0.45f
+
+/** How many filters a frame steps through from unlit to backlit: enough to read as a fade. */
+private const val BACKLIT_STEPS = 5
+
+/** The [negativeFilter]s from [dense]/[clear] (unlit) to [litDense]/[litClear] (backlit), evenly. */
+private fun backlitSteps(dense: Color, clear: Color, litDense: Color, litClear: Color): List<ColorFilter> =
+    List(BACKLIT_STEPS) { step ->
+        val lit = step / (BACKLIT_STEPS - 1f)
+        negativeFilter(dense = lerp(dense, litDense, lit), clear = lerp(clear, litClear, lit))
+    }
+
 private fun negativeFilter(dense: Color, clear: Color): ColorFilter {
     val (wr, wg, wb) = Triple(0.299f, 0.587f, 0.114f)
     val denseChannels = floatArrayOf(dense.red, dense.green, dense.blue, dense.alpha)
@@ -1152,6 +1255,9 @@ private class ZoomState {
         offset = Offset.Zero
     }
 }
+
+/** Behind the FAB's open actions: everything else, dimmed. */
+private val ActionsDimColor = Color.Black.copy(alpha = 0.3f)
 
 /** Double-tap zooms to at least this; more if that's what it takes for the photo to fill the screen. */
 private const val DOUBLE_TAP_ZOOM = 2f

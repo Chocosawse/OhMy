@@ -173,8 +173,9 @@ private fun PillTextButton(onClick: () -> Unit, text: String, contentDescription
 
 /**
  * Hands the photos' RAW files to an app that works with them (Lightroom, Snapseed, a RAW
- * viewer...). One RAW opens with a chooser of apps that can view it; if none can (or for several
- * RAWs), it's shared instead, which is how apps like Lightroom import ("Add to Lightroom").
+ * viewer...). One RAW is opened directly, so the system's picker offers "Always" and a default
+ * RAW app can be set; if no app can view it (or for several RAWs), it's shared instead, which is
+ * how apps like Lightroom import ("Add to Lightroom"), through the share sheet.
  */
 fun openRaws(context: Context, photos: List<SyncedPhoto>) {
     val raws = photos.mapNotNull { it.rawUri }
@@ -198,15 +199,19 @@ fun openRaws(context: Context, photos: List<SyncedPhoto>) {
         }
     }
     try {
-        context.startActivity(Intent.createChooser(intent, context.getString(R.string.raw_chooser_title)))
+        // Viewing directly (a default can be set); sharing through the share sheet.
+        context.startActivity(
+            if (intent === view) intent else Intent.createChooser(intent, context.getString(R.string.raw_chooser_title)),
+        )
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
     }
 }
 
 /**
- * Opens a photo in an image editor (Google Photos, Snapseed, Lightroom...), via a chooser. Only
- * the app's own photos are offered for writing back ([writable]); granting write access to
+ * Opens a photo in an image editor (Google Photos, Snapseed, Lightroom...). Sent as is rather than
+ * through a chooser, so the system's picker offers "Always" and the user can set a default editor.
+ * Only the app's own photos are offered for writing back ([writable]); granting write access to
  * another app's photo would need access the app doesn't have, so editors save a copy instead.
  */
 fun editPhoto(context: Context, photo: SyncedPhoto, writable: Boolean) {
@@ -216,7 +221,7 @@ fun editPhoto(context: Context, photo: SyncedPhoto, writable: Boolean) {
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         .apply { if (writable) addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
     try {
-        context.startActivity(Intent.createChooser(intent, context.getString(R.string.edit_chooser_title)))
+        context.startActivity(intent)
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
     }
