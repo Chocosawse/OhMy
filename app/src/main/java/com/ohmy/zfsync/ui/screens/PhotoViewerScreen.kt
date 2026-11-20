@@ -829,8 +829,10 @@ private val FilmLeader = 4.dp
 // mask; where it was brightest it's densest, a dark warm brown rather than black (negatives are
 // low in contrast). Nearly opaque, as backlit film reads, with a hint of the photo behind
 // showing through; denser film lets even less through.
-private val NegativeDenseColor = Color(0xFA3B2416)
-private val NegativeClearColor = Color(0xF0D2894E)
+// Hues around 15-20 degrees: the mask is a soft peach-salmon, redder and less saturated than a
+// yellow-orange.
+private val NegativeDenseColor = Color(0xFA3A2019)
+private val NegativeClearColor = Color(0xF0D7916E)
 private val NegativeDense = NegativeDenseColor.channels()
 private val NegativeClear = NegativeClearColor.channels()
 
