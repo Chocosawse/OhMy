@@ -82,6 +82,8 @@ import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -616,6 +618,8 @@ private fun CarouselIndicator(
                         model = photo.uri,
                         contentDescription = photo.filename,
                         contentScale = ContentScale.Crop,
+                        // Frames on the film strip are its negatives.
+                        colorFilter = if (film) SepiaNegativeFilter else null,
                         modifier = Modifier
                             .size(ThumbnailSize)
                             .pop { thumbPop.value }
@@ -772,6 +776,30 @@ private val EdgeLabelInset = 2.dp
 /** Film past the first and last frames, so the strip ends just beyond them. */
 private val FilmLeader = 4.dp
 private val FilmBase = Color(0xFF111111)
+
+// The two ends of the sepia negative's tone ramp: where the photo was brightest the film is
+// densest, a deep brown; where it was darkest the film is nearly clear, showing the amber base.
+private val NegativeDense = floatArrayOf(0.12f, 0.07f, 0.04f)
+private val NegativeClear = floatArrayOf(0.92f, 0.72f, 0.46f)
+
+/**
+ * Turns a thumbnail into a sepia-toned negative in a single color matrix: luminance (Rec. 601
+ * weights), inverted, then mapped onto the ramp from [NegativeClear] to [NegativeDense]. Per
+ * channel c: out = clear_c - (clear_c - dense_c) * luminance.
+ *
+ * Applied by the GPU as the thumbnail draws (the paint's color filter), so it costs nothing per
+ * frame and leaves Coil's cached images untouched (the same thumbnails serve the list and the
+ * viewer). One shared instance for every frame on the strip.
+ */
+private val SepiaNegativeFilter: ColorFilter = run {
+    val (wr, wg, wb) = Triple(0.299f, 0.587f, 0.114f)
+    val rows = (0..2).flatMap { c ->
+        val range = NegativeClear[c] - NegativeDense[c]
+        // Matrix offsets are on the 0-255 scale; the multipliers act on 0-255 channel values too.
+        listOf(-range * wr, -range * wg, -range * wb, 0f, NegativeClear[c] * 255f)
+    }
+    ColorFilter.colorMatrix(ColorMatrix((rows + listOf(0f, 0f, 0f, 1f, 0f)).toFloatArray()))
+}
 private val SprocketRim = Color.White.copy(alpha = 0.35f)
 private val SprocketRimWidth = 0.75.dp
 private val FilmEdgeTextStyle = TextStyle(
