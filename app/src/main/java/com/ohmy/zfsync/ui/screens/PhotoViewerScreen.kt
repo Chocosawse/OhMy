@@ -452,7 +452,7 @@ fun PhotoViewerScreen(
             modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Docked bottom-right, just above the carousel; its actions open upward over the photo.
+            // The row the FAB docks at the end of (the FAB itself is drawn above the dim, below).
             Box(modifier = Modifier.fillMaxWidth()) {
                 // Bottom-left, level with the FAB (both 48dp tall, bottom-aligned) and clear of it (16 + 48 + 16dp).
                 ExposureCard(
@@ -468,31 +468,6 @@ fun PhotoViewerScreen(
                         .padding(start = 16.dp, end = 80.dp)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
-                ActionFabMenu(
-                    actions = listOfNotNull(
-                        FabAction(Icons.Default.Share, stringResource(R.string.viewer_share)) {
-                            sharePhotos(context, listOf(photos[pagerState.currentPage]))
-                        },
-                        FabAction(Icons.Default.Edit, stringResource(R.string.viewer_edit)) {
-                            editPhoto(context, photos[pagerState.currentPage], writable = ownsPhotos)
-                        },
-                        // Only for a shot with a RAW: hands it to a RAW editor or viewer.
-                        FabAction(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.viewer_open_raw)) {
-                            openRaws(context, listOf(photos[pagerState.currentPage]))
-                        }.takeIf { currentPhoto.rawUri != null },
-                        FabAction(Icons.Default.Delete, stringResource(R.string.viewer_delete)) {
-                            val photo = photos[pagerState.currentPage]
-                            if (confirmDelete) pendingDelete = photo else onDelete(photo)
-                        }.takeIf { canDelete },
-                    ),
-                    expanded = actionsExpanded,
-                    onExpandedChange = { actionsExpanded = it },
-                    // Shown and hidden with the other controls.
-                    visible = controlsShown,
-                    contentDescription = stringResource(R.string.viewer_actions),
-                    closeDescription = stringResource(R.string.viewer_actions_close),
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp),
-                )
             }
             Spacer(modifier = Modifier.height(16.dp))
             CarouselIndicator(
@@ -505,6 +480,65 @@ fun PhotoViewerScreen(
                 onSelect = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
             )
         }
+
+        // With the FAB's actions open, everything else dims (a plain fade), so they stand out;
+        // any touch on the dim just closes them. Composed only while it shows.
+        val actionsDim = animateFloatAsState(if (actionsExpanded) 1f else 0f, fadeSpec(), label = "actionsDim")
+        val dimShown by remember { derivedStateOf { actionsDim.value > 0f } }
+        if (actionsExpanded || dimShown) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = actionsDim.value }
+                    .background(ActionsDimColor)
+                    .pointerInput(actionsExpanded) {
+                        if (!actionsExpanded) return@pointerInput
+                        // Takes the whole gesture, so nothing beneath scrolls or zooms meanwhile.
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            do {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                            actionsExpanded = false
+                        }
+                    },
+            )
+        }
+
+        ActionFabMenu(
+            actions = listOfNotNull(
+                FabAction(Icons.Default.Share, stringResource(R.string.viewer_share)) {
+                    sharePhotos(context, listOf(photos[pagerState.currentPage]))
+                },
+                FabAction(Icons.Default.Edit, stringResource(R.string.viewer_edit)) {
+                    editPhoto(context, photos[pagerState.currentPage], writable = ownsPhotos)
+                },
+                // Only for a shot with a RAW: hands it to a RAW editor or viewer.
+                FabAction(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.viewer_open_raw)) {
+                    openRaws(context, listOf(photos[pagerState.currentPage]))
+                }.takeIf { currentPhoto.rawUri != null },
+                FabAction(Icons.Default.Delete, stringResource(R.string.viewer_delete)) {
+                    val photo = photos[pagerState.currentPage]
+                    if (confirmDelete) pendingDelete = photo else onDelete(photo)
+                }.takeIf { canDelete },
+            ),
+            expanded = actionsExpanded,
+            onExpandedChange = { actionsExpanded = it },
+            // Shown and hidden with the other controls.
+            visible = controlsShown,
+            contentDescription = stringResource(R.string.viewer_actions),
+            closeDescription = stringResource(R.string.viewer_actions_close),
+            // Docked bottom-right, just above the carousel, level with the exposure card: the
+            // bottom column's insets and margin, plus the carousel and the gap above it.
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .safeDrawingPadding()
+                .padding(
+                    end = 16.dp,
+                    bottom = 24.dp + (if (carouselStyle.filmLook != null) FilmStripHeight else CarouselHeight) + 16.dp,
+                ),
+        )
     }
 
     pendingDelete?.let { photo ->
@@ -1221,6 +1255,9 @@ private class ZoomState {
         offset = Offset.Zero
     }
 }
+
+/** Behind the FAB's open actions: everything else, dimmed. */
+private val ActionsDimColor = Color.Black.copy(alpha = 0.5f)
 
 /** Double-tap zooms to at least this; more if that's what it takes for the photo to fill the screen. */
 private const val DOUBLE_TAP_ZOOM = 2f
