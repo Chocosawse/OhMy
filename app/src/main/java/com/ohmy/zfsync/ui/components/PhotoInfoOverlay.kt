@@ -106,8 +106,9 @@ fun PhotoTitleCard(filename: String, exposure: ExposureInfo?, hasRaw: Boolean, r
             style = SmallMono,
             color = color,
             maxLines = 1,
-            // Same side padding as the box below, so the boxes and their text share a left edge.
-            modifier = Modifier.background(LightInfoBoxColor).padding(horizontal = 12.dp, vertical = 4.dp),
+            // The boxes share a left edge, but this one's tighter inside (8dp to the box below's
+            // 12dp), so the file name sits a touch left of the gear line: a little character.
+            modifier = Modifier.background(LightInfoBoxColor).padding(horizontal = 8.dp, vertical = 4.dp),
         )
         exposure?.cameraAndLens()?.let { gear ->
             Text(
