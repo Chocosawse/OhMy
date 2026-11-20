@@ -615,6 +615,8 @@ private fun CarouselIndicator(
                     // Tracks the selected thumbnail's growth, which runs in step with its
                     // neighbours' shift, so its film always just meets theirs.
                     selectionGrowth = growth,
+                    // The image's drawn size: popping in or out, times its selection scale.
+                    frameScale = { thumbPop.value.coerceAtLeast(0f) * scale },
                     leadsStrip = inFlightCount == 0 && index == 0,
                     endsStrip = index == photos.lastIndex,
                     // Above its neighbours in case they briefly overlap mid-animation.
@@ -691,6 +693,7 @@ private fun CarouselSlot(
     shift: () -> Dp,
     modifier: Modifier = Modifier,
     selectionGrowth: () -> Float = { 0f },
+    frameScale: () -> Float = { 0f },
     leadsStrip: Boolean = false,
     endsStrip: Boolean = false,
     content: @Composable () -> Unit,
@@ -708,6 +711,7 @@ private fun CarouselSlot(
                     widen = SelectionShift.toPx() * selectionGrowth(),
                     lead = if (leadsStrip) FilmLeader.toPx() else 0f,
                     tail = if (endsStrip) FilmLeader.toPx() else 0f,
+                    frameSize = ThumbnailSize.toPx() * frameScale(),
                 )
             }
     } else {
@@ -727,11 +731,24 @@ private fun CarouselSlot(
  * below centred on the frame, and the printed edge number above the top row. Every piece spaces
  * its holes the same, so neighbouring pieces join into one continuous, evenly perforated edge.
  */
-private fun DrawScope.drawFilmPiece(edgeLabel: TextLayoutResult?, widen: Float, lead: Float, tail: Float) {
+/**
+ * One frame's piece of the strip. [frameSize] is the frame's (square, centred) image as currently
+ * drawn: the base is cleared from under it, since the film is translucent and the negative's own
+ * clear areas already are the base -- without it the frame would read as a denser box.
+ */
+private fun DrawScope.drawFilmPiece(edgeLabel: TextLayoutResult?, widen: Float, lead: Float, tail: Float, frameSize: Float) {
     val halfGap = ThumbnailSpacing.toPx() / 2
     val left = -halfGap - widen - lead
     val right = size.width + halfGap + widen + tail
     drawRect(FilmBase, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
+    if (frameSize > 0f) {
+        drawRect(
+            Color.Black,
+            topLeft = Offset((size.width - frameSize) / 2f, (size.height - frameSize) / 2f),
+            size = androidx.compose.ui.geometry.Size(frameSize, frameSize),
+            blendMode = BlendMode.Clear,
+        )
+    }
 
     val pitch = (ThumbnailSize + ThumbnailSpacing).toPx() / SPROCKETS_PER_FRAME
     val holeWidth = SprocketWidth.toPx()
@@ -808,11 +825,15 @@ private val EdgeLabelInset = 2.dp
 /** Film past the first and last frames, so the strip ends just beyond them. */
 private val FilmLeader = 4.dp
 // The two ends of the sepia negative's tone ramp: where the photo was brightest the film is
-// densest, a deep red-brown; where it was darkest the film is nearly clear, showing the amber base.
-private val NegativeDenseColor = Color(0xFF612726)
-private val NegativeClearColor = Color(0xFFC65731)
-private val NegativeDense = floatArrayOf(NegativeDenseColor.red, NegativeDenseColor.green, NegativeDenseColor.blue)
-private val NegativeClear = floatArrayOf(NegativeClearColor.red, NegativeClearColor.green, NegativeClearColor.blue)
+// densest, a deep red-brown; where it was darkest the film is nearly clear, showing the amber
+// base. Both translucent, like real film: denser film lets less of what's behind it through.
+private val NegativeDenseColor = Color(0xCC4A0003)
+private val NegativeClearColor = Color(0x88C65731)
+private val NegativeDense = NegativeDenseColor.channels()
+private val NegativeClear = NegativeClearColor.channels()
+
+/** Red, green, blue, alpha, each 0-1. */
+private fun Color.channels() = floatArrayOf(red, green, blue, alpha)
 
 /**
  * The strip itself: clear film base, the same color as the frames' unexposed (darkest) areas, so
@@ -823,7 +844,8 @@ private val FilmBase = NegativeClearColor
 /**
  * Turns a thumbnail into a sepia-toned negative in a single color matrix: luminance (Rec. 601
  * weights), inverted, then mapped onto the ramp from [NegativeClear] to [NegativeDense]. Per
- * channel c: out = clear_c - (clear_c - dense_c) * luminance.
+ * channel c, alpha included (so the film's translucency follows its density):
+ * out = clear_c - (clear_c - dense_c) * luminance.
  *
  * Applied by the GPU as the thumbnail draws (the paint's color filter), so it costs nothing per
  * frame and leaves Coil's cached images untouched (the same thumbnails serve the list and the
@@ -831,18 +853,21 @@ private val FilmBase = NegativeClearColor
  */
 private val SepiaNegativeFilter: ColorFilter = run {
     val (wr, wg, wb) = Triple(0.299f, 0.587f, 0.114f)
-    val rows = (0..2).flatMap { c ->
+    // Rows for red, green, blue and alpha. The thumbnail's own alpha (always opaque) isn't used:
+    // the film's density decides it.
+    val rows = (0..3).flatMap { c ->
         val range = NegativeClear[c] - NegativeDense[c]
         // Matrix offsets are on the 0-255 scale; the multipliers act on 0-255 channel values too.
         listOf(-range * wr, -range * wg, -range * wb, 0f, NegativeClear[c] * 255f)
     }
-    ColorFilter.colorMatrix(ColorMatrix((rows + listOf(0f, 0f, 0f, 1f, 0f)).toFloatArray()))
+    ColorFilter.colorMatrix(ColorMatrix(rows.toFloatArray()))
 }
 private val SprocketRim = Color.White.copy(alpha = 0.35f)
 private val SprocketRimWidth = 0.75.dp
 private val FilmEdgeTextStyle = TextStyle(
-    // Dark brown printed on the amber base (the old amber-on-black would vanish on it).
-    color = Color(0xFF3D1714),
+    // The negative's dark color, printed on the amber base (amber-on-black would vanish on it);
+    // opaque, so it stays legible over whatever photo shows through the film.
+    color = NegativeDenseColor.copy(alpha = 1f),
     fontSize = 7.sp,
     fontFamily = FontFamily.Monospace,
     letterSpacing = 0.5.sp,
