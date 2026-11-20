@@ -155,6 +155,7 @@ import com.ohmy.zfsync.ui.components.viewerGeometry
 import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.animatePop
 import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
+import com.ohmy.zfsync.ui.theme.fadeSpec
 import com.ohmy.zfsync.ui.theme.layerScale
 import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.photoTransitionSpec
@@ -388,7 +389,12 @@ fun PhotoViewerScreen(
 
         // The current photo's floating info: shown with the other controls, unless turned off.
         val currentPhoto = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
-        val infoPop = animatePop(controlsShown && showInfo)
+        // A plain fade, not the controls' pop: these are captions on the photo, not controls.
+        val infoAlpha = animateFloatAsState(
+            if (controlsShown && showInfo) 1f else 0f,
+            fadeSpec(),
+            label = "infoAlpha",
+        )
         PhotoTitleCard(
             filename = currentPhoto.filename,
             exposure = currentPhoto.exposure,
@@ -397,7 +403,7 @@ fun PhotoViewerScreen(
                 .windowInsetsPadding(barInsets)
                 // Under the close button, and clear of the capture time on the right.
                 .padding(start = 16.dp, top = 64.dp, end = 56.dp)
-                .pop { infoPop.value },
+                .graphicsLayer { alpha = infoAlpha.value },
         )
         CaptureTimeTag(
             // The camera's own clock; files without it fall back to when the app saved them.
@@ -410,7 +416,7 @@ fun PhotoViewerScreen(
                 .windowInsetsPadding(barInsets)
                 // Under the info button, level with the title card.
                 .padding(top = 64.dp, end = 16.dp)
-                .pop { infoPop.value },
+                .graphicsLayer { alpha = infoAlpha.value },
         )
 
         Column(
@@ -431,7 +437,7 @@ fun PhotoViewerScreen(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(start = 16.dp, end = 88.dp)
-                        .pop { infoPop.value },
+                        .graphicsLayer { alpha = infoAlpha.value },
                 )
                 ActionFabMenu(
                     actions = listOf(
