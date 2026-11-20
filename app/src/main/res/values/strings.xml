@@ -3,7 +3,9 @@
     <string name="app_name">OhMy Zf Sync</string>
 
     <string name="connect_title">Connect to your Nikon Zf</string>
-    <string name="connect_instructions">On the camera: Menu → Network → Wi-Fi → turn on, then enter the SSID and password shown on the camera\'s screen below.</string>
+    <!-- Set in italics, as a lead-in to connect_instructions. -->
+    <string name="connect_instructions_lead">On the camera:</string>
+    <string name="connect_instructions">Menu → Network → Wi-Fi → turn on, then enter the SSID and password shown on the camera\'s screen below.</string>
     <string name="connect_ssid_label">Camera Wi-Fi network name (SSID)</string>
     <string name="connect_password_label">Password</string>
     <string name="connect_button">Connect</string>

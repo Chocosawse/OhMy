@@ -22,12 +22,18 @@ sealed interface ThemeChoice {
     data class Palette(val palette: ColorPalette) : ThemeChoice
 
     companion object {
-        /** Everything the theme picker offers, in order. Palettes come from the library, so new ones appear automatically. */
-        val all: List<ThemeChoice> get() = listOf(System) + ColorPalette.builtIns.map(::Palette)
+        /** The app's own palettes, offered after the library's. */
+        private val appPalettes: List<ColorPalette> = listOf(NewspaperPalette)
+
+        /** Every palette on offer: the library's built-ins (new ones appear automatically), then the app's. */
+        private val palettes: List<ColorPalette> get() = ColorPalette.builtIns + appPalettes
+
+        /** Everything the theme picker offers, in order. */
+        val all: List<ThemeChoice> get() = listOf(System) + palettes.map(::Palette)
 
         /** Unknown or missing names (e.g. a palette a later library version dropped) fall back to [System]. */
         fun fromPaletteName(name: String?): ThemeChoice =
-            ColorPalette.builtIns.firstOrNull { it.name == name }?.let(::Palette) ?: System
+            palettes.firstOrNull { it.name == name }?.let(::Palette) ?: System
     }
 }
 
@@ -57,7 +63,26 @@ fun OhMyTheme(
     content: @Composable () -> Unit,
 ) {
     when (choice) {
-        is ThemeChoice.Palette -> AppTheme(activeToken = choice.palette, darkTheme = darkTheme, content = content)
-        ThemeChoice.System -> MaterialTheme(colorScheme = systemColorScheme(darkTheme), content = content)
+        is ThemeChoice.Palette -> AppTheme(activeToken = choice.palette, darkTheme = darkTheme) {
+            val scheme = MaterialTheme.colorScheme
+            WithAppTypography(
+                colorScheme = if (choice.palette == NewspaperPalette) NewspaperPalette.adjust(scheme, darkTheme) else scheme,
+                content = content,
+            )
+        }
+        ThemeChoice.System -> MaterialTheme(colorScheme = systemColorScheme(darkTheme)) {
+            WithAppTypography(MaterialTheme.colorScheme, content)
+        }
     }
+}
+
+/** The enclosing theme's shapes, the given [colorScheme], and the app's own [AppTypography]. */
+@Composable
+private fun WithAppTypography(colorScheme: ColorScheme, content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = colorScheme,
+        shapes = MaterialTheme.shapes,
+        typography = AppTypography,
+        content = content,
+    )
 }
