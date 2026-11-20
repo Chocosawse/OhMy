@@ -430,8 +430,21 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-/** The gallery carousel's look: v1 plain thumbnails, or v2 frames on a strip of film. */
-enum class CarouselStyle { Classic, FilmStrip }
+/**
+ * The gallery carousel's look: v1 plain thumbnails, or frames on a strip of film, either black
+ * (v2) or translucent amber (v3). [key] is how the choice is saved, so it must not change.
+ */
+enum class CarouselStyle(val key: String) {
+    Classic("classic"),
+    FilmStrip("film_strip"),
+    AmberFilm("amber_film"),
+    ;
+
+    companion object {
+        /** Unknown or missing keys fall back to [Classic]. */
+        fun fromKey(key: String?): CarouselStyle = entries.firstOrNull { it.key == key } ?: Classic
+    }
+}
 
 /**
  * Filmstrip of thumbnails: whichever thumbnail sits at the centre is the selected photo.
@@ -448,7 +461,8 @@ enum class CarouselStyle { Classic, FilmStrip }
  * Toggling [visible] pops the on-screen items in from both ends toward the middle, or out from
  * the middle toward both ends; while hidden the strip keeps its space but ignores touches.
  *
- * [CarouselStyle.FilmStrip] (v2) draws the same strip as film: a dark base, each frame's slot
+ * The film styles ([CarouselStyle.FilmStrip], v2, and [CarouselStyle.AmberFilm], v3; see
+ * [FilmLook]) draw the same strip as film: a base, each frame's slot
  * drawing its own sprocket holes above and below (see-through, like real perforations), and every
  * tenth frame a printed edge number. The slots share one
  * hole spacing, so neighbours join into continuous perforated edges. It's all drawn (a few rects
@@ -464,7 +478,7 @@ private fun CarouselIndicator(
     style: CarouselStyle,
     onSelect: (Int) -> Unit,
 ) {
-    val film = style == CarouselStyle.FilmStrip
+    val film = style.filmLook
     val textMeasurer = rememberTextMeasurer()
     val listState = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
@@ -542,9 +556,9 @@ private fun CarouselIndicator(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (film) FilmStripHeight else CarouselHeight)
+            .height(if (film != null) FilmStripHeight else CarouselHeight)
             .then(
-                if (film) {
+                if (film != null) {
                     Modifier
                         .graphicsLayer {
                             val p = stripPop.value
@@ -603,7 +617,7 @@ private fun CarouselIndicator(
                 // On the film strip, a frame develops from negative into positive as it grows into
                 // the selection, and back as it shrinks. Derived, so a frame only recomposes as it
                 // starts or finishes doing so, not every animation frame.
-                val developing by remember(film) { derivedStateOf { film && scale > 1f } }
+                val developing by remember(film) { derivedStateOf { film != null && scale > 1f } }
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
                 CarouselSlot(
@@ -615,6 +629,8 @@ private fun CarouselIndicator(
                     // Tracks the selected thumbnail's growth, which runs in step with its
                     // neighbours' shift, so its film always just meets theirs.
                     selectionGrowth = growth,
+                    // The image's drawn size: popping in or out, times its selection scale.
+                    frameScale = { thumbPop.value.coerceAtLeast(0f) * scale },
                     leadsStrip = inFlightCount == 0 && index == 0,
                     endsStrip = index == photos.lastIndex,
                     // Above its neighbours in case they briefly overlap mid-animation.
@@ -651,7 +667,7 @@ private fun CarouselIndicator(
                             contentDescription = photo.filename,
                             contentScale = ContentScale.Crop,
                             // Frames on the film strip are its negatives.
-                            colorFilter = if (film) SepiaNegativeFilter else null,
+                            colorFilter = film?.negative,
                             modifier = Modifier
                                 .matchParentSize()
                                 .then(
@@ -685,29 +701,32 @@ private fun CarouselIndicator(
  */
 @Composable
 private fun CarouselSlot(
-    film: Boolean,
+    film: FilmLook?,
     frameNumber: Int?,
     textMeasurer: TextMeasurer,
     shift: () -> Dp,
     modifier: Modifier = Modifier,
     selectionGrowth: () -> Float = { 0f },
+    frameScale: () -> Float = { 0f },
     leadsStrip: Boolean = false,
     endsStrip: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val slotModifier = if (film) {
-        val edgeLabel = remember(frameNumber, textMeasurer) {
-            frameNumber?.let { textMeasurer.measure(it.toString().padStart(2, '0'), FilmEdgeTextStyle) }
+    val slotModifier = if (film != null) {
+        val edgeLabel = remember(frameNumber, textMeasurer, film) {
+            frameNumber?.let { textMeasurer.measure(it.toString().padStart(2, '0'), film.edgeTextStyle) }
         }
         Modifier
             .width(ThumbnailSize)
             .fillMaxHeight()
             .drawBehind {
                 drawFilmPiece(
+                    look = film,
                     edgeLabel = edgeLabel,
                     widen = SelectionShift.toPx() * selectionGrowth(),
                     lead = if (leadsStrip) FilmLeader.toPx() else 0f,
                     tail = if (endsStrip) FilmLeader.toPx() else 0f,
+                    frameSize = if (film.clearBaseUnderFrames) ThumbnailSize.toPx() * frameScale() else 0f,
                 )
             }
     } else {
@@ -727,11 +746,29 @@ private fun CarouselSlot(
  * below centred on the frame, and the printed edge number above the top row. Every piece spaces
  * its holes the same, so neighbouring pieces join into one continuous, evenly perforated edge.
  */
-private fun DrawScope.drawFilmPiece(edgeLabel: TextLayoutResult?, widen: Float, lead: Float, tail: Float) {
+private fun DrawScope.drawFilmPiece(
+    look: FilmLook,
+    edgeLabel: TextLayoutResult?,
+    widen: Float,
+    lead: Float,
+    tail: Float,
+    frameSize: Float,
+) {
     val halfGap = ThumbnailSpacing.toPx() / 2
     val left = -halfGap - widen - lead
     val right = size.width + halfGap + widen + tail
-    drawRect(FilmBase, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
+    drawRect(look.base, topLeft = Offset(left, 0f), size = androidx.compose.ui.geometry.Size(right - left, size.height))
+    // Translucent film only: the base cleared from under the frame's image ([frameSize] square,
+    // centred, as currently drawn), since the negative's own clear areas already are the base.
+    // Without it the frame would read as a denser box.
+    if (frameSize > 0f) {
+        drawRect(
+            Color.Black,
+            topLeft = Offset((size.width - frameSize) / 2f, (size.height - frameSize) / 2f),
+            size = androidx.compose.ui.geometry.Size(frameSize, frameSize),
+            blendMode = BlendMode.Clear,
+        )
+    }
 
     val pitch = (ThumbnailSize + ThumbnailSpacing).toPx() / SPROCKETS_PER_FRAME
     val holeWidth = SprocketWidth.toPx()
@@ -807,45 +844,79 @@ private val SprocketInset = 9.dp
 private val EdgeLabelInset = 2.dp
 /** Film past the first and last frames, so the strip ends just beyond them. */
 private val FilmLeader = 4.dp
-// Sampled from a photo of color negatives on a light table: where the photo was darkest the film
-// is clear, showing the base's deep copper-orange; where it was brightest it's densest, a dark
-// red-brown. Both around a 15 degree hue and strongly saturated. Opaque: the frames sit on the
-// strip's black.
-private val NegativeDenseColor = Color(0xFF57200C)
-private val NegativeClearColor = Color(0xFFB56244)
-private val NegativeDense = NegativeDenseColor.channels()
-private val NegativeClear = NegativeClearColor.channels()
+/**
+ * One film carousel style's materials: the strip's [base], the [negative] color filter its frames
+ * are drawn through, its edge numbers' [edgeTextStyle], and whether the base is cleared from under
+ * each frame ([clearBaseUnderFrames], for translucent film, where base under the frame would read
+ * as a denser box).
+ */
+@Immutable
+private class FilmLook(
+    val base: Color,
+    val negative: ColorFilter,
+    val edgeTextStyle: TextStyle,
+    val clearBaseUnderFrames: Boolean,
+)
 
-/** Red, green, blue, alpha, each 0-1. */
-private fun Color.channels() = floatArrayOf(red, green, blue, alpha)
-
-private val FilmBase = Color(0xFF111111)
+private val CarouselStyle.filmLook: FilmLook?
+    get() = when (this) {
+        CarouselStyle.Classic -> null
+        CarouselStyle.FilmStrip -> BlackFilmLook
+        CarouselStyle.AmberFilm -> AmberFilmLook
+    }
 
 /**
- * Turns a thumbnail into a sepia-toned negative in a single color matrix: luminance (Rec. 601
- * weights), inverted, then mapped onto the ramp from [NegativeClear] to [NegativeDense]. Per
- * channel c (alpha included, should the ends ever differ in opacity):
+ * v2: a black strip, with negatives in colors sampled from a photo of color negatives on a light
+ * table. Where the photo was darkest the film is clear, showing the base's deep copper-orange;
+ * where it was brightest it's densest, a dark red-brown. Opaque, sitting on the black.
+ */
+private val BlackFilmLook = FilmLook(
+    base = Color(0xFF111111),
+    negative = negativeFilter(dense = Color(0xFF57200C), clear = Color(0xFFB56244)),
+    edgeTextStyle = filmEdgeTextStyle(Color(0xCCE0A84A)),
+    clearBaseUnderFrames = false,
+)
+
+/**
+ * v3: the whole strip is translucent amber film base, and the frames' negatives run from that
+ * same amber (clear) to a deep red-brown (dense); denser film is less translucent, as on real
+ * film. Edge numbers in the dense color, opaque, to stay legible over the photo behind.
+ */
+private val AmberFilmClear = Color(0x88C65731)
+private val AmberFilmLook = FilmLook(
+    base = AmberFilmClear,
+    negative = negativeFilter(dense = Color(0xCC4A0003), clear = AmberFilmClear),
+    edgeTextStyle = filmEdgeTextStyle(Color(0xFF4A0003)),
+    clearBaseUnderFrames = true,
+)
+
+/**
+ * Turns a thumbnail into a toned negative in a single color matrix: luminance (Rec. 601 weights),
+ * inverted, then mapped onto the ramp from [clear] (where the photo was darkest) to [dense]
+ * (brightest). Per channel c, alpha included, so translucency can follow density:
  * out = clear_c - (clear_c - dense_c) * luminance.
  *
  * Applied by the GPU as the thumbnail draws (the paint's color filter), so it costs nothing per
  * frame and leaves Coil's cached images untouched (the same thumbnails serve the list and the
- * viewer). One shared instance for every frame on the strip.
+ * viewer). One instance per style, shared by every frame on the strip.
  */
-private val SepiaNegativeFilter: ColorFilter = run {
+private fun negativeFilter(dense: Color, clear: Color): ColorFilter {
     val (wr, wg, wb) = Triple(0.299f, 0.587f, 0.114f)
-    // Rows for red, green, blue and alpha. The thumbnail's own alpha (always opaque) isn't used:
-    // the film's density decides it.
+    val denseChannels = floatArrayOf(dense.red, dense.green, dense.blue, dense.alpha)
+    val clearChannels = floatArrayOf(clear.red, clear.green, clear.blue, clear.alpha)
+    // Rows for red, green, blue and alpha; the thumbnail's own alpha (always opaque) isn't used.
     val rows = (0..3).flatMap { c ->
-        val range = NegativeClear[c] - NegativeDense[c]
+        val range = clearChannels[c] - denseChannels[c]
         // Matrix offsets are on the 0-255 scale; the multipliers act on 0-255 channel values too.
-        listOf(-range * wr, -range * wg, -range * wb, 0f, NegativeClear[c] * 255f)
+        listOf(-range * wr, -range * wg, -range * wb, 0f, clearChannels[c] * 255f)
     }
-    ColorFilter.colorMatrix(ColorMatrix(rows.toFloatArray()))
+    return ColorFilter.colorMatrix(ColorMatrix(rows.toFloatArray()))
 }
+
 private val SprocketRim = Color.White.copy(alpha = 0.35f)
 private val SprocketRimWidth = 0.75.dp
-private val FilmEdgeTextStyle = TextStyle(
-    color = Color(0xCCE0A84A),
+private fun filmEdgeTextStyle(color: Color) = TextStyle(
+    color = color,
     fontSize = 7.sp,
     fontFamily = FontFamily.Monospace,
     letterSpacing = 0.5.sp,

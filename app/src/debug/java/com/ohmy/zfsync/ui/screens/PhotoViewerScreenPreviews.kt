@@ -52,3 +52,19 @@ private fun PhotoViewerScreenFilmStripPreview() {
         )
     }
 }
+
+/** The v3 translucent amber film carousel, with a download in flight at its front. */
+@Preview
+@Composable
+private fun PhotoViewerScreenAmberFilmPreview() {
+    OhMyTheme {
+        PhotoViewerScreen(
+            photos = FakeData.States.connected.photosNewestFirst(),
+            initialIndex = 2,
+            onDelete = {},
+            onClose = {},
+            inFlightCount = 1,
+            carouselStyle = CarouselStyle.AmberFilm,
+        )
+    }
+}

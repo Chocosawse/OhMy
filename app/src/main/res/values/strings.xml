@@ -45,8 +45,12 @@
     <string name="settings_title">Settings</string>
     <string name="settings_section_theme">Theme</string>
     <string name="settings_section_gallery">Gallery</string>
-    <string name="settings_film_strip">Film strip carousel (v2)</string>
-    <string name="settings_film_strip_summary">Show the gallery\'s thumbnails as frames on a strip of film</string>
+    <string name="settings_carousel_classic">Classic carousel</string>
+    <string name="settings_carousel_classic_summary">Plain thumbnails</string>
+    <string name="settings_carousel_film_strip">Film strip (v2)</string>
+    <string name="settings_carousel_film_strip_summary">Frames on a black strip of film, as negatives</string>
+    <string name="settings_carousel_amber_film">Amber film (v3)</string>
+    <string name="settings_carousel_amber_film_summary">Frames on translucent amber film, as negatives</string>
     <string name="theme_system">System (Material You)</string>
     <string name="theme_close">Close</string>
 

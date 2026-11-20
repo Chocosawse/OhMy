@@ -27,7 +27,6 @@ import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.DownloadStatus
 import com.ohmy.zfsync.core.model.photosNewestFirst
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
-import com.ohmy.zfsync.ui.screens.CarouselStyle
 import com.ohmy.zfsync.ui.screens.ConnectScreen
 import com.ohmy.zfsync.ui.screens.PhotoViewerScreen
 import com.ohmy.zfsync.ui.screens.SettingsScreen
@@ -48,7 +47,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val downloadStatus by viewModel.downloadStatus.collectAsState()
     val themeChoice by viewModel.themeChoice.collectAsState()
-    val filmStripCarousel by viewModel.filmStripCarousel.collectAsState()
+    val carouselStyle by viewModel.carouselStyle.collectAsState()
     // Saveable: rotation recreates the activity, and an open gallery or theme picker must survive it.
     var viewerIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -115,7 +114,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onDelete = { photo -> viewModel.deletePhotos(listOf(photo.uri)) },
                     onClose = { viewerIndex = null },
                     inFlightCount = (downloadStatus as? DownloadStatus.Downloading)?.count ?: 0,
-                    carouselStyle = if (filmStripCarousel) CarouselStyle.FilmStrip else CarouselStyle.Classic,
+                    carouselStyle = carouselStyle,
                     photoTransition = photoTransition,
                 )
             }
@@ -130,8 +129,8 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                 SettingsScreen(
                     currentTheme = themeChoice,
                     onSelectTheme = viewModel::setTheme,
-                    filmStripCarousel = filmStripCarousel,
-                    onFilmStripCarouselChange = viewModel::setFilmStripCarousel,
+                    carouselStyle = carouselStyle,
+                    onCarouselStyleChange = viewModel::setCarouselStyle,
                     onClose = { showSettings = false },
                 )
             }

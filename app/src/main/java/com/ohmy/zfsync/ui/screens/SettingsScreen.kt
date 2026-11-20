@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -23,7 +23,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -47,8 +46,8 @@ import com.ohmy.zfsync.ui.theme.systemColorScheme
 fun SettingsScreen(
     currentTheme: ThemeChoice,
     onSelectTheme: (ThemeChoice) -> Unit,
-    filmStripCarousel: Boolean,
-    onFilmStripCarouselChange: (Boolean) -> Unit,
+    carouselStyle: CarouselStyle,
+    onCarouselStyleChange: (CarouselStyle) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -71,12 +70,17 @@ fun SettingsScreen(
                     ThemeRow(choice = choice, selected = choice == currentTheme, onClick = { onSelectTheme(choice) })
                 }
                 item(key = "header-gallery") { SettingsSectionHeader(stringResource(R.string.settings_section_gallery)) }
-                item(key = "film-strip") {
-                    SwitchRow(
-                        title = stringResource(R.string.settings_film_strip),
-                        summary = stringResource(R.string.settings_film_strip_summary),
-                        checked = filmStripCarousel,
-                        onCheckedChange = onFilmStripCarouselChange,
+                items(CarouselStyle.entries, key = { "carousel-${it.key}" }) { style ->
+                    val (title, summary) = when (style) {
+                        CarouselStyle.Classic -> R.string.settings_carousel_classic to R.string.settings_carousel_classic_summary
+                        CarouselStyle.FilmStrip -> R.string.settings_carousel_film_strip to R.string.settings_carousel_film_strip_summary
+                        CarouselStyle.AmberFilm -> R.string.settings_carousel_amber_film to R.string.settings_carousel_amber_film_summary
+                    }
+                    RadioRow(
+                        title = stringResource(title),
+                        summary = stringResource(summary),
+                        selected = style == carouselStyle,
+                        onClick = { onCarouselStyleChange(style) },
                     )
                 }
             }
@@ -97,13 +101,13 @@ private fun SettingsSectionHeader(title: String) {
     )
 }
 
-/** A setting toggled by tapping anywhere on the row; the switch shows the state. */
+/** One of a set of choices, picked by tapping anywhere on the row; the radio button shows the state. */
 @Composable
-private fun SwitchRow(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun RadioRow(title: String, summary: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = ScreenHorizontalPadding, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -112,7 +116,7 @@ private fun SwitchRow(title: String, summary: String, checked: Boolean, onChecke
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = checked, onCheckedChange = null)
+        RadioButton(selected = selected, onClick = null)
     }
 }
 
