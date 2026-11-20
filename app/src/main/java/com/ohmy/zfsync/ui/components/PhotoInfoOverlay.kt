@@ -5,8 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +26,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -171,51 +176,62 @@ private val ImprintGlow = Color(0xCCFF5500)
 /** How strongly the imprint shows: a little faded, as a real one is on the print. */
 private const val IMPRINT_OPACITY = 0.7f
 
-/** The imprint's digit height and inset, as fractions of the photo's shorter side. */
-private const val IMPRINT_SIZE = 0.042f
-private const val IMPRINT_INSET = 0.045f
+/** The imprint's size: fixed, not relative to the photo, so it's never large on a big screen. */
+private val IMPRINT_SIZE = 14.sp
+
+/** Its inset from the photo's corner. */
+private val ImprintInset = 12.dp
+
+/** Space kept clear at the top for the close and info buttons (8 + 48 + 8dp), below the bars. */
+private val ImprintTopClearance = 64.dp
 
 /**
- * A film camera's date imprint in the photo's bottom-right corner: orange seven-segment digits
- * with a slight glow, e.g. "'26 10 24  16:36". Sized and placed relative to the photo as fitted
- * (ContentScale.Fit) into this box, from its [imageSize], so it stays put on the photo; drawn in
- * the photo's own layer, it zooms and pans with it. [alpha] is read in the draw phase.
+ * A film camera's date imprint, set vertically (reading down) at the photo's top-right corner:
+ * orange seven-segment digits with a slight glow, e.g. "'26 10 24  16:36". Placed from the photo
+ * as fitted (ContentScale.Fit) into this box, from its [imageSize], but kept inside the visible
+ * area -- clear of the system bars and the top buttons, within the screen -- so it's never cut
+ * off, whatever the photo's shape. A fixed size, so it isn't drawn in the photo's zoom layer (the
+ * info hides while zoomed anyway). [alpha] is read in the draw phase.
  */
 @Composable
 fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Modifier = Modifier) {
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val insets = WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility)
+    val safeTop = insets.getTop(density)
+    val safeEnd = insets.getRight(density, layoutDirection)
+    val style = remember(density) {
+        val digitPx = with(density) { IMPRINT_SIZE.toPx() }
+        TextStyle(
+            fontFamily = DateImprintFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = IMPRINT_SIZE,
+            color = ImprintOrange,
+            shadow = Shadow(ImprintGlow, blurRadius = digitPx * 0.45f),
+        )
+    }
+    val styled = remember(text) {
+        buildAnnotatedString {
+            // DSEG has no apostrophe: that one character from the mono face, still lit orange.
+            for (char in text) {
+                if (char == '\'') {
+                    withStyle(SpanStyle(fontFamily = MonoFontFamily)) { append(char) }
+                } else {
+                    append(char)
+                }
+            }
+        }
+    }
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val boxWidth = constraints.maxWidth.toFloat()
         val boxHeight = constraints.maxHeight.toFloat()
         val fit = min(boxWidth / imageSize.width, boxHeight / imageSize.height)
-        val photoWidth = imageSize.width * fit
-        val photoHeight = imageSize.height * fit
-        val shortSide = min(photoWidth, photoHeight)
-        val digitPx = shortSide * IMPRINT_SIZE
-        val insetPx = shortSide * IMPRINT_INSET
-        val right = (boxWidth + photoWidth) / 2f - insetPx
-        val bottom = (boxHeight + photoHeight) / 2f - insetPx
-        val density = LocalDensity.current
-        val style = remember(digitPx, density) {
-            TextStyle(
-                fontFamily = DateImprintFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = with(density) { digitPx.toSp() },
-                color = ImprintOrange,
-                shadow = Shadow(ImprintGlow, blurRadius = digitPx * 0.45f),
-            )
-        }
-        val styled = remember(text) {
-            buildAnnotatedString {
-                // DSEG has no apostrophe: that one character from the mono face, still lit orange.
-                for (char in text) {
-                    if (char == '\'') {
-                        withStyle(SpanStyle(fontFamily = MonoFontFamily)) { append(char) }
-                    } else {
-                        append(char)
-                    }
-                }
-            }
-        }
+        val photoRight = (boxWidth + imageSize.width * fit) / 2f
+        val photoTop = (boxHeight - imageSize.height * fit) / 2f
+        val inset = with(density) { ImprintInset.toPx() }
+        // The photo's top-right corner, pulled inside the visible area.
+        val right = min(photoRight, boxWidth - safeEnd) - inset
+        val top = maxOf(photoTop, safeTop + with(density) { ImprintTopClearance.toPx() }) + inset
         Text(
             styled,
             style = style,
@@ -224,11 +240,22 @@ fun DateImprint(text: String, imageSize: Size, alpha: () -> Float, modifier: Mod
             modifier = Modifier
                 .layout { measurable, constraints ->
                     val placeable = measurable.measure(Constraints())
+                    // Turned a quarter clockwise, it takes the text's height as its width.
+                    val turnedWidth = placeable.height
+                    val turnedHeight = placeable.width
                     layout(constraints.maxWidth, constraints.maxHeight) {
-                        placeable.place((right - placeable.width).roundToInt(), (bottom - placeable.height).roundToInt())
+                        val x = right - turnedWidth
+                        val y = top
+                        // Rotating about its centre: put that centre where the turned box's is.
+                        placeable.placeWithLayer(
+                            x = (x + turnedWidth / 2f - placeable.width / 2f).roundToInt(),
+                            y = (y + turnedHeight / 2f - placeable.height / 2f).roundToInt(),
+                        ) {
+                            rotationZ = 90f
+                            this.alpha = alpha() * IMPRINT_OPACITY
+                        }
                     }
-                }
-                .graphicsLayer { this.alpha = alpha() * IMPRINT_OPACITY },
+                },
         )
     }
 }

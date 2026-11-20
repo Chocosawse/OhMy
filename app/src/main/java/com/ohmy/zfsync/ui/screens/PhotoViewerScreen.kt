@@ -1183,64 +1183,66 @@ private fun ZoomableImage(
     var fullSizeWanted by remember(photo.uri) { mutableStateOf(false) }
     LaunchedEffect(zoomedIn) { if (zoomedIn) fullSizeWanted = true }
 
-    // The photo, and the date imprinted on it, in one zoomed layer: the imprint is part of the
-    // picture, so it zooms and pans with it.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(photo.uri) {
-                detectTapGestures(onTap = { latestOnTap() }, onDoubleTap = { tap ->
-                    val geometry = ZoomGeometry(size.width.toFloat(), size.height.toFloat(), imageSize)
-                    val fromScale = zoom.scale
-                    val fromOffset = zoom.offset
-                    val zoomingIn = zoom.scale <= 1f
-                    val toScale = if (zoomingIn) maxOf(DOUBLE_TAP_ZOOM, geometry.fillScale) else 1f
-                    val toOffset = if (zoomingIn) geometry.offsetFor(tap, toScale) else Offset.Zero
-                    coroutineScope.launch {
-                        // Default critically-damped spring, deliberately not the overshoot curve:
-                        // zooming past the target and back reads as jitter on a full-screen photo.
-                        animate(0f, 1f) { fraction, _ ->
-                            zoom.scale = fromScale + (toScale - fromScale) * fraction
-                            zoom.offset = lerp(fromOffset, toOffset, fraction)
+    // The photo in its zoom layer, and over it (unzoomed, a fixed size) the date imprint.
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(photo.uri) {
+                    detectTapGestures(onTap = { latestOnTap() }, onDoubleTap = { tap ->
+                        val geometry = ZoomGeometry(size.width.toFloat(), size.height.toFloat(), imageSize)
+                        val fromScale = zoom.scale
+                        val fromOffset = zoom.offset
+                        val zoomingIn = zoom.scale <= 1f
+                        val toScale = if (zoomingIn) maxOf(DOUBLE_TAP_ZOOM, geometry.fillScale) else 1f
+                        val toOffset = if (zoomingIn) geometry.offsetFor(tap, toScale) else Offset.Zero
+                        coroutineScope.launch {
+                            // Default critically-damped spring, deliberately not the overshoot curve:
+                            // zooming past the target and back reads as jitter on a full-screen photo.
+                            animate(0f, 1f) { fraction, _ ->
+                                zoom.scale = fromScale + (toScale - fromScale) * fraction
+                                zoom.offset = lerp(fromOffset, toOffset, fraction)
+                            }
                         }
-                    }
-                })
-            }
-            .pointerInput(photo.uri) {
-                // Unlike detectTransformGestures, only consume what this image actually uses: a
-                // one-finger drag at 1x is left unconsumed so the parent HorizontalPager can turn
-                // it into a page swipe, while pinches (and pans once zoomed in) stay here.
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    do {
-                        val event = awaitPointerEvent()
-                        val multiTouch = event.changes.count { it.pressed } > 1
-                        if (multiTouch || zoom.scale > 1f) {
-                            val maxScale = maxOf(MAX_ZOOM, ZoomGeometry(size.width.toFloat(), size.height.toFloat(), imageSize).fillScale)
-                            val newScale = (zoom.scale * event.calculateZoom()).coerceIn(1f, maxScale)
-                            zoom.scale = newScale
-                            zoom.offset = if (newScale <= 1f) Offset.Zero else zoom.offset + event.calculatePan()
-                            event.changes.forEach { if (it.positionChanged()) it.consume() }
-                        }
-                    } while (event.changes.any { it.pressed })
+                    })
                 }
-            }
-            .graphicsLayer(
-                scaleX = zoom.scale,
-                scaleY = zoom.scale,
-                translationX = zoom.offset.x,
-                translationY = zoom.offset.y,
-            ),
-    ) {
-        AsyncImage(
-            model = if (fullSizeWanted) fullSizeRequest else screenRequest,
-            contentDescription = photo.filename,
-            contentScale = ContentScale.Fit,
-            // Only the size's aspect ratio is used, and both requests share it.
-            onSuccess = { imageSize = it.painter.intrinsicSize },
-            modifier = Modifier.fillMaxSize(),
-        )
-        // Placed from the photo's fitted size, so only once it's loaded.
+                .pointerInput(photo.uri) {
+                    // Unlike detectTransformGestures, only consume what this image actually uses: a
+                    // one-finger drag at 1x is left unconsumed so the parent HorizontalPager can turn
+                    // it into a page swipe, while pinches (and pans once zoomed in) stay here.
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        do {
+                            val event = awaitPointerEvent()
+                            val multiTouch = event.changes.count { it.pressed } > 1
+                            if (multiTouch || zoom.scale > 1f) {
+                                val maxScale = maxOf(MAX_ZOOM, ZoomGeometry(size.width.toFloat(), size.height.toFloat(), imageSize).fillScale)
+                                val newScale = (zoom.scale * event.calculateZoom()).coerceIn(1f, maxScale)
+                                zoom.scale = newScale
+                                zoom.offset = if (newScale <= 1f) Offset.Zero else zoom.offset + event.calculatePan()
+                                event.changes.forEach { if (it.positionChanged()) it.consume() }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    }
+                }
+                .graphicsLayer(
+                    scaleX = zoom.scale,
+                    scaleY = zoom.scale,
+                    translationX = zoom.offset.x,
+                    translationY = zoom.offset.y,
+                ),
+        ) {
+            AsyncImage(
+                model = if (fullSizeWanted) fullSizeRequest else screenRequest,
+                contentDescription = photo.filename,
+                contentScale = ContentScale.Fit,
+                // Only the size's aspect ratio is used, and both requests share it.
+                onSuccess = { imageSize = it.painter.intrinsicSize },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        // Placed from the photo's fitted size, so only once it's loaded. Outside the zoom layer: a
+        // fixed size, and hidden while zoomed, with the rest of the info.
         if (imprint != null && imageSize.isSpecified && imageSize.width > 0f && imageSize.height > 0f) {
             DateImprint(text = imprint, imageSize = imageSize, alpha = imprintAlpha)
         }
