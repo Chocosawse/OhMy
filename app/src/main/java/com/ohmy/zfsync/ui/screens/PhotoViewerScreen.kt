@@ -811,8 +811,9 @@ private val FilmBase = Color(0xFF111111)
 
 // The two ends of the sepia negative's tone ramp: where the photo was brightest the film is
 // densest, a deep brown; where it was darkest the film is nearly clear, showing the amber base.
-private val NegativeDense = floatArrayOf(0.12f, 0.07f, 0.04f)
-private val NegativeClear = floatArrayOf(0.92f, 0.72f, 0.46f)
+// Amber rather than yellow (green about 60% of red), and kept dim: the film's base is dark.
+private val NegativeDense = floatArrayOf(0.11f, 0.055f, 0.025f)
+private val NegativeClear = floatArrayOf(0.84f, 0.52f, 0.24f)
 
 /**
  * Turns a thumbnail into a sepia-toned negative in a single color matrix: luminance (Rec. 601
