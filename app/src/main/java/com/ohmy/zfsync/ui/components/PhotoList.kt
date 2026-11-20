@@ -65,6 +65,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -112,7 +113,6 @@ fun PhotoList(
     showSessionSections: Boolean,
     onPhotoClick: (index: Int) -> Unit,
     onDeletePhotos: (List<Uri>) -> Unit,
-    onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
     inFlightCount: Int = 0,
     photoTransition: PhotoTransitionState? = null,
@@ -223,8 +223,11 @@ fun PhotoList(
             label = pluralStringResource(R.plurals.select_count, pillCount, pillCount),
             onShare = { sharePhotos(context, ordered.filter { it.uri in selected }) },
             onDelete = { confirmDelete = true },
+            // Only when every selected photo has a RAW: "open these RAWs" shouldn't skip some.
+            onRaw = ordered.filter { it.uri in selected }
+                .takeIf { selection -> selection.isNotEmpty() && selection.all { it.rawUri != null } }
+                ?.let { selection -> { openRaws(context, selection) } },
             onCancel = { selected = emptySet() },
-            onMenu = onOpenMenu,
         )
     }
 
@@ -464,7 +467,19 @@ private fun PhotoRow(
             }
         }
         Column {
-            Text(photo.filename, style = MaterialTheme.typography.titleLarge)
+            Row {
+                Text(photo.filename, style = MaterialTheme.typography.titleLarge, modifier = Modifier.alignByBaseline())
+                if (photo.hasSeparateRaw) {
+                    // The shot's RAW is here too, behind this one item.
+                    Text(
+                        stringResource(R.string.photo_raw_tag),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.alignByBaseline().padding(start = 8.dp),
+                    )
+                }
+            }
             Text(
                 DateFormat.getDateTimeInstance().format(Date(photo.savedAtMillis)),
                 style = MaterialTheme.typography.bodySmall,

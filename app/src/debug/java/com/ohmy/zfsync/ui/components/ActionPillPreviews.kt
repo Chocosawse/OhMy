@@ -10,7 +10,7 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.ui.theme.OhMyTheme
 
-/** The select-mode pill: count label, Share, Delete, Cancel and Menu. */
+/** The select-mode pill: count label, Share, Delete, RAW (the selection has RAWs) and Cancel. */
 @PreviewLightDark
 @Composable
 private fun SelectionActionPillPreview() {
@@ -19,8 +19,8 @@ private fun SelectionActionPillPreview() {
             label = "4 selected",
             onShare = {},
             onDelete = {},
+            onRaw = {},
             onCancel = {},
-            onMenu = {},
             modifier = Modifier.padding(16.dp),
         )
     }

@@ -24,6 +24,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val repository: CameraSyncRepository = (application as OhMyApplication).syncRepository
     private val themeStore = (application as OhMyApplication).themeStore
     private val galleryPreferences = (application as OhMyApplication).galleryPreferences
+    private val syncPreferences = (application as OhMyApplication).syncPreferences
 
     val state: StateFlow<SyncUiState> = repository.state
     val downloadStatus: StateFlow<DownloadStatus> = repository.downloadStatus
@@ -52,6 +53,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     val showPhotoInfo: StateFlow<Boolean> = galleryPreferences.showPhotoInfo
+
+    /** Read by the sync itself whenever it meets a RAW on the camera, so a change applies straight away. */
+    val downloadRaws: StateFlow<Boolean> = syncPreferences.downloadRaws
+
+    fun setDownloadRaws(enabled: Boolean) {
+        syncPreferences.setDownloadRaws(enabled)
+    }
 
     fun setShowPhotoInfo(show: Boolean) {
         galleryPreferences.setShowPhotoInfo(show)

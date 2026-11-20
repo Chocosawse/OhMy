@@ -52,6 +52,8 @@ fun SettingsScreen(
     onCarouselStyleChange: (CarouselStyle) -> Unit,
     confirmDelete: Boolean,
     onConfirmDeleteChange: (Boolean) -> Unit,
+    downloadRaws: Boolean,
+    onDownloadRawsChange: (Boolean) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -93,6 +95,15 @@ fun SettingsScreen(
                         summary = stringResource(R.string.settings_confirm_delete_summary),
                         checked = confirmDelete,
                         onCheckedChange = onConfirmDeleteChange,
+                    )
+                }
+                item(key = "header-sync") { SettingsSectionHeader(stringResource(R.string.settings_section_sync)) }
+                item(key = "download-raws") {
+                    SwitchRow(
+                        title = stringResource(R.string.settings_download_raws),
+                        summary = stringResource(R.string.settings_download_raws_summary),
+                        checked = downloadRaws,
+                        onCheckedChange = onDownloadRawsChange,
                     )
                 }
             }

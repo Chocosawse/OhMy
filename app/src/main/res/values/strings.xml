@@ -36,6 +36,7 @@
     <string name="viewer_share">Share</string>
     <string name="viewer_share_chooser_title">Share photo</string>
     <string name="viewer_delete">Delete</string>
+    <string name="viewer_open_raw">Open RAW</string>
     <string name="viewer_actions">Photo actions</string>
     <!-- Column labels over the viewer's exposure readout. -->
     <string name="viewer_exposure_focal_length">FOCAL</string>
@@ -51,6 +52,11 @@
 
     <string name="select_cancel">Cancel selection</string>
     <string name="select_menu">Menu</string>
+    <string name="select_raw">RAW</string>
+    <string name="select_raw_description">Open RAW files</string>
+    <string name="raw_chooser_title">Open RAW with</string>
+    <!-- Tags a photo whose RAW file was downloaded too. -->
+    <string name="photo_raw_tag">+RAW</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_section_theme">Theme</string>
@@ -63,6 +69,9 @@
     <string name="settings_carousel_amber_film_summary">Frames on translucent amber film, as negatives</string>
     <string name="settings_confirm_delete">Confirm before deleting</string>
     <string name="settings_confirm_delete_summary">Ask before deleting a photo from the gallery</string>
+    <string name="settings_section_sync">Sync</string>
+    <string name="settings_download_raws">Download RAW files</string>
+    <string name="settings_download_raws_summary">Also save each shot\'s RAW (e.g. NEF) with its JPEG. RAWs are large, so syncing takes longer.</string>
     <string name="theme_system">System (Material You)</string>
     <string name="theme_close">Close</string>
 

@@ -1,5 +1,7 @@
 package com.ohmy.zfsync.ptpip
 
+import com.ohmy.zfsync.core.model.RawFormats
+
 /** Parsed result of a GetObjectInfo (0x1008) data phase. */
 data class PtpObjectInfo(
     val storageId: Long,
@@ -11,6 +13,10 @@ data class PtpObjectInfo(
     val isJpeg: Boolean
         get() = objectFormat == PtpObjectFormatCode.EXIF_JPEG ||
             filename.substringAfterLast('.', "").lowercase() in setOf("jpg", "jpeg")
+
+    /** A camera RAW (NEF and the like). By name: cameras report RAWs under vendor or undefined format codes. */
+    val isRaw: Boolean
+        get() = RawFormats.isRaw(filename)
 
     companion object {
         fun parse(data: ByteArray): PtpObjectInfo {

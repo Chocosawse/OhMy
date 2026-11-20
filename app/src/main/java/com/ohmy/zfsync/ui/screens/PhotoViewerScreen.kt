@@ -53,6 +53,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.Info
@@ -150,6 +151,7 @@ import com.ohmy.zfsync.ui.components.PhotoTitleCard
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
 import com.ohmy.zfsync.ui.components.croppedGeometry
 import com.ohmy.zfsync.ui.components.formatCaptureTime
+import com.ohmy.zfsync.ui.components.openRaws
 import com.ohmy.zfsync.ui.components.sharePhotos
 import com.ohmy.zfsync.ui.components.viewerGeometry
 import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
@@ -398,6 +400,8 @@ fun PhotoViewerScreen(
         PhotoTitleCard(
             filename = currentPhoto.filename,
             exposure = currentPhoto.exposure,
+            hasRaw = currentPhoto.hasSeparateRaw,
+            rawTag = stringResource(R.string.photo_raw_tag),
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(barInsets)
@@ -440,10 +444,14 @@ fun PhotoViewerScreen(
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
                 ActionFabMenu(
-                    actions = listOf(
+                    actions = listOfNotNull(
                         FabAction(Icons.Default.Share, stringResource(R.string.viewer_share)) {
                             sharePhotos(context, listOf(photos[pagerState.currentPage]))
                         },
+                        // Only for a shot with a RAW: hands it to a RAW editor or viewer.
+                        FabAction(Icons.Default.Edit, stringResource(R.string.viewer_open_raw)) {
+                            openRaws(context, listOf(photos[pagerState.currentPage]))
+                        }.takeIf { currentPhoto.rawUri != null },
                         FabAction(Icons.Default.Delete, stringResource(R.string.viewer_delete)) {
                             val photo = photos[pagerState.currentPage]
                             if (confirmDelete) pendingDelete = photo else onDelete(photo)

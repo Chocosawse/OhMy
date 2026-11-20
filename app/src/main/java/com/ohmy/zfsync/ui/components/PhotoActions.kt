@@ -15,13 +15,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -35,6 +37,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncedPhoto
@@ -48,8 +53,8 @@ import com.ohmy.zfsync.ui.theme.pressExpand
 
 /**
  * Floating pill of photo actions, shared by the viewer (over a black backdrop) and the list's
- * select mode (over the themed surface) -- hence the color parameters. [label], [onCancel] and [onMenu]
- * are optional extras the viewer doesn't need.
+ * select mode (over the themed surface) -- hence the color parameters. [label], [onRaw] and
+ * [onCancel] are optional extras; [onRaw] shows a RAW button (when the selection has RAWs).
  *
  * Toggling [visible] animates the pill itself: showing pops the capsule in while its items
  * cascade in from both ends toward the middle; hiding cascades them out from the middle and
@@ -65,8 +70,8 @@ fun ActionPill(
     visible: Boolean = true,
     pulseKey: Any? = null,
     label: String? = null,
+    onRaw: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null,
-    onMenu: (() -> Unit)? = null,
     containerColor: Color = MaterialTheme.colorScheme.secondaryContainer,
     contentColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
@@ -76,11 +81,11 @@ fun ActionPill(
         }
         add { PillButton(onShare, Icons.Default.Share, stringResource(R.string.viewer_share)) }
         add { PillButton(onDelete, Icons.Default.Delete, stringResource(R.string.viewer_delete)) }
+        if (onRaw != null) {
+            add { PillTextButton(onRaw, stringResource(R.string.select_raw), stringResource(R.string.select_raw_description)) }
+        }
         if (onCancel != null) {
             add { PillButton(onCancel, Icons.Default.Close, stringResource(R.string.select_cancel)) }
-        }
-        if (onMenu != null) {
-            add { PillButton(onMenu, Icons.Default.Menu, stringResource(R.string.select_menu)) }
         }
     }
     val last = items.lastIndex
@@ -147,6 +152,55 @@ private fun PillButton(onClick: () -> Unit, icon: ImageVector, contentDescriptio
         interactionSource = interactionSource,
     ) {
         Icon(icon, contentDescription = contentDescription)
+    }
+}
+
+/** A pill action shown as a word rather than an icon (there's no standard RAW icon), bold. */
+@Composable
+private fun PillTextButton(onClick: () -> Unit, text: String, contentDescription: String) {
+    val interactionSource = remember { MutableInteractionSource() }
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier
+            .pressExpand(interactionSource)
+            .semantics { this.contentDescription = contentDescription },
+        interactionSource = interactionSource,
+        colors = ButtonDefaults.textButtonColors(contentColor = LocalContentColor.current),
+    ) {
+        Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * Hands the photos' RAW files to an app that works with them (Lightroom, Snapseed, a RAW
+ * viewer...). One RAW opens with a chooser of apps that can view it; if none can (or for several
+ * RAWs), it's shared instead, which is how apps like Lightroom import ("Add to Lightroom").
+ */
+fun openRaws(context: Context, photos: List<SyncedPhoto>) {
+    val raws = photos.mapNotNull { it.rawUri }
+    if (raws.isEmpty()) return
+    val resolver = context.contentResolver
+    val single = raws.singleOrNull()
+    val view = single?.let { uri ->
+        Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, resolver.getType(uri) ?: "image/*")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    val intent = if (view != null && view.resolveActivity(context.packageManager) != null) {
+        view
+    } else {
+        Intent(if (raws.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE).apply {
+            if (raws.size == 1) putExtra(Intent.EXTRA_STREAM, raws.first()) else putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(raws))
+            // A shared MIME type when they all agree (e.g. all NEF), else any image.
+            type = raws.map { resolver.getType(it) }.distinct().singleOrNull() ?: "image/*"
+            clipData = ClipData.newRawUri(null, raws.first()).also { clip -> raws.drop(1).forEach { clip.addItem(ClipData.Item(it)) } }
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+    try {
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.raw_chooser_title)))
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, context.getString(R.string.sync_no_viewer_app), Toast.LENGTH_SHORT).show()
     }
 }
 

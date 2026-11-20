@@ -31,6 +31,9 @@ object FakeData {
 
     private val FAKE_ISOS = listOf(100, 200, 400, 800, 1600, 3200, 64)
 
+    /** Indices into [photos] shot RAW+JPEG. */
+    private val RAW_SHOTS = setOf(0, 4)
+
     /** The camera's clock at the first shot: local time, a little before [BASE_TIME_MILLIS]. */
     private val BASE_CAPTURE_TIME: LocalDateTime = LocalDateTime.of(2026, 11, 16, 13, 29, 45)
 
@@ -63,6 +66,8 @@ object FakeData {
             // Roughly a shot every 1.5 minutes, as in a real outing.
             savedAtMillis = BASE_TIME_MILLIS + i * 90_000L,
             uri = Uri.parse("content://media/external/images/media/${10_000 + number}"),
+            // A couple of RAW+JPEG shots, so lists and the viewer show their "+RAW" tag.
+            rawUri = if (i in RAW_SHOTS) Uri.parse("content://media/external/images/media/${20_000 + number}") else null,
             // The same body throughout, a spread of ISOs, and shutter times a little before each save.
             exposure = exposure?.copy(
                 iso = FAKE_ISOS[i % FAKE_ISOS.size],

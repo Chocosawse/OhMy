@@ -19,6 +19,8 @@ private fun SettingsScreenPreview(@PreviewParameter(ThemeChoiceProvider::class) 
             onCarouselStyleChange = {},
             confirmDelete = true,
             onConfirmDeleteChange = {},
+            downloadRaws = false,
+            onDownloadRawsChange = {},
             onClose = {},
         )
     }

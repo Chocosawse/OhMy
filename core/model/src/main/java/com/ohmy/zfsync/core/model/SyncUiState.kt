@@ -15,7 +15,16 @@ data class SyncedPhoto(
     val uri: Uri,
     /** Null when the photo has no readable exposure EXIF. */
     val exposure: ExposureInfo? = null,
-)
+    /**
+     * The shot's RAW file, if one was downloaded: a separate file when the camera saved a JPEG
+     * too (which is then [uri]), or [uri] itself for a RAW-only shot. The app shows a shot once,
+     * never its JPEG and RAW as two photos (see pairRawFiles).
+     */
+    val rawUri: Uri? = null,
+) {
+    /** A JPEG with its RAW alongside: what the "+RAW" tag marks. */
+    val hasSeparateRaw: Boolean get() = rawUri != null && rawUri != uri
+}
 
 data class SyncUiState(
     val connectionState: ConnectionState = ConnectionState.Disconnected,
