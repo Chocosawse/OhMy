@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 class CameraViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: CameraSyncRepository = (application as OhMyApplication).syncRepository
     private val themeStore = (application as OhMyApplication).themeStore
+    private val galleryPreferences = (application as OhMyApplication).galleryPreferences
 
     val state: StateFlow<SyncUiState> = repository.state
     val downloadStatus: StateFlow<DownloadStatus> = repository.downloadStatus
@@ -33,6 +34,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setTheme(choice: ThemeChoice) {
         themeStore.setPaletteName(choice.paletteName)
+    }
+
+    val filmStripCarousel: StateFlow<Boolean> = galleryPreferences.filmStripCarousel
+
+    fun setFilmStripCarousel(enabled: Boolean) {
+        galleryPreferences.setFilmStripCarousel(enabled)
     }
 
     fun connect(ssid: String, password: String) {

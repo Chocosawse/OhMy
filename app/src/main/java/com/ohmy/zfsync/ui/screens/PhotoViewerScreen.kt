@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -69,9 +71,12 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -84,8 +89,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -97,6 +109,7 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionPill
 import com.ohmy.zfsync.ui.components.sharePhotos
+import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.animatePop
 import com.ohmy.zfsync.ui.theme.cascadeDelayMillis
 import com.ohmy.zfsync.ui.theme.overshootSpec
@@ -122,6 +135,7 @@ fun PhotoViewerScreen(
     onDelete: (SyncedPhoto) -> Unit,
     onClose: () -> Unit,
     inFlightCount: Int = 0,
+    carouselStyle: CarouselStyle = CarouselStyle.Classic,
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
@@ -202,6 +216,7 @@ fun PhotoViewerScreen(
                 inFlightCount = inFlightCount,
                 currentIndex = pagerState.currentPage,
                 visible = controlsVisible,
+                style = carouselStyle,
                 // Instant, not animated: dragging the strip changes photo many times a second.
                 onSelect = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
             )
@@ -277,6 +292,9 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+/** The gallery carousel's look: v1 plain thumbnails, or v2 frames on a strip of film. */
+enum class CarouselStyle { Classic, FilmStrip }
+
 /**
  * Filmstrip of thumbnails: whichever thumbnail sits at the centre is the selected photo.
  * Dragging or flinging the strip scrolls through photos, snapping so a thumbnail always lands
@@ -291,6 +309,12 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
  * positions relative to page numbers, so photos are found by key (their URI), not position.
  * Toggling [visible] pops the on-screen items in from both ends toward the middle, or out from
  * the middle toward both ends; while hidden the strip keeps its space but ignores touches.
+ *
+ * [CarouselStyle.FilmStrip] (v2) draws the same strip as film: a dark base, each frame's slot
+ * drawing its own sprocket holes above and below plus a printed edge number. The slots share one
+ * hole spacing, so neighbours join into continuous perforated edges. It's all drawn (a few rects
+ * and one pre-measured label per slot), never laid out, so scrolling stays cheap. Hiding folds the
+ * strip shut after its frames cascade out; showing unfolds it first.
  */
 @Composable
 private fun CarouselIndicator(
@@ -298,8 +322,11 @@ private fun CarouselIndicator(
     inFlightCount: Int,
     currentIndex: Int,
     visible: Boolean,
+    style: CarouselStyle,
     onSelect: (Int) -> Unit,
 ) {
+    val film = style == CarouselStyle.FilmStrip
+    val textMeasurer = rememberTextMeasurer()
     val listState = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
     val latestPhotos by rememberUpdatedState(photos)
@@ -366,7 +393,30 @@ private fun CarouselIndicator(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(CarouselHeight)) {
+    // The film base and perforations fold shut once the frames have (mostly) cascaded out, and
+    // unfold before they cascade back in.
+    val lastFrameExitDelay =
+        if (onScreen.isEmpty()) 0 else cascadeDelayMillis(onScreen.first, onScreen.first, onScreen.last, showing = false)
+    val stripPop = animatePop(visible, if (visible) 0 else lastFrameExitDelay + MOTION_DURATION_MILLIS / 2)
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(if (film) FilmStripHeight else CarouselHeight)
+            .then(
+                if (film) {
+                    Modifier
+                        .graphicsLayer {
+                            val p = stripPop.value
+                            scaleY = p
+                            alpha = p.coerceIn(0f, 1f)
+                        }
+                        .background(FilmBase)
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
         // Half the strip on each side, so the first and last thumbnails can reach the centre.
         val sidePadding = ((maxWidth - ThumbnailSize) / 2).coerceAtLeast(0.dp)
         LazyRow(
@@ -382,12 +432,14 @@ private fun CarouselIndicator(
             // Cascade delays go by position in the strip, placeholders included.
             items(inFlightCount, key = { "placeholder-$it" }) { index ->
                 val placeholderPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
-                // Placeholders are always before the photos, so always on the selection's left.
-                PlaceholderThumbnail(
-                    Modifier
-                        .pop { placeholderPop.value }
-                        .graphicsLayer { translationX = -SelectionShift.toPx() },
-                )
+                CarouselSlot(film = film, frameNumber = null, textMeasurer = textMeasurer) {
+                    // Placeholders are always before the photos, so always on the selection's left.
+                    PlaceholderThumbnail(
+                        Modifier
+                            .pop { placeholderPop.value }
+                            .graphicsLayer { translationX = -SelectionShift.toPx() },
+                    )
+                }
             }
             itemsIndexed(photos, key = { _, photo -> photo.uri }) { index, photo ->
                 val selected = index == currentIndex
@@ -403,28 +455,85 @@ private fun CarouselIndicator(
                 )
                 val position = inFlightCount + index
                 val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
-                AsyncImage(
-                    model = photo.uri,
-                    contentDescription = photo.filename,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        // Above its neighbours in case they briefly overlap mid-animation.
-                        .zIndex(if (selected) 1f else 0f)
-                        .size(ThumbnailSize)
-                        .pop { thumbPop.value }
-                        .graphicsLayer {
-                            translationX = shift.toPx()
-                            scaleX = scale
-                            scaleY = scale
-                        }
-                        .then(
-                            // Thinner before scaling, so it's 2dp once the thumbnail is enlarged.
-                            if (selected) Modifier.border((2f / SelectedThumbnailScale).dp, Color.White) else Modifier,
-                        )
-                        .clickable(enabled = visible) { latestOnSelect(index) },
-                )
+                CarouselSlot(
+                    film = film,
+                    frameNumber = index + 1,
+                    textMeasurer = textMeasurer,
+                    // Above its neighbours in case they briefly overlap mid-animation.
+                    modifier = Modifier.zIndex(if (selected) 1f else 0f),
+                ) {
+                    AsyncImage(
+                        model = photo.uri,
+                        contentDescription = photo.filename,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(ThumbnailSize)
+                            .pop { thumbPop.value }
+                            .graphicsLayer {
+                                translationX = shift.toPx()
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .then(
+                                // Thinner before scaling, so it's 2dp once the thumbnail is enlarged.
+                                if (selected) Modifier.border((2f / SelectedThumbnailScale).dp, Color.White) else Modifier,
+                            )
+                            .clickable(enabled = visible) { latestOnSelect(index) },
+                    )
+                }
             }
         }
+    }
+}
+
+/**
+ * One carousel item's slot. Classic: just the thumbnail. Film strip: the frame's full-height
+ * stretch of film, drawing its sprocket holes and edge number behind the thumbnail. The edge
+ * number ([frameNumber], none for placeholders) is measured once and only drawn after that.
+ */
+@Composable
+private fun CarouselSlot(
+    film: Boolean,
+    frameNumber: Int?,
+    textMeasurer: TextMeasurer,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val slotModifier = if (film) {
+        val edgeLabel = remember(frameNumber, textMeasurer) {
+            frameNumber?.let { textMeasurer.measure(it.toString().padStart(2, '0'), FilmEdgeTextStyle) }
+        }
+        Modifier
+            .width(ThumbnailSize)
+            .fillMaxHeight()
+            .drawBehind { drawFilmEdges(edgeLabel) }
+    } else {
+        Modifier
+    }
+    Box(modifier = modifier.then(slotModifier), contentAlignment = Alignment.Center) { content() }
+}
+
+/**
+ * A frame's stretch of film edge: a row of sprocket holes above and below, spanning its slot and
+ * the gap after it, plus the printed edge number above the top row. Every slot spaces its holes
+ * the same, so neighbouring slots join into one continuous, evenly perforated edge.
+ */
+private fun DrawScope.drawFilmEdges(edgeLabel: TextLayoutResult?) {
+    val pitch = (ThumbnailSize + ThumbnailSpacing).toPx() / SPROCKETS_PER_FRAME
+    val holeWidth = SprocketWidth.toPx()
+    val holeHeight = SprocketHeight.toPx()
+    val corner = CornerRadius(SprocketCornerRadius.toPx())
+    val topRow = SprocketInset.toPx()
+    val bottomRow = size.height - topRow - holeHeight
+    // Fully qualified: this file also imports Coil's Size, for full-resolution loading.
+    val hole = androidx.compose.ui.geometry.Size(holeWidth, holeHeight)
+    repeat(SPROCKETS_PER_FRAME) { i ->
+        val x = i * pitch + (pitch - holeWidth) / 2
+        drawRoundRect(SprocketColor, Offset(x, topRow), hole, corner)
+        drawRoundRect(SprocketColor, Offset(x, bottomRow), hole, corner)
+    }
+    if (edgeLabel != null) {
+        drawText(edgeLabel, topLeft = Offset(EdgeLabelInset.toPx(), (topRow - edgeLabel.size.height) / 2f))
     }
 }
 
@@ -464,6 +573,24 @@ private val SelectionShift = (SelectedThumbnailSize - ThumbnailSize) / 2 + (Sele
 
 /** Leaves room above and below the current thumbnail for its grow animation to overshoot. */
 private val CarouselHeight = 60.dp
+
+// Film strip (v2): taller than the classic strip to fit the perforated edges around the frames.
+private val FilmStripHeight = 72.dp
+private const val SPROCKETS_PER_FRAME = 4
+private val SprocketWidth = 5.dp
+private val SprocketHeight = 4.dp
+private val SprocketCornerRadius = 1.dp
+/** Distance of each sprocket row from its edge of the strip; the edge number sits above the top row. */
+private val SprocketInset = 9.dp
+private val EdgeLabelInset = 2.dp
+private val FilmBase = Color(0xFF111111)
+private val SprocketColor = Color(0xFFE9E4D8)
+private val FilmEdgeTextStyle = TextStyle(
+    color = Color(0xCCE0A84A),
+    fontSize = 7.sp,
+    fontFamily = FontFamily.Monospace,
+    letterSpacing = 0.5.sp,
+)
 
 @Stable
 private class ZoomState {

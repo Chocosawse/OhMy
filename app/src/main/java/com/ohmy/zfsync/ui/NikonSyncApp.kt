@@ -24,10 +24,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.DownloadStatus
 import com.ohmy.zfsync.core.model.photosNewestFirst
+import com.ohmy.zfsync.ui.screens.CarouselStyle
 import com.ohmy.zfsync.ui.screens.ConnectScreen
 import com.ohmy.zfsync.ui.screens.PhotoViewerScreen
+import com.ohmy.zfsync.ui.screens.SettingsScreen
 import com.ohmy.zfsync.ui.screens.SyncScreen
-import com.ohmy.zfsync.ui.screens.ThemePickerScreen
 import com.ohmy.zfsync.ui.theme.overshootExitSpec
 import com.ohmy.zfsync.ui.theme.overshootSpec
 
@@ -44,9 +45,10 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val downloadStatus by viewModel.downloadStatus.collectAsState()
     val themeChoice by viewModel.themeChoice.collectAsState()
+    val filmStripCarousel by viewModel.filmStripCarousel.collectAsState()
     // Saveable: rotation recreates the activity, and an open gallery or theme picker must survive it.
     var viewerIndex by rememberSaveable { mutableStateOf<Int?>(null) }
-    var showThemePicker by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -63,6 +65,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                         onDelete = { photo -> viewModel.deletePhotos(listOf(photo.uri)) },
                         onClose = { viewerIndex = null },
                         inFlightCount = (downloadStatus as? DownloadStatus.Downloading)?.count ?: 0,
+                        carouselStyle = if (filmStripCarousel) CarouselStyle.FilmStrip else CarouselStyle.Classic,
                     )
                 }
                 connected != null -> SyncScreen(
@@ -74,7 +77,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onDisconnect = viewModel::disconnect,
                     onPhotoClick = { index -> viewerIndex = index },
                     onDeletePhotos = viewModel::deletePhotos,
-                    onOpenMenu = { showThemePicker = true },
+                    onOpenMenu = { showSettings = true },
                     modifier = Modifier.windowInsetsPadding(ScreenInsets),
                 )
                 else -> ConnectScreen(
@@ -83,7 +86,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onConnect = viewModel::connect,
                     onPhotoClick = { index -> viewerIndex = index },
                     onDeletePhotos = viewModel::deletePhotos,
-                    onOpenMenu = { showThemePicker = true },
+                    onOpenMenu = { showSettings = true },
                     modifier = Modifier.windowInsetsPadding(ScreenInsets),
                 )
             }
@@ -91,14 +94,16 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
             // Drawn over the screen that opened it rather than replacing it, so that screen (and its
             // photo selection) is still there underneath when the picker closes.
             AnimatedVisibility(
-                visible = showThemePicker,
+                visible = showSettings,
                 enter = scaleIn(overshootSpec(), initialScale = 0.92f) + fadeIn(overshootSpec()),
                 exit = scaleOut(overshootExitSpec(), targetScale = 0.92f) + fadeOut(overshootExitSpec()),
             ) {
-                ThemePickerScreen(
-                    current = themeChoice,
-                    onSelect = viewModel::setTheme,
-                    onClose = { showThemePicker = false },
+                SettingsScreen(
+                    currentTheme = themeChoice,
+                    onSelectTheme = viewModel::setTheme,
+                    filmStripCarousel = filmStripCarousel,
+                    onFilmStripCarouselChange = viewModel::setFilmStripCarousel,
+                    onClose = { showSettings = false },
                 )
             }
         }

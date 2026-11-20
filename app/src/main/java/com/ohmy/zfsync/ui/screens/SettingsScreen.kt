@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -22,12 +23,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
@@ -36,13 +39,16 @@ import com.ohmy.zfsync.ui.theme.paletteName
 import com.ohmy.zfsync.ui.theme.systemColorScheme
 
 /**
- * Full-screen theme picker. Choosing a theme applies it app-wide straight away (this screen
- * recolors too), so the list doubles as a live preview; back or the arrow closes it.
+ * Full-screen settings: the color theme and gallery options. Choosing a theme applies it app-wide
+ * straight away (this screen recolors too), so the list doubles as a live preview; back or the
+ * arrow closes it.
  */
 @Composable
-fun ThemePickerScreen(
-    current: ThemeChoice,
-    onSelect: (ThemeChoice) -> Unit,
+fun SettingsScreen(
+    currentTheme: ThemeChoice,
+    onSelectTheme: (ThemeChoice) -> Unit,
+    filmStripCarousel: Boolean,
+    onFilmStripCarouselChange: (Boolean) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -57,14 +63,56 @@ fun ThemePickerScreen(
                 IconButton(onClick = onClose) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.theme_close))
                 }
-                Text(stringResource(R.string.theme_title), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge)
             }
             LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item(key = "header-theme") { SettingsSectionHeader(stringResource(R.string.settings_section_theme)) }
                 items(ThemeChoice.all, key = { it.paletteName ?: "system" }) { choice ->
-                    ThemeRow(choice = choice, selected = choice == current, onClick = { onSelect(choice) })
+                    ThemeRow(choice = choice, selected = choice == currentTheme, onClick = { onSelectTheme(choice) })
+                }
+                item(key = "header-gallery") { SettingsSectionHeader(stringResource(R.string.settings_section_gallery)) }
+                item(key = "film-strip") {
+                    SwitchRow(
+                        title = stringResource(R.string.settings_film_strip),
+                        summary = stringResource(R.string.settings_film_strip_summary),
+                        checked = filmStripCarousel,
+                        onCheckedChange = onFilmStripCarouselChange,
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ScreenHorizontalPadding)
+            .padding(top = 24.dp, bottom = 8.dp),
+    )
+}
+
+/** A setting toggled by tapping anywhere on the row; the switch shows the state. */
+@Composable
+private fun SwitchRow(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(horizontal = ScreenHorizontalPadding, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 

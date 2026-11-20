@@ -36,3 +36,19 @@ private fun PhotoViewerScreenDownloadingPreview() {
         )
     }
 }
+
+/** The v2 film strip carousel, with a download in flight at its front. */
+@Preview
+@Composable
+private fun PhotoViewerScreenFilmStripPreview() {
+    OhMyTheme {
+        PhotoViewerScreen(
+            photos = FakeData.States.connected.photosNewestFirst(),
+            initialIndex = 2,
+            onDelete = {},
+            onClose = {},
+            inFlightCount = 1,
+            carouselStyle = CarouselStyle.FilmStrip,
+        )
+    }
+}
