@@ -182,10 +182,12 @@ fun PhotoViewerScreen(
     LaunchedEffect(currentZoomedOut) { controlsVisible = currentZoomedOut }
     StatusBarHidden(hidden = !controlsVisible)
 
-    // Height of the bottom controls (pill + carousel, with their margin and the nav bar inset). At
-    // 1x the photo is kept clear of them, so they never cover it. Hiding the controls only scales them in the draw layer, so this doesn't change as
-    // they hide and show, and the photo doesn't jump.
+    // Height of the carousel up from the bottom of the screen (with its margin and the nav bar
+    // inset). At 1x the photo is kept clear of it, so it never covers the photo; the action pill
+    // above it may still sit over the photo. Hiding the controls only scales them in the draw
+    // layer, so this doesn't change as they hide and show, and the photo doesn't jump.
     var controlsHeightPx by remember { mutableIntStateOf(0) }
+    var pillHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -197,7 +199,7 @@ fun PhotoViewerScreen(
             ZoomableImage(
                 photos[page],
                 zoomStateFor(photos[page]),
-                bottomReserved = with(density) { controlsHeightPx.toDp() },
+                bottomReserved = with(density) { controlsHeightPx.toDp() - pillHeightPx.toDp() } - PillCarouselSpacing,
                 onTap = { controlsVisible = !controlsVisible },
             )
         }
@@ -220,7 +222,8 @@ fun PhotoViewerScreen(
         }
 
         Column(
-            // Measured outside the insets and margin, so the reserved space includes them.
+            // Measured outside the insets and margin, so the reserved space includes them; the pill
+            // and the space under it are then taken off, leaving the carousel's share.
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .onSizeChanged { controlsHeightPx = it.height }
@@ -235,8 +238,9 @@ fun PhotoViewerScreen(
                 onDelete = { pendingDelete = photos[pagerState.currentPage] },
                 containerColor = Color.White.copy(alpha = 0.2f),
                 contentColor = Color.White,
+                modifier = Modifier.onSizeChanged { pillHeightPx = it.height },
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(PillCarouselSpacing))
             CarouselIndicator(
                 photos = photos,
                 inFlightCount = inFlightCount,
@@ -681,6 +685,8 @@ private class ZoomState {
         offset = Offset.Zero
     }
 }
+
+private val PillCarouselSpacing = 16.dp
 
 /** Double-tap zooms to at least this; more if that's what it takes for the photo to fill the screen. */
 private const val DOUBLE_TAP_ZOOM = 2f
