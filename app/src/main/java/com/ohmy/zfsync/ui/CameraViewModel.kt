@@ -45,6 +45,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         galleryPreferences.setCarouselStyle(style.key)
     }
 
+    val confirmDelete: StateFlow<Boolean> = galleryPreferences.confirmDelete
+
+    fun setConfirmDelete(confirm: Boolean) {
+        galleryPreferences.setConfirmDelete(confirm)
+    }
+
     fun connect(ssid: String, password: String) {
         viewModelScope.launch {
             repository.connect(ssid, password)

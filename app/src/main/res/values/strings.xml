@@ -40,6 +40,7 @@
     <string name="viewer_delete_dialog_text">This removes it from your phone. This can\'t be undone.</string>
     <string name="viewer_delete_confirm">Delete</string>
     <string name="viewer_delete_cancel">Cancel</string>
+    <string name="viewer_delete_dont_ask_again">Don\'t ask again</string>
 
     <string name="select_cancel">Cancel selection</string>
     <string name="select_menu">Menu</string>
@@ -53,6 +54,8 @@
     <string name="settings_carousel_film_strip_summary">Frames on a black strip of film, as negatives</string>
     <string name="settings_carousel_amber_film">Amber film (v3)</string>
     <string name="settings_carousel_amber_film_summary">Frames on translucent amber film, as negatives</string>
+    <string name="settings_confirm_delete">Confirm before deleting</string>
+    <string name="settings_confirm_delete_summary">Ask before deleting a photo from the gallery</string>
     <string name="theme_system">System (Material You)</string>
     <string name="theme_close">Close</string>
 

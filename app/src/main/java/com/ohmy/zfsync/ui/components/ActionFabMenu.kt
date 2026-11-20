@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -69,7 +70,7 @@ private const val ACTION_HOVER_SCALE = 1.08f
 private const val ACTION_CASCADE_STEP_MILLIS = 50
 
 private val FabSize = 56.dp
-private val FabShape = RoundedCornerShape(16.dp)
+private val FabShape = CircleShape
 
 /**
  * A speed dial (Material's "FAB menu"): a FAB that opens a short stack of [actions] above it.
