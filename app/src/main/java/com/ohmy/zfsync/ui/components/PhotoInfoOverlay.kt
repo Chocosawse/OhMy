@@ -34,6 +34,9 @@ import com.ohmy.zfsync.ui.theme.MonoFontFamily
 /** The boxes' fill: dark enough to read over any photo, light enough to stay part of it. */
 private val InfoBoxColor = Color.Black.copy(alpha = 0.72f)
 
+/** The two left-hand boxes (title and exposure), larger, so a little lighter on the photo. */
+private val LightInfoBoxColor = Color.Black.copy(alpha = 0.62f)
+
 /** Contrast the info text keeps against its box, even with the box over a white sky. */
 private const val INFO_TEXT_CONTRAST = 4.5f
 
@@ -43,11 +46,11 @@ private const val INFO_TEXT_CONTRAST = 4.5f
  * becomes a light tint of itself.
  */
 @Composable
-private fun infoTextColor(): Color {
+private fun infoTextColor(box: Color): Color {
     val primary = MaterialTheme.colorScheme.primary
-    return remember(primary) {
+    return remember(primary, box) {
         // The worst case: the translucent box over a pure white part of the photo.
-        val background = InfoBoxColor.compositeOver(Color.White)
+        val background = box.compositeOver(Color.White)
         (0..10).asSequence()
             .map { lerp(primary, Color.White, it / 10f) }
             .firstOrNull { contrast(it, background) >= INFO_TEXT_CONTRAST } ?: Color.White
@@ -67,14 +70,14 @@ private val SmallMono = TextStyle(fontFamily = MonoFontFamily, fontSize = 12.sp,
  */
 @Composable
 fun PhotoTitleCard(filename: String, exposure: ExposureInfo?, modifier: Modifier = Modifier) {
-    val color = infoTextColor()
+    val color = infoTextColor(LightInfoBoxColor)
     Column(modifier = modifier.fitWidth()) {
         Text(
             filename,
             style = SmallMono,
             color = color,
             maxLines = 1,
-            modifier = Modifier.background(InfoBoxColor).padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.background(LightInfoBoxColor).padding(horizontal = 8.dp, vertical = 4.dp),
         )
         exposure?.cameraAndLens()?.let { gear ->
             Text(
@@ -82,7 +85,7 @@ fun PhotoTitleCard(filename: String, exposure: ExposureInfo?, modifier: Modifier
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
                 color = color,
                 maxLines = 1,
-                modifier = Modifier.background(InfoBoxColor).padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.background(LightInfoBoxColor).padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
     }
@@ -103,20 +106,20 @@ fun ExposureCard(exposure: ExposureInfo?, labels: ExposureLabels, modifier: Modi
         )
     }.orEmpty()
     if (readings.isEmpty()) return
-    val color = infoTextColor()
+    val color = infoTextColor(LightInfoBoxColor)
     Row(
         modifier = modifier
             .fitWidth()
-            .background(InfoBoxColor)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+            .background(LightInfoBoxColor)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         for ((label, value) in readings) {
             Column {
-                Text(label, style = SmallMono.copy(fontSize = 11.sp), color = color.copy(alpha = 0.7f), maxLines = 1)
+                Text(label, style = SmallMono.copy(fontSize = 10.sp, lineHeight = 14.sp), color = color.copy(alpha = 0.7f), maxLines = 1)
                 Text(
                     value,
-                    style = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold, fontSize = 26.sp, lineHeight = 30.sp),
+                    style = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 24.sp),
                     color = color,
                     maxLines = 1,
                 )
@@ -134,7 +137,7 @@ fun CaptureTimeTag(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
         style = SmallMono,
-        color = infoTextColor(),
+        color = infoTextColor(InfoBoxColor),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
