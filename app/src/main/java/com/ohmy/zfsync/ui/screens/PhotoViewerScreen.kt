@@ -139,10 +139,15 @@ import coil.size.Size
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionFabMenu
+import com.ohmy.zfsync.ui.components.CaptureTimeTag
+import com.ohmy.zfsync.ui.components.ExposureCard
+import com.ohmy.zfsync.ui.components.ExposureLabels
 import com.ohmy.zfsync.ui.components.FabAction
 import com.ohmy.zfsync.ui.components.PhotoGeometry
+import com.ohmy.zfsync.ui.components.PhotoTitleCard
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
 import com.ohmy.zfsync.ui.components.croppedGeometry
+import com.ohmy.zfsync.ui.components.formatCaptureTime
 import com.ohmy.zfsync.ui.components.sharePhotos
 import com.ohmy.zfsync.ui.components.viewerGeometry
 import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
@@ -152,6 +157,9 @@ import com.ohmy.zfsync.ui.theme.layerScale
 import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.photoTransitionSpec
 import com.ohmy.zfsync.ui.theme.pop
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -355,12 +363,53 @@ fun PhotoViewerScreen(
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
 
+        // The current photo's floating info, shown and hidden with the other controls.
+        val currentPhoto = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
+        val infoPop = animatePop(controlsShown)
+        val barInsets = WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility)
+        PhotoTitleCard(
+            filename = currentPhoto.filename,
+            exposure = currentPhoto.exposure,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .windowInsetsPadding(barInsets)
+                // Under the close button, and clear of the capture time on the right.
+                .padding(start = 16.dp, top = 64.dp, end = 56.dp)
+                .pop { infoPop.value },
+        )
+        CaptureTimeTag(
+            // The camera's own clock; files without it fall back to when the app saved them.
+            text = formatCaptureTime(
+                currentPhoto.exposure?.capturedAt
+                    ?: LocalDateTime.ofInstant(Instant.ofEpochMilli(currentPhoto.savedAtMillis), ZoneId.systemDefault()),
+            ),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(barInsets)
+                .padding(top = 16.dp, end = 16.dp)
+                .pop { infoPop.value },
+        )
+
         Column(
             modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Docked bottom-right, just above the carousel; its actions open upward over the photo.
             Box(modifier = Modifier.fillMaxWidth()) {
+                // Bottom-left, level with the FAB and kept clear of it (16 + 56 + 16dp).
+                ExposureCard(
+                    exposure = currentPhoto.exposure,
+                    labels = ExposureLabels(
+                        focalLength = stringResource(R.string.viewer_exposure_focal_length),
+                        aperture = stringResource(R.string.viewer_exposure_aperture),
+                        shutter = stringResource(R.string.viewer_exposure_shutter),
+                        iso = stringResource(R.string.viewer_exposure_iso),
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 16.dp, end = 88.dp)
+                        .pop { infoPop.value },
+                )
                 ActionFabMenu(
                     actions = listOf(
                         FabAction(Icons.Default.Share, stringResource(R.string.viewer_share)) {

@@ -7,6 +7,7 @@ import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
+import java.time.LocalDateTime
 
 /**
  * Canned app data shared by Compose previews, unit tests and snapshot tests, and later by a fake
@@ -27,6 +28,11 @@ object FakeData {
     private const val BASE_TIME_MILLIS = 1_794_864_600_000L
 
     private const val LENS_40 = "NIKKOR Z 40mm f/2 SE"
+
+    private val FAKE_ISOS = listOf(100, 200, 400, 800, 1600, 3200, 64)
+
+    /** The camera's clock at the first shot: local time, a little before [BASE_TIME_MILLIS]. */
+    private val BASE_CAPTURE_TIME: LocalDateTime = LocalDateTime.of(2026, 11, 16, 13, 29, 45)
 
     /**
      * One per photo in [photos]. Covers full EXIF, a lens that recorded no name, a manual (non-CPU)
@@ -57,7 +63,12 @@ object FakeData {
             // Roughly a shot every 1.5 minutes, as in a real outing.
             savedAtMillis = BASE_TIME_MILLIS + i * 90_000L,
             uri = Uri.parse("content://media/external/images/media/${10_000 + number}"),
-            exposure = exposure,
+            // The same body throughout, a spread of ISOs, and shutter times a little before each save.
+            exposure = exposure?.copy(
+                iso = FAKE_ISOS[i % FAKE_ISOS.size],
+                cameraName = "NIKON Z f",
+                capturedAt = BASE_CAPTURE_TIME.plusSeconds(i * 90L),
+            ),
         )
     }
 

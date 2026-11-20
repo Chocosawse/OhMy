@@ -50,4 +50,18 @@ class ExposureFormattingTest {
     fun `is null when nothing is known`() {
         assertNull(ExposureInfo().toDisplayString())
     }
+
+    @Test
+    fun `camera and lens joined, or whichever is known`() {
+        assertEquals("NIKON Z f • Zuiko 90mm f/2", ExposureInfo(cameraName = "NIKON Z f", lensName = "Zuiko 90mm f/2").cameraAndLens())
+        assertEquals("NIKON Z f", ExposureInfo(cameraName = "NIKON Z f").cameraAndLens())
+        assertNull(ExposureInfo(aperture = 2.0).cameraAndLens())
+    }
+
+    @Test
+    fun `viewer readout formats`() {
+        assertEquals("90mm", formatFocalLength(90.0))
+        assertEquals("f/3.2", formatAperture(3.2))
+        assertEquals("1/60 s", formatShutterSpeed(1.0 / 60))
+    }
 }

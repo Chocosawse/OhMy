@@ -35,6 +35,11 @@
     <string name="viewer_share_chooser_title">Share photo</string>
     <string name="viewer_delete">Delete</string>
     <string name="viewer_actions">Photo actions</string>
+    <!-- Column labels over the viewer's exposure readout. -->
+    <string name="viewer_exposure_focal_length">FOCAL</string>
+    <string name="viewer_exposure_aperture">APERTURE</string>
+    <string name="viewer_exposure_shutter">SHUTTER</string>
+    <string name="viewer_exposure_iso">ISO</string>
     <string name="viewer_actions_close">Close photo actions</string>
     <string name="viewer_delete_dialog_title">Delete this photo?</string>
     <string name="viewer_delete_dialog_text">This removes it from your phone. This can\'t be undone.</string>
