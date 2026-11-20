@@ -55,7 +55,6 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
@@ -401,8 +400,9 @@ fun PhotoViewerScreen(
                 .pop { closePop.value },
         ) {
             Icon(
-                // Filled while the info shows, outlined while it's hidden.
-                if (showInfo) Icons.Filled.Info else Icons.Outlined.Info,
+                // Always outlined, matching the close button's line weight; the info itself showing
+                // or not is the state.
+                Icons.Outlined.Info,
                 contentDescription = stringResource(if (showInfo) R.string.viewer_hide_info else R.string.viewer_show_info),
                 tint = Color.White,
             )
