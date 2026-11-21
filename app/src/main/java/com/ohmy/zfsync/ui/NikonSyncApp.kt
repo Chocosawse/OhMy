@@ -201,6 +201,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     carouselStyle = carouselStyle,
                     // The system asks before deleting another app's photo; asking first too would be twice.
                     confirmDelete = false,
+                    systemConfirmsDelete = true,
                     showInfo = showPhotoInfo,
                     onShowInfoChange = viewModel::setShowPhotoInfo,
                     dateStyle = dateStyle,

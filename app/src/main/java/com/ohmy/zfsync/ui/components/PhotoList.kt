@@ -74,7 +74,9 @@ import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.core.model.photosNewestFirst
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
+import com.ohmy.zfsync.ui.theme.fadeSpec
 import com.ohmy.zfsync.ui.theme.onSurfaceTertiary
+import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.pressExpand
 import java.text.DateFormat
 import java.util.Date
@@ -192,6 +194,15 @@ fun PhotoList(
             contentPadding = PaddingValues(bottom = bottomInset + if (selectMode) PillClearance else 0.dp),
         ) {
             items(entries, key = { it.key }, contentType = { it.contentType }) { entry ->
+                // Deleted rows fade out while the ones below slide up into their place; arrivals
+                // fade in and push the rest along.
+                Column(
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = fadeSpec(),
+                        placementSpec = overshootSpec(),
+                        fadeOutSpec = fadeSpec(),
+                    ),
+                ) {
                 when (entry) {
                     // The list's first header carries the way to the device's other albums.
                     is ListEntry.Header -> SectionHeader(
@@ -220,6 +231,7 @@ fun PhotoList(
                         )
                         RowDivider()
                     }
+                }
                 }
             }
         }
