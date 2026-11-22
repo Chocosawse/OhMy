@@ -78,6 +78,7 @@ class PhotoViewerActivity : ComponentActivity() {
                             carouselStyle = CarouselStyle.fromKey(carouselStyleKey),
                             // The system asks before deleting another app's photo.
                             confirmDelete = false,
+                            systemConfirmsDelete = true,
                             showInfo = showInfo,
                             onShowInfoChange = app.galleryPreferences::setShowPhotoInfo,
                             ownsPhotos = false,

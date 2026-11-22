@@ -177,6 +177,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Full-screen, swipeable viewer over the photos this app has downloaded -- built in-app rather
@@ -204,6 +205,7 @@ fun PhotoViewerScreen(
     canDelete: Boolean = true,
     loadExposure: (suspend (Uri) -> ExposureInfo?)? = null,
     dateStyle: DateStyle = DateStyle.Imprint,
+    systemConfirmsDelete: Boolean = false,
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
@@ -334,6 +336,49 @@ fun PhotoViewerScreen(
     var actionsExpanded by remember { mutableStateOf(false) }
     StatusBarHidden(hidden = entered && !controlsVisible)
 
+    // --- Animated deletes ---
+    // The deleted photo shrinks and fades (its carousel frame rising away with it); once the
+    // album has dropped it, the photo that takes its place slides in. Not for deletes the system
+    // confirms (other apps' photos): the user may still cancel there, so they aren't animated.
+    var deletingUri by remember { mutableStateOf<Uri?>(null) }
+    val deleteExit = remember { Animatable(0f) }
+    var arrivingUri by remember { mutableStateOf<Uri?>(null) }
+    var arrivingFrom by remember { mutableStateOf(1) }
+    val arrival = remember { Animatable(1f) }
+
+    fun deletePhoto(photo: SyncedPhoto) {
+        if (systemConfirmsDelete) {
+            onDelete(photo)
+            return
+        }
+        if (deletingUri != null) return
+        val index = latestPhotos.indexOfFirst { it.uri == photo.uri }
+        // The next photo takes its place, or the previous one if it was the last.
+        val after = latestPhotos.getOrNull(index + 1)
+        val next = after ?: latestPhotos.getOrNull(index - 1)
+        arrivingFrom = if (after != null) 1 else -1
+        deletingUri = photo.uri
+        coroutineScope.launch {
+            deleteExit.snapTo(0f)
+            deleteExit.animateTo(1f, fadeSpec())
+            arrivingUri = next?.uri
+            arrival.snapTo(0f)
+            onDelete(photo)
+            val removed = withTimeoutOrNull(DELETE_TIMEOUT_MILLIS) {
+                snapshotFlow { latestPhotos.none { it.uri == photo.uri } }.first { it }
+            }
+            deletingUri = null
+            deleteExit.snapTo(0f)
+            if (removed != null && arrivingUri != null) {
+                arrival.animateTo(1f, fadeSpec())
+            } else {
+                // Not deleted after all (it failed): put it back as it was.
+                arrival.snapTo(1f)
+            }
+            arrivingUri = null
+        }
+    }
+
     // Photos from other albums arrive without EXIF (thousands of file reads up front), so it's
     // read as each one comes up, once (below), and kept here.
     val loadedExposures = remember { mutableStateMapOf<Uri, ExposureInfo?>() }
@@ -365,15 +410,33 @@ fun PhotoViewerScreen(
             // to rather than as they slide in.
             beyondViewportPageCount = 1,
         ) { page ->
-            ZoomableImage(
-                photos[page],
-                zoomStateFor(photos[page]),
-                // With the actions open, a tap on the photo just closes them.
-                onTap = { if (actionsExpanded) actionsExpanded = false else controlsVisible = !controlsVisible },
-                // Only with the camera's own capture time: no clock, no imprint.
-                imprint = exposureOf(photos[page])?.capturedAt?.takeIf { dateStyle == DateStyle.Imprint }?.let(::formatDateImprint),
-                imprintAlpha = { infoAlpha.value },
-            )
+            val pageUri = photos[page].uri
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Deleting: this photo shrinks and fades away. Arriving after a delete: this
+                    // one slides in from the side it was on. Draw phase only.
+                    .graphicsLayer {
+                        if (pageUri == deletingUri) {
+                            val gone = deleteExit.value
+                            alpha = 1f - gone
+                            scaleX = 1f - DELETE_SHRINK * gone
+                            scaleY = 1f - DELETE_SHRINK * gone
+                        } else if (pageUri == arrivingUri) {
+                            translationX = (1f - arrival.value) * size.width * arrivingFrom
+                        }
+                    },
+            ) {
+                ZoomableImage(
+                    photos[page],
+                    zoomStateFor(photos[page]),
+                    // With the actions open, a tap on the photo just closes them.
+                    onTap = { if (actionsExpanded) actionsExpanded = false else controlsVisible = !controlsVisible },
+                    // Only with the camera's own capture time: no clock, no imprint.
+                    imprint = exposureOf(photos[page])?.capturedAt?.takeIf { dateStyle == DateStyle.Imprint }?.let(::formatDateImprint),
+                    imprintAlpha = { infoAlpha.value },
+                )
+            }
         }
 
         flight?.let { FlyingPhoto(it, progress) }
@@ -476,6 +539,8 @@ fun PhotoViewerScreen(
                 currentIndex = pagerState.currentPage,
                 visible = controlsShown,
                 style = carouselStyle,
+                exitingKey = deletingUri,
+                exitProgress = { deleteExit.value },
                 // Instant, not animated: dragging the strip changes photo many times a second.
                 onSelect = { index -> coroutineScope.launch { pagerState.scrollToPage(index) } },
             )
@@ -520,7 +585,7 @@ fun PhotoViewerScreen(
                 }.takeIf { currentPhoto.rawUri != null },
                 FabAction(Icons.Default.Delete, stringResource(R.string.viewer_delete)) {
                     val photo = photos[pagerState.currentPage]
-                    if (confirmDelete) pendingDelete = photo else onDelete(photo)
+                    if (confirmDelete) pendingDelete = photo else deletePhoto(photo)
                 }.takeIf { canDelete },
             ),
             expanded = actionsExpanded,
@@ -570,7 +635,7 @@ fun PhotoViewerScreen(
                 TextButton(onClick = {
                     if (dontAskAgain) onConfirmDeleteChange(false)
                     // The live album drops it, and the pager moves to a neighbouring photo.
-                    onDelete(photo)
+                    deletePhoto(photo)
                     pendingDelete = null
                 }) { Text(stringResource(R.string.viewer_delete_confirm)) }
             },
@@ -678,6 +743,8 @@ private fun CarouselIndicator(
     visible: Boolean,
     style: CarouselStyle,
     onSelect: (Int) -> Unit,
+    exitingKey: Any? = null,
+    exitProgress: () -> Float = { 0f },
 ) {
     val film = style.filmLook
     val textMeasurer = rememberTextMeasurer()
@@ -745,15 +812,27 @@ private fun CarouselIndicator(
     // animations, started at different moments while scrolling, would open gaps between them.
     val selectionPosition = remember { Animatable(currentIndex.toFloat()) }
     val selectedKey = remember { arrayOfNulls<Any>(1) }
-    LaunchedEffect(currentIndex) {
-        val key = latestPhotos.getOrNull(currentIndex)?.uri
-        if (key != null && key == selectedKey[0]) {
+    val currentKey = photos.getOrNull(currentIndex)?.uri
+    LaunchedEffect(currentIndex, currentKey) {
+        val previous = selectedKey[0]
+        when {
             // Same photo at a new index (a photo arrived ahead of it): no movement to show.
-            selectionPosition.snapTo(currentIndex.toFloat())
-        } else {
-            selectionPosition.animateTo(currentIndex.toFloat(), overshootSpec())
+            currentKey != null && currentKey == previous -> selectionPosition.snapTo(currentIndex.toFloat())
+            // The selected photo was deleted: the selection already moved on while its frame rose
+            // away (below), so just settle at the new index the album gives its successor.
+            previous != null && latestPhotos.none { it.uri == previous } -> selectionPosition.snapTo(currentIndex.toFloat())
+            else -> selectionPosition.animateTo(currentIndex.toFloat(), overshootSpec())
         }
-        selectedKey[0] = key
+        selectedKey[0] = currentKey
+    }
+    // While the selected frame rises away on a delete, the selection glides on to the frame that
+    // takes its place, which grows into it.
+    LaunchedEffect(exitingKey) {
+        val exiting = exitingKey ?: return@LaunchedEffect
+        val index = latestPhotos.indexOfFirst { it.uri == exiting }
+        if (index < 0) return@LaunchedEffect
+        val successor = if (index + 1 <= latestPhotos.lastIndex) index + 1 else index - 1
+        if (successor >= 0) selectionPosition.animateTo(successor.toFloat(), fadeSpec())
     }
 
     // Which thumbnails are on screen when the toggle happens decides each one's cascade delay.
@@ -814,6 +893,7 @@ private fun CarouselIndicator(
                     // Placeholders are always before the photos, so always on the selection's left.
                     shift = { -SelectionShift },
                     leadsStrip = index == 0,
+                    modifier = Modifier.animateItem(fadeInSpec = null, placementSpec = fadeSpec(), fadeOutSpec = null),
                 ) {
                     PlaceholderThumbnail(Modifier.pop { placeholderPop.value })
                 }
@@ -862,11 +942,26 @@ private fun CarouselIndicator(
                     frameScale = { thumbPop.value.coerceAtLeast(0f) * scale() },
                     leadsStrip = inFlightCount == 0 && index == 0,
                     endsStrip = index == photos.lastIndex,
-                    // Above its neighbours in case they briefly overlap mid-animation.
-                    modifier = Modifier.zIndex(if (selected) 1f else 0f),
+                    // Above its neighbours in case they briefly overlap mid-animation. Frames slide
+                    // over to close the gap a deleted one leaves (and make room for arrivals).
+                    modifier = Modifier
+                        .zIndex(if (selected) 1f else 0f)
+                        .animateItem(fadeInSpec = null, placementSpec = fadeSpec(), fadeOutSpec = null),
                 ) {
                     Box(
                         modifier = Modifier
+                            // Deleting: the frame rises off the strip and fades.
+                            .then(
+                                if (photo.uri == exitingKey) {
+                                    Modifier.graphicsLayer {
+                                        val gone = exitProgress()
+                                        translationY = -gone * CarouselExitRise.toPx()
+                                        alpha = 1f - gone
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            )
                             .size(ThumbnailSize)
                             .pop { thumbPop.value }
                             .graphicsLayer {
@@ -1255,6 +1350,15 @@ private class ZoomState {
         offset = Offset.Zero
     }
 }
+
+/** A deleted photo shrinks by this much (of its size) as it fades away. */
+private const val DELETE_SHRINK = 0.15f
+
+/** How long a delete may take to show up in the album before the photo is put back. */
+private const val DELETE_TIMEOUT_MILLIS = 3_000L
+
+/** How far a deleted photo's carousel frame rises as it fades. */
+private val CarouselExitRise = 24.dp
 
 /** Behind the FAB's open actions: everything else, dimmed. */
 private val ActionsDimColor = Color.Black.copy(alpha = 0.3f)
