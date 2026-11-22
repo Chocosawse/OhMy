@@ -240,6 +240,7 @@ private fun PhotoCell(
         }
     }
     val interactionSource = remember { MutableInteractionSource() }
+    val selectedScale = animateSelectedScale(isSelected)
     Box(
         modifier = modifier
             .then(if (inFlight) Modifier.expandAndFade { photoTransition!!.progress.value } else Modifier)
@@ -270,6 +271,8 @@ private fun PhotoCell(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
+                // Shrinks while selected, inside the cell's tile color; the badge keeps its size.
+                .scaled(selectedScale)
                 .then(
                     if (photoTransition == null) {
                         Modifier
@@ -293,7 +296,7 @@ private fun PhotoCell(
                 ),
         )
         if (isSelected) {
-            Box(Modifier.fillMaxSize().background(colors.ink.copy(alpha = SELECTED_SCRIM_ALPHA)))
+            Box(Modifier.fillMaxSize().scaled(selectedScale).background(colors.ink.copy(alpha = SELECTED_SCRIM_ALPHA)))
             SelectedBadge(Modifier.align(Alignment.TopEnd).padding(8.dp))
         }
     }
