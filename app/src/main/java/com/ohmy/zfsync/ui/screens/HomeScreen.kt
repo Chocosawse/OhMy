@@ -158,8 +158,8 @@ private const val CARD_COLLAPSE_DELAY_MILLIS = 600L
 
 private const val CARD_MOTION_MILLIS = 200
 /** Switching layout: the old one fades out, then the new one fades in. */
-private const val LAYOUT_FADE_OUT_MILLIS = 90
-private const val LAYOUT_FADE_IN_MILLIS = 210
+private const val LAYOUT_FADE_OUT_MILLIS = 200
+private const val LAYOUT_FADE_IN_MILLIS = 350
 
 /** The glyph's inset in a 48dp touch target, for lining up an icon's edge with the content edge. */
 private fun glyphInset(glyph: Float) = ((48f - glyph) / 2f).dp
