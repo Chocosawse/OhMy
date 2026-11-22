@@ -100,11 +100,9 @@ private val ThumbnailSize = 80.dp
 /** How long a list thumbnail takes to fade in as it loads. */
 private const val THUMBNAIL_FADE_MILLIS = 250
 
-/** Rows' side padding (and their dividers' inset): half the screen margin, so thumbnails sit wide. */
-private val RowHorizontalPadding = 12.dp
 
 /** A row's top and bottom padding, and the gap between its thumbnail and text. */
-private val RowVerticalPadding = 12.dp
+private val RowVerticalPadding = 6.dp
 private val ThumbnailTextGap = 16.dp
 
 /**
@@ -371,7 +369,7 @@ private fun EmptyText(text: String) {
 @Composable
 private fun PlaceholderRow() {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenHorizontalPadding, vertical = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ThumbnailTextGap),
     ) {
@@ -397,7 +395,7 @@ private fun PlaceholderRow() {
 /** Between rows: a hairline inset to the screen margins, like a rule in a printed list. */
 @Composable
 private fun RowDivider() {
-    HorizontalDivider(modifier = Modifier.padding(horizontal = RowHorizontalPadding))
+    HorizontalDivider(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding))
 }
 
 /** A quiet serif heading, set in the secondary text color rather than an accent. */
@@ -455,7 +453,7 @@ private fun PhotoRow(
             // would fire too and double-toggle); this exposes the same action to accessibility.
             .semantics { onLongClick { onLongPress(); true } }
             // Inside the background and click area, so the selection highlight still spans the row.
-            .padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
+            .padding(horizontal = ScreenHorizontalPadding, vertical = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ThumbnailTextGap),
     ) {
