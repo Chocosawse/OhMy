@@ -9,12 +9,18 @@ import com.chocosawse.design.ColorPalette
  * itself (a black button with paper-colored text), and errors are a muted terracotta rather than
  * Material's red. Dark mode inverts it: ink-black paper, with paper as the accent.
  */
-private val Paper = Color(0xFFF5F2EC)
-private val PaperShade = Color(0xFFEAE5DC)
-private val Rule = Color(0xFFD8D2C7)
+private val Paper = Color(0xFFF4F0E9)
+private val PaperShade = Color(0xFFEAE4D9)
+private val Rule = Color(0xFFDDD6CA)
 private val Pencil = Color(0xFF8C867C)
 private val Graphite = Color(0xFF55514B)
-private val Ink = Color(0xFF141414)
+private val Ink = Color(0xFF181614)
+// The home screen's in-between tones (see HomeColors).
+private val Faded = Color(0xFF6A635A)
+private val Tile = Color(0xFFE3DDD1)
+private val TileText = Color(0xFF5E584F)
+private val TileRule = Color(0xFFCFC7B9)
+private val Press = Color(0xFF2F6B3F)
 private val InkLight = Color(0xFF1F1E1C)
 private val InkShade = Color(0xFF2A2926)
 private val Terracotta = Color(0xFFA3523A)
@@ -78,6 +84,24 @@ object NewspaperPalette : ColorPalette(
             error = TerracottaNight,
             onError = Ink,
             onPrimary = Ink,
+        )
+    }
+
+    /** In light mode the home screen's tones are set exactly; dark mode derives them, as for any theme. */
+    override fun homeColors(scheme: ColorScheme, darkTheme: Boolean): HomeColors? = if (darkTheme) {
+        null
+    } else {
+        completeHomeColors(
+            background = Paper,
+            ink = Ink,
+            muted = Faded,
+            card = PaperShade,
+            tile = Tile,
+            tileText = TileText,
+            track = Rule,
+            tileTrack = TileRule,
+            connected = Press,
+            accent = scheme.primary,
         )
     }
 }

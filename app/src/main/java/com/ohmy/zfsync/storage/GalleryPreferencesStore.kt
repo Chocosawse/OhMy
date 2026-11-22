@@ -52,6 +52,16 @@ class GalleryPreferencesStore(context: Context) {
         _dateStyle.value = key
     }
 
+    private val _homeLayout = MutableStateFlow(prefs.getString(KEY_HOME_LAYOUT, null))
+
+    /** How the home screen lays out photos, as its saved key (see HomeLayout), or null for the default. */
+    val homeLayout: StateFlow<String?> = _homeLayout.asStateFlow()
+
+    fun setHomeLayout(key: String) {
+        prefs.edit().putString(KEY_HOME_LAYOUT, key).apply()
+        _homeLayout.value = key
+    }
+
     /** Before there was a choice of styles there was an on/off film strip switch: on means the v2 film strip. */
     private fun loadCarouselStyle(): String? =
         prefs.getString(KEY_CAROUSEL_STYLE, null)
@@ -63,6 +73,7 @@ class GalleryPreferencesStore(context: Context) {
         const val KEY_CONFIRM_DELETE = "confirm_delete"
         const val KEY_SHOW_PHOTO_INFO = "show_photo_info"
         const val KEY_DATE_STYLE = "date_style"
+        const val KEY_HOME_LAYOUT = "home_layout"
         const val KEY_LEGACY_FILM_STRIP_CAROUSEL = "film_strip_carousel"
         /** CarouselStyle.FilmStrip's key. */
         const val LEGACY_FILM_STRIP_STYLE_KEY = "film_strip"

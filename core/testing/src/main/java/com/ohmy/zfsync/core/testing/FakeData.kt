@@ -4,9 +4,11 @@ import android.net.Uri
 import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.DownloadStatus
 import com.ohmy.zfsync.core.model.ExposureInfo
+import com.ohmy.zfsync.core.model.PendingPhoto
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
@@ -83,6 +85,29 @@ object FakeData {
     /** Everything from before this session. */
     val earlierPhotos: List<SyncedPhoto> = photos.dropLast(3)
 
+    /** The day [photos] were taken: pass as the home screen's "today" so they're today's sections. */
+    val shootingDay: LocalDate = BASE_CAPTURE_TIME.toLocalDate()
+
+    /** The last sync, a little after the newest photo was saved. */
+    const val LAST_SYNC_MILLIS = BASE_TIME_MILLIS + 20 * 60_000L
+
+    /** Two shots on their way, right after the newest photo: one at 64%, one queued behind it. */
+    val pendingPhotos: List<PendingPhoto> = listOf(
+        PendingPhoto(
+            handle = 0x3960L,
+            filename = "DSC_3960.JPG",
+            capturedAt = BASE_CAPTURE_TIME.plusSeconds(photos.size * 90L),
+            totalBytes = 12_000_000,
+            receivedBytes = 7_680_000,
+        ),
+        PendingPhoto(
+            handle = 0x3961L,
+            filename = "DSC_3961.JPG",
+            capturedAt = BASE_CAPTURE_TIME.plusSeconds(photos.size * 90L + 40),
+            totalBytes = 11_500_000,
+        ),
+    )
+
     val downloadingTwo: DownloadStatus = DownloadStatus.Downloading(count = 2)
 
     /** Representative [SyncUiState]s, one per thing a screen has to handle. */
@@ -100,12 +125,22 @@ object FakeData {
             photos = photos,
         )
 
+        /** Disconnected after syncing before: the camera's off or out of range. */
+        val cameraNotFound = SyncUiState(photos = photos, lastSyncMillis = LAST_SYNC_MILLIS)
+
+        val connectingToSaved = connecting.copy(cameraSsid = credentials.ssid, lastSyncMillis = LAST_SYNC_MILLIS)
+
         /** Connected, three new shots this session on top of the earlier album. */
         val connected = SyncUiState(
             connectionState = ConnectionState.Connected(CAMERA_IP),
+            cameraSsid = credentials.ssid,
+            lastSyncMillis = LAST_SYNC_MILLIS,
             photos = photos,
             sessionPhotoUris = sessionPhotos.mapTo(HashSet()) { it.uri },
         )
+
+        /** Connected and syncing: two of this batch done, one shot downloading and one queued. */
+        val connectedSyncing = connected.copy(pending = pendingPhotos, finishedInBatch = 2)
 
         /** Connected, nothing new yet this session. */
         val connectedNoNewShots = SyncUiState(connectionState = ConnectionState.Connected(CAMERA_IP), photos = photos)

@@ -9,6 +9,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.chocosawse.design.AppTheme
@@ -69,25 +71,27 @@ fun OhMyTheme(
 ) {
     when (choice) {
         is ThemeChoice.Palette -> AppTheme(activeToken = choice.palette, darkTheme = darkTheme) {
-            val scheme = MaterialTheme.colorScheme
-            WithAppTypography(
-                colorScheme = (choice.palette as? AdjustedPalette)?.adjust(scheme, darkTheme) ?: scheme,
-                content = content,
-            )
+            val adjusted = choice.palette as? AdjustedPalette
+            val scheme = MaterialTheme.colorScheme.let { adjusted?.adjust(it, darkTheme) ?: it }
+            val home = remember(scheme, darkTheme) { adjusted?.homeColors(scheme, darkTheme) ?: homeColors(scheme, darkTheme) }
+            WithAppTypography(scheme, home, content)
         }
         ThemeChoice.System -> MaterialTheme(colorScheme = systemColorScheme(darkTheme)) {
-            WithAppTypography(MaterialTheme.colorScheme, content)
+            val scheme = MaterialTheme.colorScheme
+            val home = remember(scheme, darkTheme) { homeColors(scheme, darkTheme) }
+            WithAppTypography(scheme, home, content)
         }
     }
 }
 
-/** The enclosing theme's shapes, the given [colorScheme], and the app's own [AppTypography]. */
+/** The enclosing theme's shapes, the given [colorScheme] and [homeColors], and the app's own [AppTypography]. */
 @Composable
-private fun WithAppTypography(colorScheme: ColorScheme, content: @Composable () -> Unit) {
+private fun WithAppTypography(colorScheme: ColorScheme, homeColors: HomeColors, content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = colorScheme,
         shapes = MaterialTheme.shapes,
         typography = AppTypography,
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(LocalHomeColors provides homeColors, content = content)
+    }
 }
