@@ -69,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
@@ -94,7 +95,13 @@ private val PillClearance = 88.dp + PillBottomMargin
 private const val ROW_PRESS_EXPAND_SCALE = 1.01f
 
 /** Each row's thumbnail; the rows' text sits alongside it. */
-private val ThumbnailSize = 72.dp
+private val ThumbnailSize = 80.dp
+
+/** How long a list thumbnail takes to fade in as it loads. */
+private const val THUMBNAIL_FADE_MILLIS = 250
+
+/** Rows' side padding (and their dividers' inset): half the screen margin, so thumbnails sit wide. */
+private val RowHorizontalPadding = 12.dp
 
 /** A row's top and bottom padding, and the gap between its thumbnail and text. */
 private val RowVerticalPadding = 12.dp
@@ -364,7 +371,7 @@ private fun EmptyText(text: String) {
 @Composable
 private fun PlaceholderRow() {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenHorizontalPadding, vertical = RowVerticalPadding),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ThumbnailTextGap),
     ) {
@@ -390,7 +397,7 @@ private fun PlaceholderRow() {
 /** Between rows: a hairline inset to the screen margins, like a rule in a printed list. */
 @Composable
 private fun RowDivider() {
-    HorizontalDivider(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding))
+    HorizontalDivider(modifier = Modifier.padding(horizontal = RowHorizontalPadding))
 }
 
 /** A quiet serif heading, set in the secondary text color rather than an accent. */
@@ -422,6 +429,7 @@ private fun PhotoRow(
     onLongPress: () -> Unit,
     photoTransition: PhotoTransitionState?,
 ) {
+    val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     // This row's photo is on its way into (or back from) the viewer. Derived, so a transition
     // starting recomposes only the row it's about, not every visible one.
@@ -447,13 +455,17 @@ private fun PhotoRow(
             // would fire too and double-toggle); this exposes the same action to accessibility.
             .semantics { onLongClick { onLongPress(); true } }
             // Inside the background and click area, so the selection highlight still spans the row.
-            .padding(horizontal = ScreenHorizontalPadding, vertical = RowVerticalPadding),
+            .padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ThumbnailTextGap),
     ) {
         Box {
             AsyncImage(
-                model = photo.uri,
+                // Fades in as it loads; one already in memory (scrolling back) shows at once.
+                // The request keys the memory cache by URI alone, as before.
+                model = remember(photo.uri) {
+                    ImageRequest.Builder(context).data(photo.uri).crossfade(THUMBNAIL_FADE_MILLIS).build()
+                },
                 contentDescription = photo.filename,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
