@@ -1,5 +1,6 @@
 package com.ohmy.zfsync.ui.theme
 
+import android.provider.Settings
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -7,8 +8,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 
 /*
  * The app's motion language. Every animation uses OvershootEasing (exits use its mirror,
@@ -96,3 +99,15 @@ private const val MIN_LAYER_SCALE = 0.001f
 
 /** [scale] for a layer that may still be touched once it's back: kept just above 0 (see [MIN_LAYER_SCALE]). */
 fun layerScale(scale: Float): Float = scale.coerceAtLeast(MIN_LAYER_SCALE)
+
+/**
+ * Whether the system lets apps animate: false when the animator duration scale is 0 (Remove
+ * animations, or Developer options). Looping animations then stand still, and crossfades and
+ * fades are instant. Read once per composition entry; a change applies the next time the screen
+ * is composed afresh.
+ */
+@Composable
+fun animationsEnabled(): Boolean {
+    val resolver = LocalContext.current.contentResolver
+    return remember(resolver) { Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f }
+}

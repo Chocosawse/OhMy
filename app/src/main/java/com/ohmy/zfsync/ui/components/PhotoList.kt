@@ -1,8 +1,10 @@
 package com.ohmy.zfsync.ui.components
 
 import android.net.Uri
-import androidx.activity.compose.BackHandler
-import androidx.annotation.StringRes
+import androidx.compose.animation.core.EaseOut
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,48 +14,37 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -61,20 +52,28 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ohmy.zfsync.R
-import com.ohmy.zfsync.core.model.SyncUiState
+import com.ohmy.zfsync.core.model.PendingPhoto
 import com.ohmy.zfsync.core.model.SyncedPhoto
-import com.ohmy.zfsync.core.model.photosNewestFirst
+import com.ohmy.zfsync.ui.home.HomeEntry
+import com.ohmy.zfsync.ui.home.SectionTitle
+import com.ohmy.zfsync.ui.home.fileTitle
+import com.ohmy.zfsync.ui.theme.HomeTypography
+import com.ohmy.zfsync.ui.theme.LocalHomeColors
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
+import com.ohmy.zfsync.ui.theme.animationsEnabled
 import com.ohmy.zfsync.ui.theme.fadeSpec
 import com.ohmy.zfsync.ui.theme.onSurfaceTertiary
 import com.ohmy.zfsync.ui.theme.overshootSpec
@@ -82,14 +81,6 @@ import com.ohmy.zfsync.ui.theme.pressExpand
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.flow.filterNotNull
-
-private val SelectionSaver = listSaver<Set<Uri>, Uri>(save = { it.toList() }, restore = { it.toSet() })
-
-/** Gap between the floating pill and the bottom inset (navigation bar or keyboard). */
-private val PillBottomMargin = 24.dp
-
-/** Leaves room at the bottom of the list so the floating pill never covers the last row. */
-private val PillClearance = 88.dp + PillBottomMargin
 
 /** Rows span the screen, so they expand far less than small controls (PRESS_EXPAND_SCALE). */
 private const val ROW_PRESS_EXPAND_SCALE = 1.01f
@@ -100,243 +91,220 @@ private val ThumbnailSize = 80.dp
 /** How long a list thumbnail takes to fade in as it loads. */
 private const val THUMBNAIL_FADE_MILLIS = 250
 
-
 /** A row's top and bottom padding, and the gap between its thumbnail and text. */
 private val RowVerticalPadding = 6.dp
 private val ThumbnailTextGap = 16.dp
 
 /**
- * The album as a selectable list: tap opens a photo, long-press (and drag) selects, and a
- * floating pill acts on the selection. Rows are in [photosNewestFirst] order, which is also the
- * viewer's page order, so [onPhotoClick]'s index can be handed straight to the viewer.
- *
- * With [showSessionSections], photos downloaded this session (plus [inFlightCount] placeholder
- * rows for downloads still running) are split out under their own header; without it, the whole
- * album is one section.
+ * The home screen's list layout: [entries] as rows with details, under the [header]. Tap opens a
+ * photo (or, in select mode, toggles it); long-press (and drag) selects. [onPhotoClick]'s index is
+ * the photo's place in the viewer's order. A pending shot's row holds its place, with its download
+ * progress, until the photo replaces it.
  */
 @Composable
-fun PhotoList(
-    state: SyncUiState,
-    showSessionSections: Boolean,
+internal fun HomePhotoList(
+    entries: List<HomeEntry>,
+    listState: LazyListState,
+    selection: HomeSelection,
     onPhotoClick: (index: Int) -> Unit,
-    onDeletePhotos: (List<Uri>) -> Unit,
+    header: @Composable () -> Unit,
+    sectionTitle: @Composable (SectionTitle) -> String,
+    bottomPadding: Dp,
     modifier: Modifier = Modifier,
-    inFlightCount: Int = 0,
     photoTransition: PhotoTransitionState? = null,
-    onBrowseAlbums: (() -> Unit)? = null,
 ) {
-    // Select mode is simply "something is selected": long-press selects the first photo, and
-    // deselecting the last one (or Cancel / system back) leaves it.
-    var selected by rememberSaveable(stateSaver = SelectionSaver) { mutableStateOf(emptySet<Uri>()) }
-    val selectMode = selected.isNotEmpty()
-    var confirmDelete by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
+    // The drag gesture outlives recompositions, so it reads the latest entries through this.
+    val latestEntries by rememberUpdatedState(entries)
+    val handover = if (animationsEnabled()) PENDING_HANDOVER_MILLIS else 0
 
-    val ordered = state.photosNewestFirst()
-    val entries = listEntries(state, ordered, showSessionSections, inFlightCount)
-
-    // A selected photo can vanish underneath us (deleted in another app, picked up on resume).
-    LaunchedEffect(state.photos) {
-        val present = state.photos.mapTo(HashSet()) { it.uri }
-        if (!present.containsAll(selected)) selected = selected.filterTo(HashSet()) { it in present }
-    }
-
-    BackHandler(enabled = selectMode) { selected = emptySet() }
-
-    fun toggle(photo: SyncedPhoto) {
-        selected = if (photo.uri in selected) selected - photo.uri else selected + photo.uri
-    }
-
-    val listState = rememberLazyListState()
-    val bottomInset = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
-    // The drag gesture outlives recompositions, so it reads the latest list through this.
-    val latestOrdered by rememberUpdatedState(ordered)
-
-    // Keeps the pill's count steady while it animates out after the selection is cleared,
-    // instead of flashing "0 selected".
-    val lastSelectedCount = remember { intArrayOf(0) }
-    if (selectMode) lastSelectedCount[0] = selected.size
-    val pillCount = lastSelectedCount[0]
-
-    // A closing viewer asks for its photo's row, so it can shrink back into it: scroll it into
-    // view if it isn't, wait for the rows to lay out (and report where their thumbnails are),
-    // then answer.
     if (photoTransition != null) {
-        val latestEntries by rememberUpdatedState(entries)
-        LaunchedEffect(photoTransition, listState) {
-            snapshotFlow { photoTransition.revealRequest }.filterNotNull().collect { uri ->
-                val index = latestEntries.indexOfFirst { it.key == uri }
-                if (index >= 0 && !listState.isFullyVisible(uri)) {
-                    // One row above it in view too, so it isn't right under the top fading edge.
-                    listState.scrollToItem((index - 1).coerceAtLeast(0))
-                }
-                // Either way, let the rows be placed before answering: the list isn't placed at
-                // all while the viewer is open, and only is again now that it's closing. A frame's
-                // layout runs after its frame callbacks, hence two.
-                repeat(2) { withFrameNanos { } }
-                photoTransition.onRevealed(uri)
-            }
+        RevealOnRequest(photoTransition, entries) { index, uri ->
+            val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == uri }
+            val info = listState.layoutInfo
+            val fullyVisible = item != null && item.offset >= info.viewportStartOffset &&
+                item.offset + item.size <= info.viewportEndOffset - info.afterContentPadding
+            // One row above it in view too, so it isn't right under the pinned status row.
+            if (!fullyVisible) listState.scrollToItem((index - 1).coerceAtLeast(0))
         }
     }
 
-    Box(modifier = modifier) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                // Rows fade out at the list's edges rather than being cut off.
-                .verticalFadingEdges(listState)
-                .dragToSelect(
-                    listState = listState,
-                    selectableKeys = { latestOrdered.map { it.uri } },
-                    selection = { selected },
-                    onSelectionChange = { selected = it },
-                    haptics = haptics,
+    LazyColumn(
+        state = listState,
+        modifier = modifier
+            .fillMaxSize()
+            // Rows fade out at the bottom edge rather than being cut off.
+            .verticalFadingEdges(listState)
+            .dragToSelect(
+                listState = listState,
+                selectableKeys = { latestEntries.mapNotNull { (it as? HomeEntry.Photo)?.photo?.uri } },
+                selection = { selection.selected },
+                onSelectionChange = selection::set,
+                haptics = haptics,
+            ),
+        // The list runs behind the navigation bar (and keyboard), so its content is padded for
+        // them: the last row can scroll clear of both, plus the pill when it's showing.
+        contentPadding = PaddingValues(bottom = bottomPadding),
+    ) {
+        items(entries, key = { it.key }, contentType = { it.contentType }) { entry ->
+            // Deleted rows fade out while the ones below slide up into their place; arrivals fade
+            // in and push the rest along. A pending row and its photo crossfade in place.
+            val fadeIn: FiniteAnimationSpec<Float> = tween(handover)
+            Column(
+                modifier = Modifier.animateItem(
+                    fadeInSpec = if (entry is HomeEntry.Photo || entry is HomeEntry.Pending) fadeIn else fadeSpec(),
+                    placementSpec = overshootSpec(),
+                    fadeOutSpec = if (entry is HomeEntry.Pending) tween(handover) else fadeSpec(),
                 ),
-            // The list runs behind the navigation bar (and keyboard), so its content is padded
-            // for them: the last row can scroll clear of both, plus the pill when it's showing.
-            contentPadding = PaddingValues(bottom = bottomInset + if (selectMode) PillClearance else 0.dp),
-        ) {
-            items(entries, key = { it.key }, contentType = { it.contentType }) { entry ->
-                // Deleted rows fade out while the ones below slide up into their place; arrivals
-                // fade in and push the rest along.
-                Column(
-                    modifier = Modifier.animateItem(
-                        fadeInSpec = fadeSpec(),
-                        placementSpec = overshootSpec(),
-                        fadeOutSpec = fadeSpec(),
-                    ),
-                ) {
+            ) {
                 when (entry) {
-                    // The list's first header carries the way to the device's other albums.
-                    is ListEntry.Header -> SectionHeader(
-                        title = stringResource(entry.title),
-                        action = onBrowseAlbums?.takeIf { entry == entries.first() }?.let { browse ->
-                            {
-                                TextButton(onClick = browse, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                                    Text(stringResource(R.string.albums_browse))
-                                }
-                            }
-                        },
+                    HomeEntry.Header -> Box(Modifier.padding(horizontal = ScreenHorizontalPadding)) { header() }
+                    is HomeEntry.SectionHeader -> HomeSectionHeader(
+                        title = sectionTitle(entry.title),
+                        first = entry.first,
+                        modifier = Modifier.padding(horizontal = ScreenHorizontalPadding),
                     )
-                    is ListEntry.Empty -> EmptyText(stringResource(entry.text))
-                    is ListEntry.Placeholder -> {
-                        PlaceholderRow()
+                    HomeEntry.Empty -> EmptyText(stringResource(R.string.photos_section_all_empty))
+                    is HomeEntry.Pending -> {
+                        PendingRow(entry.pending)
                         RowDivider()
                     }
-                    is ListEntry.Photo -> {
+                    is HomeEntry.Photo -> {
                         val photo = entry.photo
                         PhotoRow(
                             photo = photo,
-                            isSelected = photo.uri in selected,
-                            onClick = { if (selectMode) toggle(photo) else onPhotoClick(entry.index) },
-                            onLongPress = { toggle(photo) },
+                            isSelected = photo.uri in selection.selected,
+                            onClick = { if (selection.active) selection.toggle(photo.uri) else onPhotoClick(entry.index) },
+                            onLongPress = { selection.toggle(photo.uri) },
                             photoTransition = photoTransition,
                         )
                         RowDivider()
                     }
                 }
-                }
             }
         }
-
-        ActionPill(
-            visible = selectMode,
-            pulseKey = selected.size,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-                .padding(bottom = PillBottomMargin),
-            label = pluralStringResource(R.plurals.select_count, pillCount, pillCount),
-            onShare = { sharePhotos(context, ordered.filter { it.uri in selected }) },
-            onDelete = { confirmDelete = true },
-            // Only when every selected photo has a RAW: "open these RAWs" shouldn't skip some.
-            onRaw = ordered.filter { it.uri in selected }
-                .takeIf { selection -> selection.isNotEmpty() && selection.all { it.rawUri != null } }
-                ?.let { selection -> { openRaws(context, selection) } },
-            onCancel = { selected = emptySet() },
-        )
-    }
-
-    if (confirmDelete) {
-        val count = selected.size
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(pluralStringResource(R.plurals.select_delete_dialog_title, count, count)) },
-            text = { Text(pluralStringResource(R.plurals.select_delete_dialog_text, count)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeletePhotos(selected.toList())
-                    selected = emptySet()
-                    confirmDelete = false
-                }) { Text(stringResource(R.string.viewer_delete_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.viewer_delete_cancel)) }
-            },
-        )
     }
 }
 
-/** One item of the list, in order; [Photo.index] is the photo's position in [photosNewestFirst]. */
-private sealed interface ListEntry {
-    val key: Any
-    val contentType: String
+/** How long a pending shot and its arrived photo take to crossfade. */
+internal const val PENDING_HANDOVER_MILLIS = 200
 
-    data class Header(@StringRes val title: Int, override val key: String) : ListEntry {
-        override val contentType get() = "header"
-    }
-
-    data class Empty(@StringRes val text: Int, override val key: String) : ListEntry {
-        override val contentType get() = "empty"
-    }
-
-    data class Placeholder(val number: Int) : ListEntry {
-        override val key get() = "placeholder-$number"
-        override val contentType get() = "placeholder"
-    }
-
-    data class Photo(val photo: SyncedPhoto, val index: Int) : ListEntry {
-        override val key: Any get() = photo.uri
-        override val contentType get() = "photo"
+/**
+ * Answers a closing viewer's request for its photo: [scrollIntoView] brings the photo (at its
+ * index in [entries]) into view if it isn't, then, once the list or grid has laid out (and
+ * reported where its thumbnails are), the viewer is told.
+ */
+@Composable
+internal fun RevealOnRequest(
+    photoTransition: PhotoTransitionState,
+    entries: List<HomeEntry>,
+    scrollIntoView: suspend (index: Int, uri: Uri) -> Unit,
+) {
+    val latestEntries by rememberUpdatedState(entries)
+    val latestScroll by rememberUpdatedState(scrollIntoView)
+    LaunchedEffect(photoTransition) {
+        snapshotFlow { photoTransition.revealRequest }.filterNotNull().collect { uri ->
+            val index = latestEntries.indexOfFirst { it.key == uri }
+            if (index >= 0) latestScroll(index, uri)
+            // Either way, let the content be placed before answering: it isn't placed at all
+            // while the viewer is open, and only is again now that it's closing. A frame's layout
+            // runs after its frame callbacks, hence two.
+            repeat(2) { withFrameNanos { } }
+            photoTransition.onRevealed(uri)
+        }
     }
 }
 
 /**
- * With [showSessionSections], photos downloaded this session (newest first in [ordered], so at
- * its start) come under their own header, after a placeholder for each download in flight.
+ * A section's heading: serif, in ink, marked as a heading. More space above the later ones,
+ * which follow photos, than the first, which follows the library row.
  */
-private fun listEntries(
-    state: SyncUiState,
-    ordered: List<SyncedPhoto>,
-    showSessionSections: Boolean,
-    inFlightCount: Int,
-): List<ListEntry> = buildList {
-    if (showSessionSections) {
-        val sessionCount = ordered.count { it.uri in state.sessionPhotoUris }
-        add(ListEntry.Header(R.string.sync_section_this_session, key = "header-session"))
-        repeat(inFlightCount) { add(ListEntry.Placeholder(it)) }
-        if (sessionCount == 0 && inFlightCount == 0) {
-            add(ListEntry.Empty(R.string.sync_section_this_session_empty, key = "session-empty"))
-        }
-        ordered.take(sessionCount).forEachIndexed { index, photo -> add(ListEntry.Photo(photo, index)) }
-        if (ordered.size > sessionCount) {
-            add(ListEntry.Header(R.string.sync_section_earlier, key = "header-earlier"))
-            ordered.drop(sessionCount).forEachIndexed { index, photo -> add(ListEntry.Photo(photo, sessionCount + index)) }
-        }
+@Composable
+internal fun HomeSectionHeader(title: String, first: Boolean, modifier: Modifier = Modifier, spacing: Dp = 0.dp) {
+    Text(
+        text = title,
+        style = HomeTypography.section,
+        color = LocalHomeColors.current.ink,
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { heading() }
+            // [spacing] is what the container already puts between items, taken off here.
+            .padding(top = (if (first) 22.dp else 28.dp) - spacing, bottom = 12.dp - spacing),
+    )
+}
+
+/** A pending shot's 3dp progress bar along a tile's bottom: empty while queued, filling as it downloads. */
+@Composable
+internal fun PendingBar(pending: PendingPhoto, modifier: Modifier = Modifier) {
+    val colors = LocalHomeColors.current
+    val fraction by animateFloatAsState(
+        targetValue = pending.percent / 100f,
+        animationSpec = tween(if (animationsEnabled()) PROGRESS_MILLIS else 0, easing = EaseOut),
+        label = "pendingProgress",
+    )
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(3.dp)
+            .background(colors.tileTrack)
+            .drawBehind { drawRect(colors.accent, size = Size(size.width * fraction, size.height)) },
+    )
+}
+
+/** How long a progress fill takes to reach a new value. */
+internal const val PROGRESS_MILLIS = 300
+
+/** "DSC_3961, waiting to sync" or "DSC_3960, syncing, 64 percent". */
+@Composable
+internal fun pendingDescription(pending: PendingPhoto): String =
+    if (pending.inProgress) {
+        stringResource(R.string.pending_syncing_description, fileTitle(pending.filename), pending.percent)
     } else {
-        add(ListEntry.Header(R.string.photos_section_all, key = "header-all"))
-        if (ordered.isEmpty()) add(ListEntry.Empty(R.string.photos_section_all_empty, key = "all-empty"))
-        ordered.forEachIndexed { index, photo -> add(ListEntry.Photo(photo, index)) }
+        stringResource(R.string.pending_queued_description, fileTitle(pending.filename))
+    }
+
+/** A shot still on its way: a tile-colored thumbnail with its progress bar, where its photo will be. Not openable or selectable. */
+@Composable
+private fun PendingRow(pending: PendingPhoto) {
+    val colors = LocalHomeColors.current
+    val description = pendingDescription(pending)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clearAndSetSemantics { contentDescription = description }
+            .padding(horizontal = ScreenHorizontalPadding, vertical = RowVerticalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ThumbnailTextGap),
+    ) {
+        Box(modifier = Modifier.size(ThumbnailSize).background(colors.tile)) {
+            PendingBar(pending, Modifier.align(Alignment.BottomCenter))
+        }
+        Column {
+            Text(pending.filename, style = MaterialTheme.typography.titleLarge)
+            Text(
+                if (pending.inProgress) {
+                    stringResource(R.string.pending_syncing, pending.percent)
+                } else {
+                    stringResource(R.string.pending_queued)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.muted,
+            )
+        }
     }
 }
 
-/** Whether the item keyed [key] is entirely within the list's viewport (clear of the bottom content padding). */
-private fun LazyListState.isFullyVisible(key: Any): Boolean {
-    val info = layoutInfo
-    val item = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return false
-    return item.offset >= info.viewportStartOffset && item.offset + item.size <= info.viewportEndOffset - info.afterContentPadding
+/** The check on a selected photo, in the list and the grid. */
+@Composable
+internal fun SelectedBadge(modifier: Modifier = Modifier) {
+    Icon(
+        Icons.Default.CheckCircle,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = modifier
+            .size(20.dp)
+            .background(MaterialTheme.colorScheme.surface, CircleShape),
+    )
 }
 
 /** How much a row grows as it fades out behind its photo flying into the viewer. */
@@ -347,7 +315,7 @@ private const val ROW_TRANSITION_EXPAND = 0.05f
  * scale is a draw transform rather than a layer one, so the row's (and its thumbnail's) reported
  * position stays where it's laid out, which is where the photo flies back to.
  */
-private fun Modifier.expandAndFade(progress: () -> Float): Modifier = this
+internal fun Modifier.expandAndFade(progress: () -> Float): Modifier = this
     .graphicsLayer { alpha = 1f - progress() }
     .drawWithContent {
         val factor = 1f + ROW_TRANSITION_EXPAND * progress()
@@ -355,68 +323,20 @@ private fun Modifier.expandAndFade(progress: () -> Float): Modifier = this
     }
 
 @Composable
-private fun EmptyText(text: String) {
+internal fun EmptyText(text: String, horizontalPadding: Dp = ScreenHorizontalPadding) {
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         // Lines up with the screen's own text, which the list (spanning the full width) doesn't inherit.
-        modifier = Modifier.padding(horizontal = ScreenHorizontalPadding, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 8.dp),
     )
-}
-
-/** Stands in for a photo that's still downloading; same footprint as [PhotoRow] so the list doesn't jump. */
-@Composable
-private fun PlaceholderRow() {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenHorizontalPadding, vertical = RowVerticalPadding),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(ThumbnailTextGap),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(ThumbnailSize)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-        }
-        Column {
-            Text(stringResource(R.string.sync_placeholder_title), style = MaterialTheme.typography.titleLarge)
-            Text(
-                stringResource(R.string.sync_placeholder_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
 }
 
 /** Between rows: a hairline inset to the screen margins, like a rule in a printed list. */
 @Composable
 private fun RowDivider() {
     HorizontalDivider(modifier = Modifier.padding(horizontal = ScreenHorizontalPadding))
-}
-
-/** A quiet serif heading, set in the secondary text color rather than an accent. */
-@Composable
-private fun SectionHeader(title: String, action: (@Composable () -> Unit)? = null) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = ScreenHorizontalPadding)
-            .padding(top = 16.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        // Trailing, e.g. the Albums button; its own padding keeps the header's height close.
-        action?.invoke()
-    }
 }
 
 @Composable
@@ -468,6 +388,8 @@ private fun PhotoRow(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(ThumbnailSize)
+                    // The tile color until the image arrives, as in the grid.
+                    .background(LocalHomeColors.current.tile)
                     .then(
                         if (photoTransition == null) {
                             Modifier
@@ -493,18 +415,7 @@ private fun PhotoRow(
                         },
                     ),
             )
-            if (isSelected) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(2.dp)
-                        .size(20.dp)
-                        .background(MaterialTheme.colorScheme.surface, CircleShape),
-                )
-            }
+            if (isSelected) SelectedBadge(Modifier.align(Alignment.TopEnd).padding(2.dp))
         }
         Column {
             Row {

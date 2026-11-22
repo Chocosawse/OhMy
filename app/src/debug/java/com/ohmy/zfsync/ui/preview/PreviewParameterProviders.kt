@@ -10,21 +10,15 @@ import com.ohmy.zfsync.ui.theme.ThemeChoice
  * set (e.g. iterate `values`), keeping previews and screenshots in step.
  */
 
-/** States the home (connect) screen is shown in. */
-class ConnectScreenStateProvider : PreviewParameterProvider<SyncUiState> {
+/** States the home screen is shown in. */
+class HomeScreenStateProvider : PreviewParameterProvider<SyncUiState> {
     override val values = sequenceOf(
-        FakeData.States.disconnected,
+        FakeData.States.cameraNotFound,
         FakeData.States.firstLaunch,
-        FakeData.States.connecting,
+        FakeData.States.connectingToSaved,
         FakeData.States.connectionError,
-    )
-}
-
-/** States the connected (sync) screen is shown in. */
-class SyncScreenStateProvider : PreviewParameterProvider<SyncUiState> {
-    override val values = sequenceOf(
+        FakeData.States.connectedSyncing,
         FakeData.States.connected,
-        FakeData.States.connectedNoNewShots,
         FakeData.States.connectedSyncingWithError,
         FakeData.States.connectedEmptyAutoSyncOff,
     )

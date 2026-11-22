@@ -32,9 +32,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.ui.components.DateStyle
+import com.ohmy.zfsync.ui.home.HomeLayout
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import com.ohmy.zfsync.ui.theme.ThemeChoice
 import com.ohmy.zfsync.ui.theme.paletteName
@@ -57,6 +60,8 @@ fun SettingsScreen(
     onDownloadRawsChange: (Boolean) -> Unit,
     dateStyle: DateStyle,
     onDateStyleChange: (DateStyle) -> Unit,
+    homeLayout: HomeLayout,
+    onHomeLayoutChange: (HomeLayout) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -79,6 +84,20 @@ fun SettingsScreen(
                     ThemeRow(choice = choice, selected = choice == currentTheme, onClick = { onSelectTheme(choice) })
                 }
                 item(key = "header-gallery") { SettingsSectionHeader(stringResource(R.string.settings_section_gallery)) }
+                item(key = "group-home-layout") { SettingsGroupLabel(stringResource(R.string.settings_home_layout)) }
+                items(HomeLayout.entries, key = { "home-layout-${it.key}" }) { layout ->
+                    val (title, summary) = when (layout) {
+                        HomeLayout.List -> R.string.settings_home_layout_list to R.string.settings_home_layout_list_summary
+                        HomeLayout.Grid -> R.string.settings_home_layout_grid to R.string.settings_home_layout_grid_summary
+                    }
+                    RadioRow(
+                        title = stringResource(title),
+                        summary = stringResource(summary),
+                        selected = layout == homeLayout,
+                        onClick = { onHomeLayoutChange(layout) },
+                    )
+                }
+                item(key = "group-viewer") { SettingsGroupLabel(stringResource(R.string.settings_viewer)) }
                 items(CarouselStyle.entries, key = { "carousel-${it.key}" }) { style ->
                     val (title, summary) = when (style) {
                         CarouselStyle.Classic -> R.string.settings_carousel_classic to R.string.settings_carousel_classic_summary
@@ -137,6 +156,21 @@ private fun SettingsSectionHeader(title: String) {
             .fillMaxWidth()
             .padding(horizontal = ScreenHorizontalPadding)
             .padding(top = 24.dp, bottom = 8.dp),
+    )
+}
+
+/** Names a group of related settings within a section, a step quieter than the section's header. */
+@Composable
+private fun SettingsGroupLabel(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { heading() }
+            .padding(horizontal = ScreenHorizontalPadding)
+            .padding(top = 12.dp, bottom = 4.dp),
     )
 }
 

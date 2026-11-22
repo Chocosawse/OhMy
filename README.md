@@ -15,8 +15,8 @@ service involved.
    Utility / Camera Control Pro — and listens for `ObjectAdded` events, which the camera fires the
    moment a new photo is written to the card.
 4. New JPEGs are downloaded and saved straight to `Pictures/OhMy` on the phone via MediaStore. RAW
-   (NEF) files are skipped so syncing stays fast; a manual **Sync now** button is also available to
-   catch anything missed.
+   (NEF) files are skipped unless turned on in Settings, so syncing stays fast. Shots on their way
+   show in the album straight away, with their download progress.
 5. A foreground service keeps the connection and event listener alive while the app is
    backgrounded (screen off), stopping automatically on disconnect.
 
@@ -29,7 +29,7 @@ app/src/main/java/com/ohmy/zfsync/
   sync/      CameraSyncRepository — connection lifecycle, event handling, download orchestration
   storage/   PhotoSaver — MediaStore writes (scoped storage, no legacy storage permission)
   service/   CameraSyncService — foreground service for background auto-sync
-  ui/        Compose screens (Connect, Sync), ViewModel, theme
+  ui/        Compose screens (Home, viewer, Albums, Settings), ViewModel, theme
 ```
 
 ## Building

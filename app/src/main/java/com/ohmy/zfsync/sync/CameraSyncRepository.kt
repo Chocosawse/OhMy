@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.DownloadStatus
+import com.ohmy.zfsync.core.model.PendingPhoto
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
@@ -18,6 +19,7 @@ import com.ohmy.zfsync.ptpip.PtpIpClient
 import com.ohmy.zfsync.ptpip.PtpObjectInfo
 import com.ohmy.zfsync.storage.CameraCredentialsStore
 import com.ohmy.zfsync.storage.PhotoSaver
+import com.ohmy.zfsync.storage.SyncPreferencesStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,10 +39,11 @@ private const val TAG = "OhMyCameraSync"
 /**
  * Owns the whole camera connection lifecycle: joins the camera's Wi-Fi AP, opens a PTP/IP
  * session, remembers which object handles were already on the card so auto-sync only reacts to
- * genuinely new shots, and saves incoming JPEGs (and RAWs, while [downloadRaws] says so) to
- * shared storage.
+ * genuinely new shots, and saves incoming JPEGs (and RAWs, while [SyncPreferencesStore.downloadRaws]
+ * says so) to shared storage. New JPEGs show in [SyncUiState.pending] from the moment their details
+ * are read until they're saved, with their download progress.
  */
-class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boolean) {
+class CameraSyncRepository(context: Context, private val syncPreferences: SyncPreferencesStore) {
     private val appContext = context.applicationContext
     private val wifiManager = CameraWifiManager(appContext)
     private val photoSaver = PhotoSaver(appContext)
@@ -63,7 +66,7 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
      *  through typing credentials on the connect screen." */
     private var lostConnectionCredentials: SavedCameraCredentials? = null
 
-    private val _state = MutableStateFlow(SyncUiState())
+    private val _state = MutableStateFlow(SyncUiState(lastSyncMillis = syncPreferences.lastSyncMillis.value))
     val state: StateFlow<SyncUiState> = _state.asStateFlow()
 
     /** Independent of [state]: whether a photo is being downloaded right now, for anything that
@@ -92,6 +95,9 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
         }
     }
 
+    /** Read whenever a RAW turns up, so a change of the setting applies straight away. */
+    private fun downloadRaws(): Boolean = syncPreferences.downloadRaws.value
+
     fun loadSavedCredentials(): SavedCameraCredentials? = credentialsStore.load()
 
     /** Returns and clears the credentials of a connection that dropped on its own, if any -- for a
@@ -103,7 +109,7 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
         activeSsid = ssid
         activePassword = password
         lostConnectionCredentials = null
-        _state.update { it.copy(connectionState = ConnectionState.Connecting, lastError = null) }
+        _state.update { it.copy(connectionState = ConnectionState.Connecting, cameraSsid = ssid, lastError = null) }
         try {
             val net = stage("joining Wi-Fi") {
                 wifiManager.connect(ssid, password, onLost = { handleConnectionLost("camera Wi-Fi network lost") })
@@ -128,9 +134,11 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
             credentialsStore.save(ssid, password)
 
             _state.update { it.copy(connectionState = ConnectionState.Connected(cameraIp)) }
+            // Shots already on the card are left there (see knownHandles), so this is in step.
+            markSyncedIfUpToDate()
         } catch (t: Throwable) {
             teardownResources()
-            _state.update { it.copy(connectionState = ConnectionState.Error(t.message ?: "Connection failed")) }
+            _state.update { it.copy(connectionState = ConnectionState.Error(t.message ?: "Connection failed"), cameraSsid = null) }
         }
     }
 
@@ -148,13 +156,23 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
         // Both signals can fire for one drop; only the first one for a live session counts.
         if (_state.value.connectionState !is ConnectionState.Connected) return
         Log.w(TAG, "Connection lost: $reason")
+        markSyncedIfUpToDate()
         val ssid = activeSsid
         val password = activePassword
         teardownResources()
         if (ssid != null && password != null) {
             lostConnectionCredentials = SavedCameraCredentials(ssid, password)
         }
-        _state.update { it.copy(connectionState = ConnectionState.Error("Lost connection to the camera")) }
+        // Downloads still to come won't now: they're picked up as new shots on the next connection.
+        _state.update {
+            it.copy(
+                connectionState = ConnectionState.Error("Lost connection to the camera"),
+                cameraSsid = null,
+                pending = emptyList(),
+                finishedInBatch = 0,
+                lookingUp = 0,
+            )
+        }
     }
 
     /** Tears down the live connection's resources without touching [_state] beyond what callers do themselves. */
@@ -213,7 +231,9 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
         _state.update { it.copy(isSyncing = true) }
         try {
             val newHandles = client.getObjectHandles().filter { knownHandles.add(it) }
-            for (handle in newHandles) downloadObject(handle)
+            // Every new shot's details first, so they all show as queued before the first download starts.
+            val found = newHandles.mapNotNull { handle -> lookUp(client, handle)?.let { handle to it } }
+            for ((handle, info) in found) download(client, handle, info)
         } catch (t: Throwable) {
             _state.update { it.copy(lastError = t.message ?: "Sync failed") }
         } finally {
@@ -253,12 +273,13 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
     }
 
     fun disconnect() {
+        markSyncedIfUpToDate()
         teardownResources()
         activeSsid = null
         activePassword = null
         lostConnectionCredentials = null
         // The album outlives the connection; only the session-related state resets.
-        _state.update { SyncUiState(photos = it.photos) }
+        _state.update { SyncUiState(photos = it.photos, lastSyncMillis = it.lastSyncMillis) }
     }
 
     private fun onPtpEvent(event: PtpEvent) {
@@ -271,33 +292,92 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
 
     private suspend fun downloadObject(handle: Long) {
         val client = ptpClient ?: return
-        try {
-            val info = client.getObjectInfo(handle)
-            when {
-                info.isJpeg -> Unit
-                info.isRaw && downloadRaws() -> {
-                    // Untracked: a RAW is part of a shot whose JPEG is counted, so a RAW+JPEG shot
-                    // doesn't report two incoming photos.
-                    saveObject(client, handle, info)
-                    return
-                }
-                else -> return
-            }
+        val info = lookUp(client, handle) ?: return
+        download(client, handle, info)
+    }
 
+    /**
+     * Reads [handle]'s details. A JPEG joins [SyncUiState.pending] (starting a new batch if
+     * nothing else was), queued until its bytes start arriving. Returns them if the object is
+     * one to download, or null if it isn't (or they couldn't be read).
+     */
+    private suspend fun lookUp(client: PtpIpClient, handle: Long): PtpObjectInfo? {
+        _state.update { it.copy(lookingUp = it.lookingUp + 1) }
+        var info: PtpObjectInfo? = null
+        try {
+            info = client.getObjectInfo(handle)
+        } catch (t: Throwable) {
+            _state.update { it.copy(lastError = "Failed to download $handle: ${t.message}") }
+        } finally {
+            val pending = info?.takeIf { it.isJpeg }?.let { PendingPhoto(handle, it.fileName(handle), it.capturedAt, it.compressedSize) }
+            _state.update {
+                it.copy(
+                    lookingUp = (it.lookingUp - 1).coerceAtLeast(0),
+                    pending = if (pending != null) it.pending + pending else it.pending,
+                    finishedInBatch = if (pending != null && it.pending.isEmpty()) 0 else it.finishedInBatch,
+                )
+            }
+        }
+        markSyncedIfUpToDate()
+        return info?.takeIf { it.isJpeg || (it.isRaw && downloadRaws()) }
+    }
+
+    /** Downloads an object [lookUp] found; a failure is reported and drops its pending entry. */
+    private suspend fun download(client: PtpIpClient, handle: Long, info: PtpObjectInfo) {
+        try {
+            if (!info.isJpeg) {
+                // Untracked: a RAW is part of a shot whose JPEG is counted, so a RAW+JPEG shot
+                // doesn't report two incoming photos.
+                saveObject(client, handle, info)
+                return
+            }
             // The photo is added to the list inside track(), before the in-flight count drops,
             // so UI showing a placeholder per in-flight download swaps it for the real row.
             downloadStatusTracker.track { saveObject(client, handle, info) }
         } catch (t: Throwable) {
-            _state.update { it.copy(lastError = "Failed to download $handle: ${t.message}") }
+            _state.update {
+                it.copy(
+                    lastError = "Failed to download $handle: ${t.message}",
+                    pending = it.pending.filterNot { pending -> pending.handle == handle },
+                )
+            }
+        } finally {
+            markSyncedIfUpToDate()
         }
+    }
+
+    /** Records [handle]'s download progress, only when its shown percentage changes (or it first starts). */
+    private fun reportProgress(handle: Long, receivedBytes: Long) {
+        _state.update { state ->
+            val index = state.pending.indexOfFirst { it.handle == handle }
+            if (index < 0) return@update state
+            val current = state.pending[index]
+            val next = current.copy(receivedBytes = receivedBytes)
+            if (current.inProgress && next.percent == current.percent) {
+                state
+            } else {
+                state.copy(pending = state.pending.toMutableList().also { it[index] = next })
+            }
+        }
+    }
+
+    /** While connected with nothing left to fetch, the phone has everything new: remember when. */
+    private fun markSyncedIfUpToDate() {
+        val state = _state.value
+        if (state.connectionState !is ConnectionState.Connected || state.pending.isNotEmpty() || state.lookingUp > 0) return
+        val now = System.currentTimeMillis()
+        syncPreferences.setLastSyncMillis(now)
+        _state.update { it.copy(lastSyncMillis = now) }
     }
 
     /** Downloads one object into the album and adds it to [state], paired with its shot's other file if any. */
     private suspend fun saveObject(client: PtpIpClient, handle: Long, info: PtpObjectInfo) {
-        val filename = info.filename.ifBlank { "IMG_$handle.jpg" }
+        val filename = info.fileName(handle)
         val uri = photoSaver.createPendingImageUri(filename)
         try {
-            photoSaver.openOutputStream(uri).use { out -> client.getObject(handle, out) }
+            photoSaver.openOutputStream(uri).use { out ->
+                client.getObject(handle, out, onProgress = { received -> reportProgress(handle, received) })
+            }
             photoSaver.markComplete(uri)
         } catch (t: Throwable) {
             photoSaver.deleteIncomplete(uri)
@@ -311,7 +391,14 @@ class CameraSyncRepository(context: Context, private val downloadRaws: () -> Boo
                 val photos = it.photos.withFile(SyncedPhoto(filename, System.currentTimeMillis(), uri, exposure))
                 // The shot's item: the new file's own, or the one it just joined.
                 val item = photos.firstOrNull { photo -> photo.uri == uri || photo.rawUri == uri }?.uri ?: uri
-                it.copy(photos = photos, sessionPhotoUris = it.sessionPhotoUris + item)
+                // In the same update as the photo arriving, so its pending entry hands over in place.
+                val wasPending = it.pending.any { pending -> pending.handle == handle }
+                it.copy(
+                    photos = photos,
+                    sessionPhotoUris = it.sessionPhotoUris + item,
+                    pending = it.pending.filterNot { pending -> pending.handle == handle },
+                    finishedInBatch = it.finishedInBatch + if (wasPending) 1 else 0,
+                )
             }
         }
     }

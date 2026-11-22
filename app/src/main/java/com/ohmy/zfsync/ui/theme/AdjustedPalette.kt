@@ -9,4 +9,7 @@ import androidx.compose.material3.ColorScheme
  */
 interface AdjustedPalette {
     fun adjust(scheme: ColorScheme, darkTheme: Boolean): ColorScheme
+
+    /** Exact home screen colors for the (adjusted) [scheme], or null to derive them as for any theme (see homeColors). */
+    fun homeColors(scheme: ColorScheme, darkTheme: Boolean): HomeColors? = null
 }

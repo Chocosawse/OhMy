@@ -8,7 +8,7 @@ import com.ohmy.zfsync.sync.CameraSyncRepository
 
 class OhMyApplication : Application() {
     val syncRepository: CameraSyncRepository by lazy {
-        CameraSyncRepository(this, downloadRaws = { syncPreferences.downloadRaws.value })
+        CameraSyncRepository(this, syncPreferences)
     }
     val themeStore: ThemeStore by lazy { ThemeStore(this) }
     val galleryPreferences: GalleryPreferencesStore by lazy { GalleryPreferencesStore(this) }

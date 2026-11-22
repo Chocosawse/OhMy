@@ -17,6 +17,7 @@ import com.ohmy.zfsync.service.CameraSyncService
 import com.ohmy.zfsync.storage.DeviceAlbums
 import com.ohmy.zfsync.sync.CameraSyncRepository
 import com.ohmy.zfsync.ui.components.DateStyle
+import com.ohmy.zfsync.ui.home.HomeLayout
 import com.ohmy.zfsync.ui.screens.CarouselStyle
 import com.ohmy.zfsync.ui.theme.ThemeChoice
 import com.ohmy.zfsync.ui.theme.paletteName
@@ -39,7 +40,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     val state: StateFlow<SyncUiState> = repository.state
     val downloadStatus: StateFlow<DownloadStatus> = repository.downloadStatus
-    val savedCredentials: SavedCameraCredentials? = repository.loadSavedCredentials()
+    /** The last camera connected to, read afresh each time (connecting saves it). */
+    val savedCredentials: SavedCameraCredentials? get() = repository.loadSavedCredentials()
 
     val themeChoice: StateFlow<ThemeChoice> = themeStore.paletteName
         .map(ThemeChoice::fromPaletteName)
@@ -71,6 +73,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setDateStyle(style: DateStyle) {
         galleryPreferences.setDateStyle(style.key)
+    }
+
+    val homeLayout: StateFlow<HomeLayout> = galleryPreferences.homeLayout
+        .map(HomeLayout::fromKey)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, HomeLayout.fromKey(galleryPreferences.homeLayout.value))
+
+    fun setHomeLayout(layout: HomeLayout) {
+        galleryPreferences.setHomeLayout(layout.key)
     }
 
     /** Read by the sync itself whenever it meets a RAW on the camera, so a change applies straight away. */
@@ -138,14 +148,6 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun disconnect() {
         repository.disconnect()
         CameraSyncService.stop(getApplication())
-    }
-
-    fun setAutoSyncEnabled(enabled: Boolean) {
-        repository.setAutoSyncEnabled(enabled)
-    }
-
-    fun syncNow() {
-        viewModelScope.launch { repository.syncNow() }
     }
 
     fun refreshPhotos() {

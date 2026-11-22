@@ -178,8 +178,11 @@ class PtpIpClient private constructor(
         PtpObjectInfo.parse(result.data ?: ByteArray(0))
     }
 
-    /** Streams the full object bytes to [sink] as they arrive, without buffering the whole file in memory. */
-    suspend fun getObject(handle: Long, sink: OutputStream): Long = withContext(Dispatchers.IO) {
+    /**
+     * Streams the full object bytes to [sink] as they arrive, without buffering the whole file in
+     * memory, reporting the running byte count to [onProgress] after each chunk.
+     */
+    suspend fun getObject(handle: Long, sink: OutputStream, onProgress: ((Long) -> Unit)? = null): Long = withContext(Dispatchers.IO) {
         var total = 0L
         executeOperation(
             PtpOperationCode.GET_OBJECT,
@@ -188,6 +191,7 @@ class PtpIpClient private constructor(
             onDataChunk = { chunk ->
                 sink.write(chunk)
                 total += chunk.size
+                onProgress?.invoke(total)
             },
         )
         total

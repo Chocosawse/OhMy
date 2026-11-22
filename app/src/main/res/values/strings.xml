@@ -4,28 +4,65 @@
     <!-- How the viewer is listed in other apps' "Open with" choosers. -->
     <string name="viewer_app_label">OhMy Gallery</string>
 
-    <string name="connect_title">Connect to your Nikon Zf</string>
-    <!-- Set in italics, as a lead-in to connect_instructions. -->
-    <string name="connect_instructions_lead">On the camera:</string>
-    <string name="connect_instructions">Menu → Network → Wi-Fi → turn on, then enter the SSID and password shown on the camera\'s screen below.</string>
-    <string name="connect_ssid_label">Camera Wi-Fi network name (SSID)</string>
+    <!-- The home screen's title. -->
+    <string name="home_title">Nikon Zf</string>
+    <string name="home_select_photos">Select photos</string>
+    <string name="home_show_grid">Show as grid</string>
+    <string name="home_show_list">Show as list</string>
+
+    <!-- The status row. Set in capitals, as shown. -->
+    <string name="status_connected">CONNECTED</string>
+    <string name="status_connecting">CONNECTING…</string>
+    <string name="status_camera_not_found">CAMERA NOT FOUND</string>
+    <string name="status_not_set_up">NOT SET UP</string>
+    <string name="status_syncing_left">SYNCING · %1$d LEFT</string>
+    <string name="status_syncing">SYNCING</string>
+    <string name="status_up_to_date">UP TO DATE</string>
+    <!-- %1$s: a time today ("8:20 PM") or an earlier date ("NOV 20"). -->
+    <string name="status_last_sync">LAST SYNC %1$s</string>
+    <string name="status_expanded">Expanded</string>
+    <string name="status_collapsed">Collapsed</string>
+    <string name="status_show_card">Show connection</string>
+    <string name="status_hide_card">Hide connection</string>
+
+    <!-- The connection card. -->
+    <string name="card_setup_title">Turn on Wi‑Fi on your Zf</string>
+    <!-- %1$s is card_step_1_menu, set in bold. -->
+    <string name="card_step_1">On the camera, open %1$s and turn it on.</string>
+    <string name="card_step_1_menu">Menu → Network → Wi‑Fi</string>
+    <string name="card_step_2">Enter the network name and password shown on the camera\'s screen.</string>
+    <string name="card_connected_title">Connected to %1$s</string>
+    <string name="card_connected_title_plain">Connected</string>
+    <string name="card_connected_text">New shots download as you take them.</string>
+    <string name="card_connected_text_ip">New shots download as you take them. Camera at %1$s.</string>
+    <string name="connect_ssid_label">Network name (SSID)</string>
     <string name="connect_password_label">Password</string>
+    <string name="connect_show_password">Show password</string>
+    <string name="connect_hide_password">Hide password</string>
     <string name="connect_button">Connect</string>
     <string name="connect_button_connecting">Connecting…</string>
-    <string name="connect_button_reconnect">Reconnect to %1$s</string>
-
-    <string name="sync_connected_to">Connected to %1$s</string>
-    <string name="sync_auto_sync_label">Auto-sync new shots</string>
-    <string name="sync_now_button">Sync now</string>
-    <string name="sync_now_syncing">Syncing…</string>
+    <string name="connect_button_to">Connect to %1$s</string>
     <string name="sync_disconnect_button">Disconnect</string>
-    <string name="sync_section_this_session">This session</string>
-    <string name="sync_section_this_session_empty">New shots will appear here</string>
-    <string name="sync_section_earlier">Earlier</string>
+
+    <!-- Album sections: today's by part of the day. -->
+    <string name="section_late_night">Late night</string>
+    <string name="section_morning">Morning</string>
+    <string name="section_afternoon">Afternoon</string>
+    <string name="section_evening">Evening</string>
+    <string name="section_night">Night</string>
     <string name="photos_section_all">Photos</string>
     <string name="photos_section_all_empty">Synced photos will appear here</string>
+
+    <!-- Shots still downloading from the camera. -->
+    <string name="pending_queued">Waiting to sync</string>
+    <string name="pending_syncing">Syncing · %1$d%%</string>
+    <string name="pending_queued_chip">QUEUED</string>
+    <string name="pending_percent">%1$d%%</string>
+    <!-- %1$s: the file's name, e.g. DSC_3961. -->
+    <string name="pending_queued_description">%1$s, waiting to sync</string>
+    <string name="pending_syncing_description">%1$s, syncing, %2$d percent</string>
+    <!-- The viewer's stand-in for a photo still downloading. -->
     <string name="sync_placeholder_title">Downloading…</string>
-    <string name="sync_placeholder_subtitle">Incoming from camera</string>
     <string name="sync_no_viewer_app">No app available for this action</string>
 
     <string name="sync_notification_channel_name">Camera sync</string>
@@ -54,7 +91,6 @@
     <string name="viewer_delete_dont_ask_again">Don\'t ask again</string>
 
     <string name="select_cancel">Cancel selection</string>
-    <string name="select_menu">Menu</string>
     <string name="select_raw">RAW</string>
     <string name="select_raw_description">Open RAW files</string>
     <string name="raw_chooser_title">Open RAW with</string>
@@ -88,6 +124,12 @@
     <string name="settings_section_sync">Sync</string>
     <string name="settings_download_raws">Download RAW files</string>
     <string name="settings_download_raws_summary">Also save each shot\'s RAW (e.g. NEF) with its JPEG. RAWs are large, so syncing takes longer.</string>
+    <string name="settings_home_layout">Home layout</string>
+    <string name="settings_home_layout_list">List</string>
+    <string name="settings_home_layout_list_summary">Rows with details</string>
+    <string name="settings_home_layout_grid">Grid</string>
+    <string name="settings_home_layout_grid_summary">Photos only</string>
+    <string name="settings_viewer">Viewer</string>
     <string name="theme_system">System (Material You)</string>
     <string name="theme_close">Close</string>
 
@@ -111,13 +153,5 @@
         <item quantity="other">This removes them from your phone. This can\'t be undone.</item>
     </plurals>
 
-    <plurals name="sync_photo_count">
-        <item quantity="one">%1$d photo in Pictures/OhMy</item>
-        <item quantity="other">%1$d photos in Pictures/OhMy</item>
-    </plurals>
 
-    <plurals name="sync_downloading_count">
-        <item quantity="one">Downloading %1$d photo…</item>
-        <item quantity="other">Downloading %1$d photos…</item>
-    </plurals>
 </resources>

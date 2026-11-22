@@ -36,12 +36,12 @@ private fun newsreader(opticalSize: Float) = FontFamily(
     },
 )
 
-private val NewsreaderDisplay = newsreader(opticalSize = 72f)
-private val NewsreaderHeadline = newsreader(opticalSize = 36f)
-private val NewsreaderTitle = newsreader(opticalSize = 20f)
+internal val NewsreaderDisplay = newsreader(opticalSize = 72f)
+internal val NewsreaderHeadline = newsreader(opticalSize = 36f)
+internal val NewsreaderTitle = newsreader(opticalSize = 20f)
 
 @OptIn(ExperimentalTextApi::class)
-private val Inter = FontFamily(
+internal val Inter = FontFamily(
     listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold).flatMap { weight ->
         listOf(
             Font(
