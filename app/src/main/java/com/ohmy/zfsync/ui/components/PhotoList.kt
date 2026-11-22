@@ -301,7 +301,7 @@ private fun PendingRow(pending: PendingPhoto) {
 }
 
 /** How much a selected photo's thumbnail shrinks, in the list and the grid, so the selection reads at a glance. */
-private const val SELECTED_THUMBNAIL_SCALE = 0.9f
+private const val SELECTED_THUMBNAIL_SCALE = 0.85f
 
 /** A thumbnail's scale: shrinking as its photo is selected and growing back as it's deselected. */
 @Composable
