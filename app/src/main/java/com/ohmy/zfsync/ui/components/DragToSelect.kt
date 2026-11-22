@@ -29,7 +29,8 @@ import kotlinx.coroutines.launch
  * it and the one under the finger. Dragging back shrinks the range and restores items outside it
  * to how they were before the drag, and the list auto-scrolls while the finger is near its top or
  * bottom edge. Each gesture is applied on top of the selection as it stood when it began, so
- * ranges from separate long-presses accumulate.
+ * ranges from separate long-presses accumulate. With [onDragOut], a long-press on a selected item
+ * may instead drag the selection out of the app.
  *
  * [selectableKeys] must return the lazy item keys of selectable items in on-screen order;
  * pressing anything else (headers, placeholders) falls through as a normal long press. The
@@ -42,6 +43,7 @@ fun <K : Any> Modifier.dragToSelect(
     selection: () -> Set<K>,
     onSelectionChange: (Set<K>) -> Unit,
     haptics: HapticFeedback,
+    onDragOut: ((K) -> Boolean)? = null,
 ): Modifier = dragToSelect(
     scrollState = listState,
     keyAt = { position ->
@@ -53,6 +55,7 @@ fun <K : Any> Modifier.dragToSelect(
     selection = selection,
     onSelectionChange = onSelectionChange,
     haptics = haptics,
+    onDragOut = onDragOut,
 )
 
 /**
@@ -70,6 +73,7 @@ fun <K : Any> Modifier.dragToSelect(
     selection: () -> Set<K>,
     onSelectionChange: (Set<K>) -> Unit,
     haptics: HapticFeedback,
+    onDragOut: ((K) -> Boolean)? = null,
 ): Modifier = dragToSelect(
     scrollState = gridState,
     keyAt = keyAt@{ position ->
@@ -95,6 +99,7 @@ fun <K : Any> Modifier.dragToSelect(
     selection = selection,
     onSelectionChange = onSelectionChange,
     haptics = haptics,
+    onDragOut = onDragOut,
 )
 
 /** The gesture itself, for any lazy container: [keyAt] finds the item key at a position in it. */
@@ -111,6 +116,11 @@ private fun <K : Any> Modifier.dragToSelect(
     },
     onSelectionChange: (Set<K>) -> Unit,
     haptics: HapticFeedback,
+    /**
+     * Offered a long-press on an already-selected item first: returns true if it took the press
+     * (dragging the selection out to another app), and then no range is selected.
+     */
+    onDragOut: ((K) -> Boolean)? = null,
 ): Modifier = pointerInput(scrollState) {
     coroutineScope {
         val edgePx = 64.dp.toPx()
@@ -127,6 +137,17 @@ private fun <K : Any> Modifier.dragToSelect(
 
             val anchor = selectableAt(longPress.position) ?: return@awaitEachGesture
             val base = selection()
+            if (anchor in base && onDragOut?.invoke(anchor) == true) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                // The system takes the touch over once its drag starts. Until then, keep the
+                // finger's moves from scrolling the list or tapping a photo.
+                while (true) {
+                    val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == longPress.id } ?: break
+                    change.consume()
+                    if (!change.pressed) break
+                }
+                return@awaitEachGesture
+            }
             val adding = anchor !in base
             var current: K? = null
             var pointer = longPress.position

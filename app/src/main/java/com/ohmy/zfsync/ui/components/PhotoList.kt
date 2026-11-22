@@ -115,6 +115,8 @@ internal fun HomePhotoList(
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
     contentAlpha: () -> Float = { 1f },
+    /** A long-press on a selected photo, offered first to drag the selection out (see rememberPhotoDragOut). */
+    onDragOut: ((Uri) -> Boolean)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     // The drag gesture outlives recompositions, so it reads the latest entries through this.
@@ -144,6 +146,7 @@ internal fun HomePhotoList(
                 selection = { selection.selected },
                 onSelectionChange = selection::set,
                 haptics = haptics,
+                onDragOut = onDragOut,
             ),
         // The list runs behind the navigation bar (and keyboard), so its content is padded for
         // them: the last row can scroll clear of both, plus the pill when it's showing.
