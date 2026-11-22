@@ -3,7 +3,7 @@ package com.ohmy.zfsync.ui.screens
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -64,9 +65,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -135,6 +136,7 @@ import com.ohmy.zfsync.ui.home.rememberToday
 import com.ohmy.zfsync.ui.home.syncProgress
 import com.ohmy.zfsync.ui.theme.HomeTypography
 import com.ohmy.zfsync.ui.theme.LocalHomeColors
+import com.ohmy.zfsync.ui.theme.OvershootEasing
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import com.ohmy.zfsync.ui.theme.animationsEnabled
 import kotlinx.coroutines.delay
@@ -155,7 +157,9 @@ private val PinnedHeight = 48.dp + 3.dp
 private const val CARD_COLLAPSE_DELAY_MILLIS = 600L
 
 private const val CARD_MOTION_MILLIS = 200
-private const val LAYOUT_CROSSFADE_MILLIS = 150
+/** Switching layout: the old one fades out, then the new one fades in. */
+private const val LAYOUT_FADE_OUT_MILLIS = 200
+private const val LAYOUT_FADE_IN_MILLIS = 350
 
 /** The glyph's inset in a 48dp touch target, for lining up an icon's edge with the content edge. */
 private fun glyphInset(glyph: Float) = ((48f - glyph) / 2f).dp
@@ -183,6 +187,8 @@ fun HomeScreen(
     onBrowseAlbums: () -> Unit,
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
+    /** Whether Settings is showing over this screen: the gear turns as it opens and closes. */
+    settingsOpen: Boolean = false,
     today: LocalDate = rememberToday(),
     /** Previews only: open the card regardless of the status. */
     cardInitiallyExpanded: Boolean? = null,
@@ -222,12 +228,14 @@ fun HomeScreen(
 
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
-    val latestLayout by rememberUpdatedState(layout)
+    // The layout on screen: it follows [layout] once the photos have faded out (see below).
+    var shownLayout by remember { mutableStateOf(layout) }
+    val photosAlpha = remember { Animatable(1f) }
     // Where the status row starts within the header, so it pins exactly as it reaches the top.
     val statusTop = remember { mutableIntStateOf(Int.MAX_VALUE) }
     val pinned by remember {
         derivedStateOf {
-            val (index, offset) = when (latestLayout) {
+            val (index, offset) = when (shownLayout) {
                 HomeLayout.List -> listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
                 HomeLayout.Grid -> gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset
             }
@@ -245,13 +253,21 @@ fun HomeScreen(
     val toggleCard: () -> Unit = {
         expanded = !expanded
         // Opened from the pinned row: bring the card into view.
-        if (expanded && pinned) scope.launch { scrollTo(layout, 0, 0) }
+        if (expanded && pinned) scope.launch { scrollTo(shownLayout, 0, 0) }
     }
 
-    /** Switches layout, keeping the topmost visible photo at the top (or the header where it was). */
-    fun switchLayout() {
-        val target = layout.toggled
-        val (index, offset, visible) = when (layout) {
+    /**
+     * Switching layout: the photos fade out, the other layout takes their place scrolled to the
+     * same photo (or, with the header in view, to the same spot, so the header doesn't move),
+     * and the photos fade back in. The header, status row and library row stay put throughout.
+     */
+    LaunchedEffect(layout) {
+        if (layout == shownLayout) {
+            // Switched back mid-fade.
+            if (animate) photosAlpha.animateTo(1f, tween(LAYOUT_FADE_IN_MILLIS)) else photosAlpha.snapTo(1f)
+            return@LaunchedEffect
+        }
+        val (index, offset, visible) = when (shownLayout) {
             HomeLayout.List -> Triple(
                 listState.firstVisibleItemIndex,
                 listState.firstVisibleItemScrollOffset,
@@ -263,24 +279,29 @@ fun HomeScreen(
                 gridState.layoutInfo.visibleItemsInfo.map { it.index },
             )
         }
-        val pinnedPx = with(density) { PinnedHeight.roundToPx() }
         val topPhoto = visible.firstOrNull { i ->
             val entry = entries.getOrNull(i)
-            (entry is HomeEntry.Photo || entry is HomeEntry.Pending)
+            entry is HomeEntry.Photo || entry is HomeEntry.Pending
         }
-        onLayoutChange(target)
-        scope.launch {
-            if (index == 0 || topPhoto == null) {
-                scrollTo(target, index, offset)
-            } else {
-                // Just below the pinned status row, which would otherwise cover it.
-                scrollTo(target, topPhoto, 0)
-                when (target) {
-                    HomeLayout.List -> listState.scrollBy(-pinnedPx.toFloat())
-                    HomeLayout.Grid -> gridState.scrollBy(-pinnedPx.toFloat())
-                }
+        if (animate) photosAlpha.animateTo(0f, tween(LAYOUT_FADE_OUT_MILLIS)) else photosAlpha.snapTo(0f)
+        // Set before the other layout is first measured, so its very first frame is already there.
+        val (targetIndex, targetOffset) = if (index == 0 || topPhoto == null) index to offset else topPhoto to 0
+        when (layout) {
+            HomeLayout.List -> listState.requestScrollToItem(targetIndex, targetOffset)
+            HomeLayout.Grid -> gridState.requestScrollToItem(targetIndex, targetOffset)
+        }
+        shownLayout = layout
+        if (index != 0 && topPhoto != null) {
+            // Just below the pinned status row, which would otherwise cover it (the header is
+            // scrolled away, so this happens out of sight while the photos are faded out).
+            withFrameNanos { }
+            val pinnedPx = with(density) { PinnedHeight.roundToPx() }.toFloat()
+            when (layout) {
+                HomeLayout.List -> listState.scrollBy(-pinnedPx)
+                HomeLayout.Grid -> gridState.scrollBy(-pinnedPx)
             }
         }
+        if (animate) photosAlpha.animateTo(1f, tween(LAYOUT_FADE_IN_MILLIS)) else photosAlpha.snapTo(1f)
     }
 
     val progress = syncProgress(state)
@@ -295,6 +316,7 @@ fun HomeScreen(
             pinned = { pinned },
             onStatusPlaced = { statusTop.intValue = it },
             onOpenSettings = onOpenSettings,
+            settingsOpen = settingsOpen,
             card = {
                 ConnectionCard(
                     status = status,
@@ -309,7 +331,7 @@ fun HomeScreen(
                 )
             },
             layout = layout,
-            onSwitchLayout = ::switchLayout,
+            onSwitchLayout = { onLayoutChange(layout.toggled) },
             onSelect = selection::start,
             onBrowseAlbums = onBrowseAlbums,
         )
@@ -331,12 +353,10 @@ fun HomeScreen(
     val selectedPhotos = ordered.filter { it.uri in selection.selected }
 
     Box(modifier = modifier.fillMaxSize().background(colors.background)) {
-        Crossfade(
-            targetState = layout,
-            animationSpec = tween(if (animate) LAYOUT_CROSSFADE_MILLIS else 0),
-            label = "homeLayout",
-        ) { shown ->
-            when (shown) {
+        // Only the photos fade as the layout switches (see above); the rest stays put.
+        val contentAlpha = { photosAlpha.value }
+        Box(Modifier.fillMaxSize()) {
+            when (shownLayout) {
                 HomeLayout.List -> HomePhotoList(
                     entries = entries,
                     listState = listState,
@@ -346,6 +366,7 @@ fun HomeScreen(
                     sectionTitle = sectionTitle,
                     bottomPadding = bottomPadding,
                     photoTransition = photoTransition,
+                    contentAlpha = contentAlpha,
                 )
                 HomeLayout.Grid -> HomePhotoGrid(
                     entries = entries,
@@ -356,10 +377,10 @@ fun HomeScreen(
                     sectionTitle = sectionTitle,
                     bottomPadding = bottomPadding,
                     photoTransition = photoTransition,
+                    contentAlpha = contentAlpha,
                 )
             }
         }
-
         // On the page's own color, no shadow: the photos simply pass under it.
         if (pinned) {
             Column(
@@ -420,6 +441,39 @@ private val DayPart.label: Int
         DayPart.Night -> R.string.section_night
     }
 
+/** From the title's baseline to the rule under it. */
+private val TitleToRule = 20.dp
+
+/** From the bottom of the gear's 48dp touch target up to the bottom of its drawn teeth (stroke included). */
+private val GearGlyphBottomInset = 14.dp
+
+/** How long the gear's spin takes, each way. */
+private const val GEAR_SPIN_MILLIS = 700
+
+/**
+ * The settings gear. It gives a full turn as Settings opens, and turns back the other way as
+ * Settings closes and the home screen is back.
+ */
+@Composable
+private fun SettingsButton(settingsOpen: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val animate = animationsEnabled()
+    // Starts where it should be already, e.g. with Settings open after rotating the phone.
+    val rotation = remember { Animatable(if (settingsOpen) 360f else 0f) }
+    LaunchedEffect(settingsOpen) {
+        val target = if (settingsOpen) 360f else 0f
+        // From wherever a spin still running has got to.
+        if (animate) rotation.animateTo(target, tween(GEAR_SPIN_MILLIS, easing = OvershootEasing)) else rotation.snapTo(target)
+    }
+    IconButton(onClick = onClick, modifier = modifier) {
+        Icon(
+            SettingsGearIcon,
+            contentDescription = stringResource(R.string.settings_title),
+            tint = LocalHomeColors.current.ink,
+            modifier = Modifier.graphicsLayer { rotationZ = rotation.value },
+        )
+    }
+}
+
 /** Everything above the album, as the scrolling content's first item. */
 @Composable
 private fun HomeHeader(
@@ -432,6 +486,7 @@ private fun HomeHeader(
     pinned: () -> Boolean,
     onStatusPlaced: (top: Int) -> Unit,
     onOpenSettings: () -> Unit,
+    settingsOpen: Boolean,
     card: @Composable () -> Unit,
     layout: HomeLayout,
     onSwitchLayout: () -> Unit,
@@ -451,14 +506,21 @@ private fun HomeHeader(
                     color = colors.ink,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    // 16dp from the letters (their baseline: "Nikon Zf" has no descenders) to the
+                    // rule, rather than from the bottom of the line's box.
+                    modifier = Modifier.paddingFromBaseline(bottom = TitleToRule),
                 )
             }
-            // The glyph's right edge on the content edge; the touch target runs past it.
-            IconButton(onClick = onOpenSettings, modifier = Modifier.offset(x = glyphInset(22f))) {
-                Icon(SettingsGearIcon, contentDescription = stringResource(R.string.settings_title), tint = colors.ink)
-            }
+            SettingsButton(
+                settingsOpen = settingsOpen,
+                onClick = onOpenSettings,
+                // The glyph's right edge on the content edge and its bottom on the title's
+                // baseline; the touch target runs past both.
+                modifier = Modifier
+                    .offset(x = glyphInset(22f))
+                    .padding(bottom = TitleToRule - GearGlyphBottomInset),
+            )
         }
-        Spacer(Modifier.height(16.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.ink))
         Column(
             modifier = Modifier

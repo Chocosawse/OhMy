@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -33,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -112,6 +114,7 @@ internal fun HomePhotoList(
     bottomPadding: Dp,
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
+    contentAlpha: () -> Float = { 1f },
 ) {
     val haptics = LocalHapticFeedback.current
     // The drag gesture outlives recompositions, so it reads the latest entries through this.
@@ -151,11 +154,14 @@ internal fun HomePhotoList(
             // in and push the rest along. A pending row and its photo crossfade in place.
             val fadeIn: FiniteAnimationSpec<Float> = tween(handover)
             Column(
-                modifier = Modifier.animateItem(
-                    fadeInSpec = if (entry is HomeEntry.Photo || entry is HomeEntry.Pending) fadeIn else fadeSpec(),
-                    placementSpec = overshootSpec(),
-                    fadeOutSpec = if (entry is HomeEntry.Pending) tween(handover) else fadeSpec(),
-                ),
+                modifier = Modifier
+                    .animateItem(
+                        fadeInSpec = if (entry is HomeEntry.Photo || entry is HomeEntry.Pending) fadeIn else fadeSpec(),
+                        placementSpec = overshootSpec(),
+                        fadeOutSpec = if (entry is HomeEntry.Pending) tween(handover) else fadeSpec(),
+                    )
+                    // Everything but the header fades as the layout switches.
+                    .then(if (entry == HomeEntry.Header) Modifier else Modifier.graphicsLayer { alpha = contentAlpha() }),
             ) {
                 when (entry) {
                     HomeEntry.Header -> Box(Modifier.padding(horizontal = ScreenHorizontalPadding)) { header() }
@@ -294,6 +300,23 @@ private fun PendingRow(pending: PendingPhoto) {
     }
 }
 
+/** How much a selected photo's thumbnail shrinks, in the list and the grid, so the selection reads at a glance. */
+private const val SELECTED_THUMBNAIL_SCALE = 0.85f
+
+/** A thumbnail's scale: shrinking as its photo is selected and growing back as it's deselected. */
+@Composable
+internal fun animateSelectedScale(selected: Boolean): State<Float> = animateFloatAsState(
+    targetValue = if (selected) SELECTED_THUMBNAIL_SCALE else 1f,
+    animationSpec = if (animationsEnabled()) overshootSpec() else snap(),
+    label = "selectedThumbnailScale",
+)
+
+/** Scales the content by [scale], read in the draw layer so animating it doesn't recompose. */
+internal fun Modifier.scaled(scale: State<Float>): Modifier = graphicsLayer {
+    scaleX = scale.value
+    scaleY = scale.value
+}
+
 /** The check on a selected photo, in the list and the grid. */
 @Composable
 internal fun SelectedBadge(modifier: Modifier = Modifier) {
@@ -355,6 +378,7 @@ private fun PhotoRow(
         derivedStateOf { photoTransition != null && photoTransition.activeUri == photo.uri }
     }
     val thumbnailCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    val selectedScale = animateSelectedScale(isSelected)
     if (photoTransition != null) {
         DisposableEffect(photoTransition, photo.uri) {
             onDispose { photoTransition.onThumbnailDisposed(photo.uri, thumbnailCoordinates[0]) }
@@ -388,6 +412,8 @@ private fun PhotoRow(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(ThumbnailSize)
+                    // Shrinks while selected; the badge, outside it, keeps its size and corner.
+                    .scaled(selectedScale)
                     // The tile color until the image arrives, as in the grid.
                     .background(LocalHomeColors.current.tile)
                     .then(

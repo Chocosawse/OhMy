@@ -2,9 +2,10 @@ package com.ohmy.zfsync.ui.components
 
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,15 +24,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -52,12 +57,14 @@ import com.ohmy.zfsync.ui.home.HomeEntry
 import com.ohmy.zfsync.ui.home.SectionTitle
 import com.ohmy.zfsync.ui.home.fileNumber
 import com.ohmy.zfsync.ui.home.fileTitle
+import com.ohmy.zfsync.ui.home.gridCells
 import com.ohmy.zfsync.ui.theme.HomeTypography
 import com.ohmy.zfsync.ui.theme.LocalHomeColors
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import com.ohmy.zfsync.ui.theme.animationsEnabled
 import com.ohmy.zfsync.ui.theme.fadeSpec
 import com.ohmy.zfsync.ui.theme.overshootSpec
+import com.ohmy.zfsync.ui.theme.pressExpand
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -71,13 +78,23 @@ private const val MIN_COLUMNS = 3
 /** How long a cell's image fades in the first time it loads (not from the memory cache). */
 private const val CELL_FADE_MILLIS = 150
 
+/**
+ * How much a pressed cell grows. Larger than a list row's (ROW_PRESS_EXPAND_SCALE, 1%), which
+ * spans the screen: on a cell a third of the width, this gives about the same few dp of growth,
+ * still inside the gaps between cells.
+ */
+private const val CELL_PRESS_EXPAND_SCALE = 1.03f
+
 /** How much the scrim darkens a selected photo, in ink. */
 private const val SELECTED_SCRIM_ALPHA = 0.2f
 
-/** As many [MinCellWidth] columns as fit in the content width, at least [MIN_COLUMNS], sharing the width evenly. */
+/** How many columns the grid has across [contentWidthPx]: as many [MinCellWidth] ones as fit, at least [MIN_COLUMNS]. */
+private fun Density.gridColumns(contentWidthPx: Int): Int = maxOf(MIN_COLUMNS, contentWidthPx / MinCellWidth.roundToPx())
+
+/** [gridColumns] columns, sharing the content width evenly. */
 private object HomeGridCells : GridCells {
     override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): List<Int> {
-        val count = maxOf(MIN_COLUMNS, availableSize / MinCellWidth.roundToPx())
+        val count = gridColumns(availableSize)
         val cells = availableSize - spacing * (count - 1)
         val width = cells / count
         val remainder = cells % count
@@ -87,8 +104,9 @@ private object HomeGridCells : GridCells {
 
 /**
  * The home screen's grid layout: [entries] as square photos only, under the [header], with
- * section headings across the full width. Tap opens a photo; long-press enters select mode, in
- * which a tap toggles. Pending shots hold their place as tiles with their progress, and can't be
+ * section headings across the full width. Tap opens a photo; long-press selects, and dragging on
+ * selects the rectangle of photos between the one pressed and the finger. In select mode a tap
+ * toggles. Pending shots hold their place as tiles with their progress, and can't be
  * opened or selected.
  */
 @Composable
@@ -102,8 +120,24 @@ internal fun HomePhotoGrid(
     bottomPadding: Dp,
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
+    contentAlpha: () -> Float = { 1f },
 ) {
     val handover = if (animationsEnabled()) PENDING_HANDOVER_MILLIS else 0
+    val haptics = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val startPaddingPx = with(density) { ScreenHorizontalPadding.roundToPx() }
+    // Each photo's line and column, for drag-selecting a rectangle of them.
+    var gridWidthPx by remember { mutableIntStateOf(0) }
+    val columns = with(density) { gridColumns(gridWidthPx - 2 * startPaddingPx) }
+    val cells = remember(entries, columns) {
+        gridCells(entries, columns) { it !is HomeEntry.Photo && it !is HomeEntry.Pending }
+            .zip(entries)
+            .mapNotNull { (cell, entry) -> if (cell != null && entry is HomeEntry.Photo) entry.photo.uri to cell else null }
+            .toMap()
+    }
+    val latestCells by rememberUpdatedState(cells)
+    // The drag gesture outlives recompositions, so it reads the latest entries through this.
+    val latestEntries by rememberUpdatedState(entries)
 
     if (photoTransition != null) {
         RevealOnRequest(photoTransition, entries) { index, uri ->
@@ -118,7 +152,21 @@ internal fun HomePhotoGrid(
     LazyVerticalGrid(
         columns = HomeGridCells,
         state = gridState,
-        modifier = modifier.fillMaxSize().verticalFadingEdges(gridState),
+        modifier = modifier
+            .fillMaxSize()
+            .onSizeChanged { gridWidthPx = it.width }
+            .verticalFadingEdges(gridState)
+            // Long-press a photo to select it, then drag on to select (or deselect) the rectangle
+            // of photos between it and the finger.
+            .dragToSelect(
+                gridState = gridState,
+                startPaddingPx = startPaddingPx,
+                selectableKeys = { latestEntries.mapNotNull { (it as? HomeEntry.Photo)?.photo?.uri } },
+                cellOf = { latestCells },
+                selection = { selection.selected },
+                onSelectionChange = selection::set,
+                haptics = haptics,
+            ),
         contentPadding = PaddingValues(start = ScreenHorizontalPadding, end = ScreenHorizontalPadding, bottom = bottomPadding),
         horizontalArrangement = Arrangement.spacedBy(GridGap),
         verticalArrangement = Arrangement.spacedBy(GridGap),
@@ -132,11 +180,14 @@ internal fun HomePhotoGrid(
             },
         ) { entry ->
             val fadeIn: FiniteAnimationSpec<Float> = tween(handover)
-            val itemModifier = Modifier.animateItem(
-                fadeInSpec = if (entry is HomeEntry.Photo || entry is HomeEntry.Pending) fadeIn else fadeSpec(),
-                placementSpec = overshootSpec(),
-                fadeOutSpec = if (entry is HomeEntry.Pending) tween(handover) else fadeSpec(),
-            )
+            val itemModifier = Modifier
+                .animateItem(
+                    fadeInSpec = if (entry is HomeEntry.Photo || entry is HomeEntry.Pending) fadeIn else fadeSpec(),
+                    placementSpec = overshootSpec(),
+                    fadeOutSpec = if (entry is HomeEntry.Pending) tween(handover) else fadeSpec(),
+                )
+                // Everything but the header fades as the layout switches.
+                .then(if (entry == HomeEntry.Header) Modifier else Modifier.graphicsLayer { alpha = contentAlpha() })
             when (entry) {
                 // The grid's content padding already insets it; it spans the content width.
                 HomeEntry.Header -> Box(itemModifier) { header() }
@@ -163,7 +214,6 @@ internal fun HomePhotoGrid(
 
 private val TimeFormatter: DateTimeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PhotoCell(
     photo: SyncedPhoto,
@@ -175,7 +225,6 @@ private fun PhotoCell(
 ) {
     val context = LocalContext.current
     val colors = LocalHomeColors.current
-    val haptics = LocalHapticFeedback.current
     val fadeMillis = if (animationsEnabled()) CELL_FADE_MILLIS else 0
     // "DSC_3958, 8:20 PM": the section heading above it gives the day.
     val description = remember(photo) { "${fileTitle(photo.filename)}, ${TimeFormatter.format(photo.takenAt())}" }
@@ -190,25 +239,27 @@ private fun PhotoCell(
             onDispose { photoTransition.onThumbnailDisposed(photo.uri, coordinates[0]) }
         }
     }
-    val longPress = {
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        onLongPress()
-    }
+    val interactionSource = remember { MutableInteractionSource() }
+    val selectedScale = animateSelectedScale(isSelected)
     Box(
         modifier = modifier
             .then(if (inFlight) Modifier.expandAndFade { photoTransition!!.progress.value } else Modifier)
+            // The list rows' press pop: outermost, so the whole cell (scrim and check too) grows.
+            .pressExpand(interactionSource, pressedScale = CELL_PRESS_EXPAND_SCALE)
             .fillMaxWidth()
             .aspectRatio(1f)
             // The tile color while the image decodes.
             .background(colors.tile)
-            // Before the click handling, so its own semantics are replaced by these.
+            // Before the click handling, so its own semantics are replaced by these. The grid's
+            // dragToSelect handles the long-press gesture itself (one here would fire too and
+            // toggle twice); this exposes the same action to accessibility.
             .clearAndSetSemantics {
                 contentDescription = description
                 selected = isSelected
                 onClick { onClick(); true }
                 onLongClick { onLongPress(); true }
             }
-            .combinedClickable(onClick = onClick, onLongClick = longPress),
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
     ) {
         AsyncImage(
             // Decoded at the cell's size. Coil fades in only images it had to load; one from the
@@ -220,6 +271,8 @@ private fun PhotoCell(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
+                // Shrinks while selected, inside the cell's tile color; the badge keeps its size.
+                .scaled(selectedScale)
                 .then(
                     if (photoTransition == null) {
                         Modifier
@@ -243,7 +296,7 @@ private fun PhotoCell(
                 ),
         )
         if (isSelected) {
-            Box(Modifier.fillMaxSize().background(colors.ink.copy(alpha = SELECTED_SCRIM_ALPHA)))
+            Box(Modifier.fillMaxSize().scaled(selectedScale).background(colors.ink.copy(alpha = SELECTED_SCRIM_ALPHA)))
             SelectedBadge(Modifier.align(Alignment.TopEnd).padding(8.dp))
         }
     }
