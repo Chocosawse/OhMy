@@ -7,6 +7,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -122,6 +123,8 @@ fun ActionPill(
         shape = RoundedCornerShape(50),
         color = containerColor,
         contentColor = contentColor,
+        // Outlined in the icons' own color, so the pill reads as one object over any photo.
+        border = BorderStroke(PillBorderWidth, contentColor),
         shadowElevation = 4.dp,
     ) {
         Row(
@@ -138,6 +141,8 @@ fun ActionPill(
         }
     }
 }
+
+private val PillBorderWidth = 1.5.dp
 
 private const val PULSE_SCALE = 1.06f
 private const val PULSE_EXPAND_MILLIS = 120
