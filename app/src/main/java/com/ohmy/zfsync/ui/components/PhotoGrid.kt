@@ -2,8 +2,10 @@ package com.ohmy.zfsync.ui.components
 
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -62,6 +64,7 @@ import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import com.ohmy.zfsync.ui.theme.animationsEnabled
 import com.ohmy.zfsync.ui.theme.fadeSpec
 import com.ohmy.zfsync.ui.theme.overshootSpec
+import com.ohmy.zfsync.ui.theme.pressExpand
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -74,6 +77,13 @@ private const val MIN_COLUMNS = 3
 
 /** How long a cell's image fades in the first time it loads (not from the memory cache). */
 private const val CELL_FADE_MILLIS = 150
+
+/**
+ * How much a pressed cell grows. Larger than a list row's (ROW_PRESS_EXPAND_SCALE, 1%), which
+ * spans the screen: on a cell a third of the width, this gives about the same few dp of growth,
+ * still inside the gaps between cells.
+ */
+private const val CELL_PRESS_EXPAND_SCALE = 1.03f
 
 /** How much the scrim darkens a selected photo, in ink. */
 private const val SELECTED_SCRIM_ALPHA = 0.2f
@@ -229,9 +239,12 @@ private fun PhotoCell(
             onDispose { photoTransition.onThumbnailDisposed(photo.uri, coordinates[0]) }
         }
     }
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
             .then(if (inFlight) Modifier.expandAndFade { photoTransition!!.progress.value } else Modifier)
+            // The list rows' press pop: outermost, so the whole cell (scrim and check too) grows.
+            .pressExpand(interactionSource, pressedScale = CELL_PRESS_EXPAND_SCALE)
             .fillMaxWidth()
             .aspectRatio(1f)
             // The tile color while the image decodes.
@@ -245,7 +258,7 @@ private fun PhotoCell(
                 onClick { onClick(); true }
                 onLongClick { onLongPress(); true }
             }
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
     ) {
         AsyncImage(
             // Decoded at the cell's size. Coil fades in only images it had to load; one from the
