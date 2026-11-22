@@ -112,6 +112,7 @@ internal fun HomePhotoList(
     bottomPadding: Dp,
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
+    contentAlpha: () -> Float = { 1f },
 ) {
     val haptics = LocalHapticFeedback.current
     // The drag gesture outlives recompositions, so it reads the latest entries through this.
@@ -151,11 +152,14 @@ internal fun HomePhotoList(
             // in and push the rest along. A pending row and its photo crossfade in place.
             val fadeIn: FiniteAnimationSpec<Float> = tween(handover)
             Column(
-                modifier = Modifier.animateItem(
-                    fadeInSpec = if (entry is HomeEntry.Photo || entry is HomeEntry.Pending) fadeIn else fadeSpec(),
-                    placementSpec = overshootSpec(),
-                    fadeOutSpec = if (entry is HomeEntry.Pending) tween(handover) else fadeSpec(),
-                ),
+                modifier = Modifier
+                    .animateItem(
+                        fadeInSpec = if (entry is HomeEntry.Photo || entry is HomeEntry.Pending) fadeIn else fadeSpec(),
+                        placementSpec = overshootSpec(),
+                        fadeOutSpec = if (entry is HomeEntry.Pending) tween(handover) else fadeSpec(),
+                    )
+                    // Everything but the header fades as the layout switches.
+                    .then(if (entry == HomeEntry.Header) Modifier else Modifier.graphicsLayer { alpha = contentAlpha() }),
             ) {
                 when (entry) {
                     HomeEntry.Header -> Box(Modifier.padding(horizontal = ScreenHorizontalPadding)) { header() }

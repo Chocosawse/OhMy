@@ -110,6 +110,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onOpenSettings = { showSettings = true },
                     onBrowseAlbums = { showAlbums = true },
                     photoTransition = photoTransition,
+                    settingsOpen = showSettings,
                     modifier = Modifier.windowInsetsPadding(ScreenInsets),
                 )
             }
