@@ -1,5 +1,6 @@
 package com.ohmy.zfsync.ui.components
 
+import android.net.Uri
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
@@ -121,6 +122,8 @@ internal fun HomePhotoGrid(
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
     contentAlpha: () -> Float = { 1f },
+    /** A long-press on a selected photo, offered first to drag the selection out (see rememberPhotoDragOut). */
+    onDragOut: ((Uri) -> Boolean)? = null,
 ) {
     val handover = if (animationsEnabled()) PENDING_HANDOVER_MILLIS else 0
     val haptics = LocalHapticFeedback.current
@@ -166,6 +169,7 @@ internal fun HomePhotoGrid(
                 selection = { selection.selected },
                 onSelectionChange = selection::set,
                 haptics = haptics,
+                onDragOut = onDragOut,
             ),
         contentPadding = PaddingValues(start = ScreenHorizontalPadding, end = ScreenHorizontalPadding, bottom = bottomPadding),
         horizontalArrangement = Arrangement.spacedBy(GridGap),

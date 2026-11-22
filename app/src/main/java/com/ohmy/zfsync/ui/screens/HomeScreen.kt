@@ -120,6 +120,7 @@ import com.ohmy.zfsync.ui.components.SelectIcon
 import com.ohmy.zfsync.ui.components.SettingsGearIcon
 import com.ohmy.zfsync.ui.components.openRaws
 import com.ohmy.zfsync.ui.components.rememberHomeSelection
+import com.ohmy.zfsync.ui.components.rememberPhotoDragOut
 import com.ohmy.zfsync.ui.components.sharePhotos
 import com.ohmy.zfsync.ui.home.DayPart
 import com.ohmy.zfsync.ui.home.HomeEntry
@@ -353,6 +354,8 @@ fun HomeScreen(
     val selectedPhotos = ordered.filter { it.uri in selection.selected }
 
     Box(modifier = modifier.fillMaxSize().background(colors.background)) {
+        // In split screen, a long-press on a selected photo drags the selection into the other app.
+        val dragOut = rememberPhotoDragOut(ordered, selection)
         // Only the photos fade as the layout switches (see above); the rest stays put.
         val contentAlpha = { photosAlpha.value }
         Box(Modifier.fillMaxSize()) {
@@ -367,6 +370,7 @@ fun HomeScreen(
                     bottomPadding = bottomPadding,
                     photoTransition = photoTransition,
                     contentAlpha = contentAlpha,
+                    onDragOut = dragOut,
                 )
                 HomeLayout.Grid -> HomePhotoGrid(
                     entries = entries,
@@ -378,6 +382,7 @@ fun HomeScreen(
                     bottomPadding = bottomPadding,
                     photoTransition = photoTransition,
                     contentAlpha = contentAlpha,
+                    onDragOut = dragOut,
                 )
             }
         }
