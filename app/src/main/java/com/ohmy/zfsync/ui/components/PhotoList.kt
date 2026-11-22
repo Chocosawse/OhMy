@@ -69,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.SyncedPhoto
@@ -94,10 +95,14 @@ private val PillClearance = 88.dp + PillBottomMargin
 private const val ROW_PRESS_EXPAND_SCALE = 1.01f
 
 /** Each row's thumbnail; the rows' text sits alongside it. */
-private val ThumbnailSize = 72.dp
+private val ThumbnailSize = 80.dp
+
+/** How long a list thumbnail takes to fade in as it loads. */
+private const val THUMBNAIL_FADE_MILLIS = 250
+
 
 /** A row's top and bottom padding, and the gap between its thumbnail and text. */
-private val RowVerticalPadding = 12.dp
+private val RowVerticalPadding = 6.dp
 private val ThumbnailTextGap = 16.dp
 
 /**
@@ -422,6 +427,7 @@ private fun PhotoRow(
     onLongPress: () -> Unit,
     photoTransition: PhotoTransitionState?,
 ) {
+    val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     // This row's photo is on its way into (or back from) the viewer. Derived, so a transition
     // starting recomposes only the row it's about, not every visible one.
@@ -453,7 +459,11 @@ private fun PhotoRow(
     ) {
         Box {
             AsyncImage(
-                model = photo.uri,
+                // Fades in as it loads; one already in memory (scrolling back) shows at once.
+                // The request keys the memory cache by URI alone, as before.
+                model = remember(photo.uri) {
+                    ImageRequest.Builder(context).data(photo.uri).crossfade(THUMBNAIL_FADE_MILLIS).build()
+                },
                 contentDescription = photo.filename,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
