@@ -159,8 +159,8 @@ private const val CARD_COLLAPSE_DELAY_MILLIS = 600L
 
 private const val CARD_MOTION_MILLIS = 200
 
-/** How long the pinned status row takes to fade in or out. */
-private const val PIN_FADE_MILLIS = 200
+/** How long the connection card takes to fade in or out, around its space opening or closing. */
+private const val CARD_FADE_MILLIS = 250
 /** Switching layout: the old one fades out, then the new one fades in. */
 private const val LAYOUT_FADE_OUT_MILLIS = 200
 private const val LAYOUT_FADE_IN_MILLIS = 350
@@ -388,15 +388,9 @@ fun HomeScreen(
                 )
             }
         }
-        // On the page's own color, no shadow: the photos simply pass under it.
-        // Fades in as the status row reaches the top, and out as it scrolls back into place. The
-        // row in the header stays drawn under it, at the same spot at that moment, so the fade
-        // never shows a gap.
-        AnimatedVisibility(
-            visible = pinned,
-            enter = fadeIn(tween(if (animate) PIN_FADE_MILLIS else 0)),
-            exit = fadeOut(tween(if (animate) PIN_FADE_MILLIS else 0)),
-        ) {
+        // On the page's own color, no shadow: the photos simply pass under it. It covers the
+        // header's own row exactly as that reaches the top, so it simply takes over.
+        if (pinned) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -508,6 +502,7 @@ private fun HomeHeader(
 ) {
     val colors = LocalHomeColors.current
     val cardSpec = if (animationsEnabled()) CARD_MOTION_MILLIS else 0
+    val cardFadeSpec = if (animationsEnabled()) CARD_FADE_MILLIS else 0
     Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Column(modifier = Modifier.weight(1f)) {
@@ -543,8 +538,12 @@ private fun HomeHeader(
         }
         AnimatedVisibility(
             visible = expanded,
-            enter = expandVertically(tween(cardSpec)) + fadeIn(tween(cardSpec)),
-            exit = shrinkVertically(tween(cardSpec)) + fadeOut(tween(cardSpec)),
+            // Opening: the space opens, then the card fades into it. Closing: the card fades out,
+            // then its space closes. In sequence, so the fade reads rather than hiding in the resize.
+            enter = expandVertically(tween(cardSpec)) +
+                fadeIn(tween(cardFadeSpec, delayMillis = cardSpec * 2 / 3)),
+            exit = fadeOut(tween(cardFadeSpec)) +
+                shrinkVertically(tween(cardSpec, delayMillis = cardFadeSpec * 2 / 3)),
         ) {
             Box(Modifier.padding(top = 16.dp)) { card() }
         }

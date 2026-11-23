@@ -461,12 +461,28 @@ fun PhotoViewerScreen(
                 .drawBehind {
                     val alpha = topScrimAlpha
                     if (alpha > 0f) {
+                        // Burned into the photo, like a burn layer in an image editor, rather than
+                        // laid over it as grey. Two passes, each fading to white (no change) at
+                        // the bottom: a multiply, which darkens even highlights (so the icons
+                        // read over a white wall), then a color burn, which deepens and
+                        // saturates the mid-tones like darkroom burning-in.
                         drawRect(
                             Brush.verticalGradient(
-                                0f to Color.Black.copy(alpha = TOP_SCRIM_ALPHA * alpha),
-                                0.5f to Color.Black.copy(alpha = TOP_SCRIM_ALPHA * 0.45f * alpha),
-                                1f to Color.Transparent,
+                                0f to lerp(Color.White, Color.Black, TOP_SCRIM_MULTIPLY),
+                                0.5f to lerp(Color.White, Color.Black, TOP_SCRIM_MULTIPLY * 0.45f),
+                                1f to Color.White,
                             ),
+                            alpha = alpha,
+                            blendMode = BlendMode.Multiply,
+                        )
+                        drawRect(
+                            Brush.verticalGradient(
+                                0f to lerp(Color.White, Color.Black, TOP_SCRIM_BURN),
+                                0.6f to lerp(Color.White, Color.Black, TOP_SCRIM_BURN * 0.35f),
+                                1f to Color.White,
+                            ),
+                            alpha = alpha,
+                            blendMode = BlendMode.ColorBurn,
                         )
                     }
                 },
@@ -1568,8 +1584,11 @@ private class ZoomGeometry(
 /** How far the top-edge scrim reaches below the status bar: past the buttons and the title card's top. */
 private val TopScrimHeight = 140.dp
 
-/** How dark the top-edge scrim is at the very top, fading to nothing at its bottom. */
-private const val TOP_SCRIM_ALPHA = 0.4f
+/** How much the top-edge scrim's multiply pass darkens at the very top (0 none, 1 black), fading to none at its bottom. */
+private const val TOP_SCRIM_MULTIPLY = 0.5f
+
+/** How strong the top-edge scrim's color burn is at the very top, fading to none at its bottom. */
+private const val TOP_SCRIM_BURN = 0.3f
 
 /** The info boxes' and the FAB's margin from the screen's sides: close to the edge, like captions on a print. */
 private val InfoEdgeMargin = 12.dp
