@@ -76,9 +76,10 @@ private const val ACTION_CASCADE_STEP_MILLIS = 50
 internal val FabSize = 48.dp
 /**
  * The viewer's translucent dark fill for controls over the photo: the FAB, and the circles behind
- * the close and info buttons. Dark enough for white icons on a bright photo, which shows through.
+ * the close and info buttons. The same as the title and exposure labels' boxes, so the overlay
+ * reads as one layer over the photo.
  */
-internal val ViewerScrimColor = Color.Black.copy(alpha = 0.4f)
+internal val ViewerScrimColor = LightInfoBoxColor
 
 /** Closed: Material's FAB shape, a rounded square (16dp corners). */
 private val FabClosedCorner = 16.dp
