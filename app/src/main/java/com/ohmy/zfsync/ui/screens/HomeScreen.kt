@@ -172,7 +172,13 @@ private val PillBottomMargin = 24.dp
 private val PillClearance = 88.dp + PillBottomMargin
 
 /** The home screen's FAB: its margin from the bottom inset. */
-private val FabBottomMargin = 16.dp
+private val FabBottomMargin = 24.dp
+
+/**
+ * The FAB's margin from the screen's side: wider than the photos' 16dp, so it doesn't share
+ * their edge and reads as floating over them rather than as part of the grid.
+ */
+private val FabEndMargin = 24.dp
 
 /** The scrubber's margin below where the photos start. */
 private val ScrubberTopMargin = 16.dp
@@ -545,7 +551,7 @@ fun HomeScreen(
             contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = ScreenHorizontalPadding, bottom = fabBottomInset + FabBottomMargin),
+                .padding(end = FabEndMargin, bottom = fabBottomInset + FabBottomMargin),
         )
 
         ActionPill(

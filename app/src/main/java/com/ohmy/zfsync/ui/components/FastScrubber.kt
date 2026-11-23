@@ -103,8 +103,11 @@ private const val HANDLE_HELD_SCALE = 1.25f
 private val HandleTouchWidth = 40.dp
 private val HandleTouchHeight = 64.dp
 
-/** From the screen's edge to the track's line. */
-private val TrackInset = 16.dp
+/**
+ * From the screen's edge to the track's line: the middle of the screen's 16dp margin, so the
+ * track, handle and dots sit in the gutter, clear of the photos, rather than on their edge.
+ */
+private val TrackInset = 8.dp
 
 /** The track's line. */
 private val TrackWidth = 2.dp
