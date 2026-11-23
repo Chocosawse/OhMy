@@ -273,9 +273,14 @@ fun PhotoViewerScreen(
         }
     }
 
+    // This viewer is on its way out. Its own, not the shared transition's closing flag, which
+    // stays set from the last close until the next viewer's opening resets it.
+    var leaving by remember { mutableStateOf(false) }
+
     // Closing: the current photo (maybe not the one opened) shrinks back into its row, which the
     // list first scrolls into view. A zoomed-in photo shrinks from where it's zoomed to.
     fun requestClose() {
+        leaving = true
         if (photoTransition == null) {
             onClose()
             return
@@ -533,11 +538,15 @@ fun PhotoViewerScreen(
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
+            // Closing the viewer, the carousel doesn't pop out like the other controls: it stays
+            // as it is and fades with the rest of the screen (the photo shrinking back, the black
+            // fading).
             CarouselIndicator(
                 photos = photos,
                 inFlightCount = inFlightCount,
                 currentIndex = pagerState.currentPage,
-                visible = controlsShown,
+                visible = controlsShown || (leaving && controlsVisible),
+                modifier = if (leaving) Modifier.graphicsLayer { alpha = progress() } else Modifier,
                 style = carouselStyle,
                 exitingKey = deletingUri,
                 exitProgress = { deleteExit.value },
@@ -745,6 +754,7 @@ private fun CarouselIndicator(
     onSelect: (Int) -> Unit,
     exitingKey: Any? = null,
     exitProgress: () -> Float = { 0f },
+    modifier: Modifier = Modifier,
 ) {
     val film = style.filmLook
     val textMeasurer = rememberTextMeasurer()
@@ -851,7 +861,7 @@ private fun CarouselIndicator(
     val stripPop = animatePop(visible, if (visible) 0 else lastFrameExitDelay + MOTION_DURATION_MILLIS / 2)
 
     BoxWithConstraints(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(if (film != null) FilmStripHeight else CarouselHeight)
             .then(
