@@ -208,6 +208,8 @@ fun PhotoViewerScreen(
     loadExposure: (suspend (Uri) -> ExposureInfo?)? = null,
     dateStyle: DateStyle = DateStyle.Imprint,
     systemConfirmsDelete: Boolean = false,
+    /** The screen it opens over had its FAB showing in the same place: this one fades in rather than popping. */
+    fabCarriesOver: Boolean = false,
 ) {
     // The pager and effects outlive recompositions, so they read the live list through this.
     val latestPhotos by rememberUpdatedState(photos)
@@ -632,6 +634,7 @@ fun PhotoViewerScreen(
             visible = controlsShown,
             contentDescription = stringResource(R.string.viewer_actions),
             closeDescription = stringResource(R.string.viewer_actions_close),
+            fadeInFirst = fabCarriesOver,
             // Docked bottom-right, just above the carousel, level with the exposure card: the
             // bottom column's insets and margin, plus the carousel and the gap above it.
             modifier = Modifier

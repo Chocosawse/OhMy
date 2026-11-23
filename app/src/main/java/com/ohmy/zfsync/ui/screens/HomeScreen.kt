@@ -72,6 +72,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -231,6 +232,8 @@ fun HomeScreen(
     photoTransition: PhotoTransitionState? = null,
     /** The FAB's height above the bottom inset: the viewer FAB's (fabBottomMargin), so the two line up. */
     fabBottomMargin: Dp = 0.dp,
+    /** Told whether the FAB is showing, for the viewer's own FAB to carry on from it. */
+    onFabShownChange: (Boolean) -> Unit = {},
     /** Whether Settings is showing over this screen: the gear turns as it opens and closes. */
     settingsOpen: Boolean = false,
     today: LocalDate = rememberToday(),
@@ -289,6 +292,9 @@ fun HomeScreen(
     // scrolling up). Only finger scrolls count; the scrubber and "scroll to top" leave it be.
     var fabExpanded by remember { mutableStateOf(false) }
     var fabHidden by remember { mutableStateOf(false) }
+    val fabShown = !fabHidden && !selection.active
+    val latestOnFabShownChange by rememberUpdatedState(onFabShownChange)
+    LaunchedEffect(fabShown) { latestOnFabShownChange(fabShown) }
     val fabAutoHide = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -531,7 +537,7 @@ fun HomeScreen(
             ),
             expanded = fabExpanded,
             onExpandedChange = { fabExpanded = it },
-            visible = !fabHidden && !selection.active,
+            visible = fabShown,
             contentDescription = stringResource(R.string.home_actions),
             closeDescription = stringResource(R.string.home_actions_close),
             containerColor = MaterialTheme.colorScheme.primary,

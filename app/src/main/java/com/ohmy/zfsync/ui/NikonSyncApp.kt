@@ -79,6 +79,8 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
     // Links a photo's list row and the viewer, for the photo's move between them. Already open
     // when the viewer is restored (e.g. after rotation), so it doesn't replay.
     val photoTransition = remember { PhotoTransitionState(initiallyOpen = viewerIndex != null) }
+    // Whether the home screen's FAB is showing, for the viewer's FAB (in the same place) to fade in from.
+    var homeFabShown by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -113,6 +115,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     photoTransition = photoTransition,
                     settingsOpen = showSettings,
                     fabBottomMargin = fabBottomMargin(carouselStyle),
+                    onFabShownChange = { homeFabShown = it },
                     modifier = Modifier.windowInsetsPadding(ScreenInsets),
                 )
             }
@@ -133,6 +136,8 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     showInfo = showPhotoInfo,
                     onShowInfoChange = viewModel::setShowPhotoInfo,
                     dateStyle = dateStyle,
+                    // Whether the home screen's FAB was showing as the viewer opened.
+                    fabCarriesOver = remember { homeFabShown },
                 )
             }
 
