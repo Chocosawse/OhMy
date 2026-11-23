@@ -524,7 +524,7 @@ fun PhotoViewerScreen(
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(barInsets)
                 // Under the close button, and clear of the caption date on the right if shown.
-                .padding(start = 16.dp, top = 64.dp, end = if (dateStyle == DateStyle.Caption) 56.dp else 16.dp)
+                .padding(start = InfoEdgeMargin, top = 64.dp, end = if (dateStyle == DateStyle.Caption) 52.dp else InfoEdgeMargin)
                 .graphicsLayer { alpha = infoAlpha.value },
         )
         // The caption date style: the camera's capture time, vertical, under the info button.
@@ -535,7 +535,7 @@ fun PhotoViewerScreen(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .windowInsetsPadding(barInsets)
-                        .padding(top = 64.dp, end = 16.dp)
+                        .padding(top = 64.dp, end = InfoEdgeMargin)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
             }
@@ -557,11 +557,12 @@ fun PhotoViewerScreen(
                     ),
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(start = 16.dp, end = 80.dp)
+                        // Clear of the FAB: its margin, its 48dp, and the same again between.
+                        .padding(start = InfoEdgeMargin, end = InfoEdgeMargin + 48.dp + InfoEdgeMargin)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(InfoToCarouselGap))
             // Closing the viewer, the carousel doesn't pop out like the other controls: it stays
             // as it is and fades with the rest of the screen (the photo shrinking back, the black
             // fading).
@@ -633,8 +634,8 @@ fun PhotoViewerScreen(
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
                 .padding(
-                    end = 16.dp,
-                    bottom = 24.dp + (if (carouselStyle.filmLook != null) FilmStripHeight else CarouselHeight) + 16.dp,
+                    end = InfoEdgeMargin,
+                    bottom = 24.dp + (if (carouselStyle.filmLook != null) FilmStripHeight else CarouselHeight) + InfoToCarouselGap,
                 ),
         )
     }
@@ -1569,3 +1570,9 @@ private val TopScrimHeight = 140.dp
 
 /** How dark the top-edge scrim is at the very top, fading to nothing at its bottom. */
 private const val TOP_SCRIM_ALPHA = 0.4f
+
+/** The info boxes' and the FAB's margin from the screen's sides: close to the edge, like captions on a print. */
+private val InfoEdgeMargin = 12.dp
+
+/** Between the exposure card (and FAB) and the carousel below them. */
+private val InfoToCarouselGap = 10.dp

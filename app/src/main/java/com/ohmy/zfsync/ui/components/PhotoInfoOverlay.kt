@@ -88,12 +88,12 @@ private val SmallMono = TextStyle(fontFamily = MonoFontFamily, fontSize = 12.sp,
 private val GearStyle = TextStyle(
     fontFamily = NewsreaderTitle,
     fontWeight = FontWeight.Medium,
-    fontSize = 18.sp,
-    lineHeight = 24.sp,
+    fontSize = 20.sp,
+    lineHeight = 26.sp,
 )
 
 /** An exposure reading's value: bold mono, still the card's largest text, its label above it small. */
-private val ReadingStyle = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, lineHeight = 20.sp)
+private val ReadingStyle = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 22.sp)
 
 /**
  * Top-left: the file name in a small tab (tagged [rawTag] when [hasRaw]), over the camera and lens
@@ -156,8 +156,8 @@ fun ExposureCard(exposure: ExposureInfo?, labels: ExposureLabels, modifier: Modi
         modifier = modifier
             .fitWidth()
             .background(LightInfoBoxColor)
-            // 7 + 14 (label) + 20 (value) + 7 = 48dp, the FAB's height, so the two line up exactly.
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+            // 6 + 14 (label) + 22 (value) + 6 = 48dp, the FAB's height, so the two line up exactly.
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         for ((label, value) in readings) {
@@ -183,7 +183,7 @@ data class ExposureLabels(val focalLength: String, val aperture: String, val shu
  */
 private fun withSmallUnit(text: String, unit: String): AnnotatedString = buildAnnotatedString {
     append(text.removeSuffix(unit).trimEnd())
-    withStyle(SpanStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal)) { append(unit) }
+    withStyle(SpanStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal)) { append(unit) }
 }
 
 /** The imprint's lit segments, and the glow they cast on the film. */
