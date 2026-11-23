@@ -491,25 +491,6 @@ fun PhotoViewerScreen(
         }
 
         val barInsets = WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility)
-        // Top-right, mirroring the close button: shows or hides the floating info below.
-        IconButton(
-            onClick = { onShowInfoChange(!showInfo) },
-            enabled = controlsShown,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .windowInsetsPadding(barInsets)
-                .padding(8.dp)
-                .pop { closePop.value },
-        ) {
-            Icon(
-                // Always outlined, matching the close button's line weight; the info itself showing
-                // or not is the state.
-                Icons.Outlined.Info,
-                contentDescription = stringResource(if (showInfo) R.string.viewer_hide_info else R.string.viewer_show_info),
-                tint = Color.White,
-            )
-        }
-
         // The current photo's floating info: shown with the other controls, unless turned off.
         val currentPhoto = photos[pagerState.currentPage.coerceIn(0, photos.lastIndex)]
         if (loadExposure != null && currentPhoto.exposure == null) {
@@ -530,7 +511,7 @@ fun PhotoViewerScreen(
                 .padding(start = InfoEdgeMargin, top = 64.dp, end = if (dateStyle == DateStyle.Caption) 52.dp else InfoEdgeMargin)
                 .graphicsLayer { alpha = infoAlpha.value },
         )
-        // The caption date style: the camera's capture time, vertical, under the info button.
+        // The caption date style: the camera's capture time, vertical, at the top right.
         if (dateStyle == DateStyle.Caption) {
             currentExposure?.capturedAt?.let { capturedAt ->
                 CaptureTimeTag(
@@ -620,7 +601,7 @@ fun PhotoViewerScreen(
                 FabAction(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.viewer_open_raw)) {
                     openRaws(context, listOf(photos[pagerState.currentPage]))
                 }.takeIf { currentPhoto.rawUri != null },
-                // The same as the info button at the top right.
+                // Shows or hides the floating info (the title card, exposure card and date).
                 FabAction(
                     Icons.Outlined.Info,
                     stringResource(if (showInfo) R.string.viewer_hide_info else R.string.viewer_show_info),
