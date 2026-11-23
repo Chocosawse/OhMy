@@ -632,6 +632,8 @@ fun PhotoViewerScreen(
             visible = controlsShown,
             contentDescription = stringResource(R.string.viewer_actions),
             closeDescription = stringResource(R.string.viewer_actions_close),
+            // A bare icon, like the close and info buttons; the edge burn keeps it legible.
+            containerColor = Color.Transparent,
             // Docked bottom-right, just above the carousel, level with the exposure card: the
             // bottom column's insets and margin, plus the carousel and the gap above it.
             modifier = Modifier

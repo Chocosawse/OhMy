@@ -194,7 +194,8 @@ fun ActionFabMenu(
             color = containerColor,
             contentColor = contentColor,
             // A little lift off what's beneath, short of Material's resting FAB elevation.
-            shadowElevation = FabShadow,
+            // No shadow without a fill: it would outline an invisible button.
+            shadowElevation = if (containerColor.alpha > 0f) FabShadow else 0.dp,
             modifier = Modifier
                 .pop { fabPop.value }
                 .onPlaced { fabCoordinates[0] = it }
