@@ -67,6 +67,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -116,6 +117,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -1452,7 +1455,12 @@ private fun ZoomableImage(
     var fullSizeWanted by remember(photo.uri) { mutableStateOf(false) }
     LaunchedEffect(zoomedIn) { if (zoomedIn) fullSizeWanted = true }
 
-    // The photo in its zoom layer, and over it (unzoomed, a fixed size) the date imprint.
+    // The photo in its zoom layer, and over it (unzoomed, a fixed size) the date imprint. Taps
+    // wait only DOUBLE_TAP_TIMEOUT_MILLIS for a second tap, so a single tap shows or hides the
+    // controls sooner.
+    val baseViewConfiguration = LocalViewConfiguration.current
+    val quickDoubleTap = remember(baseViewConfiguration) { QuickDoubleTapViewConfiguration(baseViewConfiguration) }
+    CompositionLocalProvider(LocalViewConfiguration provides quickDoubleTap) {
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -1515,6 +1523,7 @@ private fun ZoomableImage(
         if (imprint != null && imageSize.isSpecified && imageSize.width > 0f && imageSize.height > 0f) {
             DateImprint(text = imprint, imageSize = imageSize, alpha = imprintAlpha)
         }
+    }
     }
 }
 
@@ -1596,3 +1605,12 @@ private val InfoEdgeMargin = 12.dp
 
 /** Between the exposure card (and FAB) and the carousel below them. */
 private val InfoToCarouselGap = 10.dp
+
+/** How long a tap on the photo waits for a second one (a double-tap zoom): shorter than the system's 300ms. */
+private const val DOUBLE_TAP_TIMEOUT_MILLIS = 200L
+
+/** The system's view configuration, but with a quicker double-tap: see DOUBLE_TAP_TIMEOUT_MILLIS. */
+private class QuickDoubleTapViewConfiguration(base: ViewConfiguration) : ViewConfiguration by base {
+    override val doubleTapTimeoutMillis: Long get() = DOUBLE_TAP_TIMEOUT_MILLIS
+}
+
