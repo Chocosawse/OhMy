@@ -280,6 +280,8 @@ fun PhotoViewerScreen(
     // This viewer is on its way out. Its own, not the shared transition's closing flag, which
     // stays set from the last close until the next viewer's opening resets it.
     var leaving by remember { mutableStateOf(false) }
+    // Still growing in from the photo's row: not yet fully open, and not on the way out.
+    val opening by remember { derivedStateOf { !leaving && photoTransition != null && photoTransition.progress.value < 1f } }
 
     // Closing: the current photo (maybe not the one opened) shrinks back into its row, which the
     // list first scrolls into view. A zoomed-in photo shrinks from where it's zoomed to.
@@ -630,11 +632,14 @@ fun PhotoViewerScreen(
             ),
             expanded = actionsExpanded,
             onExpandedChange = { actionsExpanded = it },
-            // Shown and hidden with the other controls.
-            visible = controlsShown,
+            // Shown and hidden with the other controls; carrying on from the home screen's FAB,
+            // from the moment the viewer starts to open.
+            visible = controlsShown || (fabCarriesOver && opening && controlsVisible),
             contentDescription = stringResource(R.string.viewer_actions),
             closeDescription = stringResource(R.string.viewer_actions_close),
-            fadeInFirst = fabCarriesOver,
+            // Fading rather than popping as the viewer opens over the home screen's FAB (from the
+            // start, with the photo's move) and as it closes back onto it.
+            fade = (fabCarriesOver && opening) || leaving,
             // Docked bottom-right, just above the carousel, level with the exposure card: the
             // bottom column's insets and margin, plus the carousel and the gap above it.
             modifier = Modifier

@@ -111,10 +111,10 @@ fun ActionFabMenu(
     containerColor: Color = InfoBoxColor,
     contentColor: Color = Color.White,
     /**
-     * Its first appearance is a fade at full size rather than a pop: for when an FAB in the same
-     * place was already showing (the home screen's, as the viewer opens over it). Later ones pop.
+     * Whether showing and hiding is a fade at full size rather than a pop: as the viewer opens
+     * over the home screen's FAB in the same place, and as it closes back onto it.
      */
-    fadeInFirst: Boolean = false,
+    fade: Boolean = false,
 ) {
     val view = LocalView.current
     val latestActions by rememberUpdatedState(actions)
@@ -143,11 +143,6 @@ fun ActionFabMenu(
     val showActions by remember(count) { derivedStateOf { latestExpanded || pops.any { it.value > 0f } } }
 
     val fabPop = animatePop(visible)
-    var fadingIn by remember { mutableStateOf(fadeInFirst) }
-    var shownOnce by remember { mutableStateOf(false) }
-    LaunchedEffect(visible) {
-        if (visible) shownOnce = true else if (shownOnce) fadingIn = false
-    }
     val fabFade = animateFloatAsState(if (visible) 1f else 0f, fadeSpec(), label = "fabFade")
     val fabScale by animateFloatAsState(
         if (visible && (expanded || pressed)) FAB_EXPANDED_SCALE else 1f,
@@ -210,7 +205,7 @@ fun ActionFabMenu(
             // shows as a darker square in the middle of the button.
             shadowElevation = if (containerColor.alpha >= 1f) FabShadow else 0.dp,
             modifier = Modifier
-                .then(if (fadingIn) Modifier.graphicsLayer { alpha = fabFade.value } else Modifier.pop { fabPop.value })
+                .then(if (fade) Modifier.graphicsLayer { alpha = fabFade.value } else Modifier.pop { fabPop.value })
                 .onPlaced { fabCoordinates[0] = it }
                 .semantics {
                     role = Role.Button
