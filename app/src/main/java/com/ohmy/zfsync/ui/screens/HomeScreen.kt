@@ -158,6 +158,9 @@ private val PinnedHeight = 48.dp + 3.dp
 private const val CARD_COLLAPSE_DELAY_MILLIS = 600L
 
 private const val CARD_MOTION_MILLIS = 200
+
+/** How long the connection card takes to fade in or out, around its space opening or closing. */
+private const val CARD_FADE_MILLIS = 250
 /** Switching layout: the old one fades out, then the new one fades in. */
 private const val LAYOUT_FADE_OUT_MILLIS = 200
 private const val LAYOUT_FADE_IN_MILLIS = 350
@@ -202,6 +205,15 @@ fun HomeScreen(
 
     val status = homeStatus(state, hasSavedCamera = savedCredentials != null)
     var expanded by rememberSaveable { mutableStateOf(cardInitiallyExpanded ?: status.needsSetup) }
+    // While the card opens or closes (and a moment after), the photos below follow the header
+    // directly rather than sliding: see slidePhotos.
+    // Derived in composition, so it's already true on the very frame the card starts to move.
+    var cardSettled by remember { mutableStateOf(expanded) }
+    LaunchedEffect(expanded) {
+        delay(CARD_MOTION_MILLIS + CARD_FADE_MILLIS + 100L)
+        cardSettled = expanded
+    }
+    val cardMoving = expanded != cardSettled
     // Opens on its own when there's no camera to sync with; closes a moment after connecting.
     LaunchedEffect(status.needsSetup) { if (status.needsSetup) expanded = true }
     val connected = status is HomeStatus.Connected
@@ -314,7 +326,6 @@ fun HomeScreen(
             progress = progress,
             expanded = expanded,
             onToggleCard = toggleCard,
-            pinned = { pinned },
             onStatusPlaced = { statusTop.intValue = it },
             onOpenSettings = onOpenSettings,
             settingsOpen = settingsOpen,
@@ -371,6 +382,7 @@ fun HomeScreen(
                     photoTransition = photoTransition,
                     contentAlpha = contentAlpha,
                     onDragOut = dragOut,
+                    slidePhotos = !cardMoving,
                 )
                 HomeLayout.Grid -> HomePhotoGrid(
                     entries = entries,
@@ -383,10 +395,12 @@ fun HomeScreen(
                     photoTransition = photoTransition,
                     contentAlpha = contentAlpha,
                     onDragOut = dragOut,
+                    slidePhotos = !cardMoving,
                 )
             }
         }
-        // On the page's own color, no shadow: the photos simply pass under it.
+        // On the page's own color, no shadow: the photos simply pass under it. It covers the
+        // header's own row exactly as that reaches the top, so it simply takes over.
         if (pinned) {
             Column(
                 modifier = Modifier
@@ -488,7 +502,6 @@ private fun HomeHeader(
     progress: Float?,
     expanded: Boolean,
     onToggleCard: () -> Unit,
-    pinned: () -> Boolean,
     onStatusPlaced: (top: Int) -> Unit,
     onOpenSettings: () -> Unit,
     settingsOpen: Boolean,
@@ -500,6 +513,7 @@ private fun HomeHeader(
 ) {
     val colors = LocalHomeColors.current
     val cardSpec = if (animationsEnabled()) CARD_MOTION_MILLIS else 0
+    val cardFadeSpec = if (animationsEnabled()) CARD_FADE_MILLIS else 0
     Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Column(modifier = Modifier.weight(1f)) {
@@ -528,18 +542,19 @@ private fun HomeHeader(
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.ink))
         Column(
-            modifier = Modifier
-                .onPlaced { onStatusPlaced(it.positionInParent().y.toInt()) }
-                // While pinned, its copy at the top stands in for it.
-                .graphicsLayer { alpha = if (pinned()) 0f else 1f },
+            modifier = Modifier.onPlaced { onStatusPlaced(it.positionInParent().y.toInt()) },
         ) {
             StatusRow(status, lastSyncMillis, today, expanded, onToggleCard)
             ProgressRule(progress)
         }
         AnimatedVisibility(
             visible = expanded,
-            enter = expandVertically(tween(cardSpec)) + fadeIn(tween(cardSpec)),
-            exit = shrinkVertically(tween(cardSpec)) + fadeOut(tween(cardSpec)),
+            // Opening: the space opens, then the card fades into it. Closing: the card fades out,
+            // then its space closes. In sequence, so the fade reads rather than hiding in the resize.
+            enter = expandVertically(tween(cardSpec)) +
+                fadeIn(tween(cardFadeSpec, delayMillis = cardSpec * 2 / 3)),
+            exit = fadeOut(tween(cardFadeSpec)) +
+                shrinkVertically(tween(cardSpec, delayMillis = cardFadeSpec * 2 / 3)),
         ) {
             Box(Modifier.padding(top = 16.dp)) { card() }
         }

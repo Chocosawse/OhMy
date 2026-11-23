@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.ui.theme.DateImprintFontFamily
 import com.ohmy.zfsync.ui.theme.MonoFontFamily
+import com.ohmy.zfsync.ui.theme.NewsreaderTitle
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -51,7 +52,7 @@ import kotlin.math.roundToInt
  */
 
 /** The boxes' fill: dark enough to read over any photo, light enough to stay part of it. */
-private val InfoBoxColor = Color.Black.copy(alpha = 0.72f)
+internal val InfoBoxColor = Color.Black.copy(alpha = 0.72f)
 
 /** The two left-hand boxes (title and exposure), larger, so a little lighter on the photo. */
 private val LightInfoBoxColor = Color.Black.copy(alpha = 0.52f)
@@ -83,6 +84,17 @@ private fun contrast(a: Color, b: Color): Float {
 
 private val SmallMono = TextStyle(fontFamily = MonoFontFamily, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.2.sp)
 
+/** The camera and lens line: serif, a size between the file name and a headline. */
+private val GearStyle = TextStyle(
+    fontFamily = NewsreaderTitle,
+    fontWeight = FontWeight.Medium,
+    fontSize = 20.sp,
+    lineHeight = 26.sp,
+)
+
+/** An exposure reading's value: bold mono, still the card's largest text, its label above it small. */
+private val ReadingStyle = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 22.sp)
+
 /**
  * Top-left: the file name in a small tab (tagged [rawTag] when [hasRaw]), over the camera and lens
  * in a larger serif box, e.g. "DSC_3785.JPG +RAW" above "NIKON Z f • Zuiko 90mm f/2". Without
@@ -113,10 +125,12 @@ fun PhotoTitleCard(filename: String, exposure: ExposureInfo?, hasRaw: Boolean, r
         exposure?.cameraAndLens()?.let { gear ->
             Text(
                 gear,
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
+                // A serif title, but at title rather than headline size: it names the photo's gear
+                // without taking a band of the photo.
+                style = GearStyle,
                 color = color,
                 maxLines = 1,
-                modifier = Modifier.background(LightInfoBoxColor).padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.background(LightInfoBoxColor).padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }
     }
@@ -142,16 +156,16 @@ fun ExposureCard(exposure: ExposureInfo?, labels: ExposureLabels, modifier: Modi
         modifier = modifier
             .fitWidth()
             .background(LightInfoBoxColor)
-            // 5 + 14 (label) + 24 (value) + 5 = 48dp, the FAB's height, so the two line up exactly.
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+            // 6 + 14 (label) + 22 (value) + 6 = 48dp, the FAB's height, so the two line up exactly.
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         for ((label, value) in readings) {
             Column {
                 Text(label, style = SmallMono.copy(fontSize = 10.sp, lineHeight = 14.sp), color = color.copy(alpha = 0.7f), maxLines = 1)
                 Text(
                     value,
-                    style = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 24.sp),
+                    style = ReadingStyle,
                     color = color,
                     maxLines = 1,
                 )

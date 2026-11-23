@@ -117,6 +117,8 @@ internal fun HomePhotoList(
     contentAlpha: () -> Float = { 1f },
     /** A long-press on a selected photo, offered first to drag the selection out (see rememberPhotoDragOut). */
     onDragOut: ((Uri) -> Boolean)? = null,
+    /** Whether photos slide to new places (after a delete, say); off while the header is resizing. */
+    slidePhotos: Boolean = true,
 ) {
     val haptics = LocalHapticFeedback.current
     // The drag gesture outlives recompositions, so it reads the latest entries through this.
@@ -160,7 +162,9 @@ internal fun HomePhotoList(
                 modifier = Modifier
                     .animateItem(
                         fadeInSpec = if (entry is HomeEntry.Photo || entry is HomeEntry.Pending) fadeIn else fadeSpec(),
-                        placementSpec = overshootSpec(),
+                        // Off while the header resizes (the connection card opening or closing): every
+                        // frame moves the photos, and each would restart its slide, lagging and juddering.
+                        placementSpec = if (slidePhotos) overshootSpec() else null,
                         fadeOutSpec = if (entry is HomeEntry.Pending) tween(handover) else fadeSpec(),
                     )
                     // Everything but the header fades as the layout switches.

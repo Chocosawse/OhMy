@@ -74,6 +74,7 @@ private const val ACTION_CASCADE_STEP_MILLIS = 50
 
 /** Between Material's small and regular FABs: present without outweighing the photo. Matches the exposure card's height, so the two line up. */
 internal val FabSize = 48.dp
+
 /** Closed: Material's FAB shape, a rounded square (16dp corners). */
 private val FabClosedCorner = 16.dp
 
@@ -180,11 +181,11 @@ fun ActionFabMenu(
 
         Surface(
             shape = RoundedCornerShape(corner),
-            // The theme's primary pair: every theme sets it (cs-design palettes leave Material's
-            // usual FAB role, primaryContainer, at its stock lavender).
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shadowElevation = 4.dp,
+            // The small boxes' denser dark (the caption date's): still the photo's overlay rather
+            // than a solid block on it, but firm enough to read as a button over a bright photo.
+            // No shadow, which would show through the fill.
+            color = InfoBoxColor,
+            contentColor = Color.White,
             modifier = Modifier
                 .pop { fabPop.value }
                 .onPlaced { fabCoordinates[0] = it }

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -447,6 +448,27 @@ fun PhotoViewerScreen(
         flight?.let { FlyingPhoto(it, progress) }
 
         // Shown and hidden with the other controls.
+        // Legibility for the controls along the top and bottom, solved once at the edges rather
+        // than per button: a gentle burn into the photo along each, there only with the controls.
+        // The buttons themselves stay bare icons; only the information is boxed.
+        val edgeScrimAlpha by animateFloatAsState(if (controlsShown) 1f else 0f, fadeSpec(), label = "edgeScrim")
+        val topInset = WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility).asPaddingValues().calculateTopPadding()
+        val bottomInset = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+        // Top and bottom alike, so the controls along each edge sit in the same quiet frame.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .height(topInset + EdgeScrimHeight)
+                .edgeBurn(fromTop = true) { edgeScrimAlpha },
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .height(bottomInset + EdgeScrimHeight)
+                .edgeBurn(fromTop = false) { edgeScrimAlpha },
+        )
         val closePop = animatePop(controlsShown)
         IconButton(
             onClick = ::requestClose,
@@ -500,7 +522,7 @@ fun PhotoViewerScreen(
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(barInsets)
                 // Under the close button, and clear of the caption date on the right if shown.
-                .padding(start = 16.dp, top = 64.dp, end = if (dateStyle == DateStyle.Caption) 56.dp else 16.dp)
+                .padding(start = InfoEdgeMargin, top = 64.dp, end = if (dateStyle == DateStyle.Caption) 52.dp else InfoEdgeMargin)
                 .graphicsLayer { alpha = infoAlpha.value },
         )
         // The caption date style: the camera's capture time, vertical, under the info button.
@@ -511,7 +533,7 @@ fun PhotoViewerScreen(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .windowInsetsPadding(barInsets)
-                        .padding(top = 64.dp, end = 16.dp)
+                        .padding(top = 64.dp, end = InfoEdgeMargin)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
             }
@@ -533,11 +555,12 @@ fun PhotoViewerScreen(
                     ),
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(start = 16.dp, end = 80.dp)
+                        // Clear of the FAB: its margin, its 48dp, and the same again between.
+                        .padding(start = InfoEdgeMargin, end = InfoEdgeMargin + 48.dp + InfoEdgeMargin)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(InfoToCarouselGap))
             // Closing the viewer, the carousel doesn't pop out like the other controls: it stays
             // as it is and fades with the rest of the screen (the photo shrinking back, the black
             // fading).
@@ -609,8 +632,8 @@ fun PhotoViewerScreen(
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
                 .padding(
-                    end = 16.dp,
-                    bottom = 24.dp + (if (carouselStyle.filmLook != null) FilmStripHeight else CarouselHeight) + 16.dp,
+                    end = InfoEdgeMargin,
+                    bottom = 24.dp + (if (carouselStyle.filmLook != null) FilmStripHeight else CarouselHeight) + InfoToCarouselGap,
                 ),
         )
     }
@@ -1539,3 +1562,36 @@ private class ZoomGeometry(
             offset.coerceIn(screenExtent - center - extent / 2f, extent / 2f - center)
         }
 }
+
+/** How far the edge scrims reach in from the system bars: past the buttons at the top, the carousel at the bottom. */
+private val EdgeScrimHeight = 140.dp
+
+/** How much the edge scrims' multiply pass darkens right at the edge (0 none, 1 black), fading to none inward. */
+private const val EDGE_SCRIM_MULTIPLY = 0.3f
+
+/** How strong the edge scrims' color burn is right at the edge, fading to none inward. */
+private const val EDGE_SCRIM_BURN = 0.1f
+
+/**
+ * A scrim burned into the photo along one edge, like a burn layer in an image editor, rather than
+ * laid over it as grey: a multiply that darkens even highlights (so white icons read over a white
+ * wall), then a light color burn that deepens the mid-tones, both strongest at the edge and fading
+ * to nothing inward, and both scaled by [alpha] (shown with the controls).
+ */
+private fun Modifier.edgeBurn(fromTop: Boolean, alpha: () -> Float): Modifier = drawBehind {
+    val shown = alpha()
+    if (shown <= 0f) return@drawBehind
+    fun stops(strength: Float) = arrayOf(
+        0f to lerp(Color.White, Color.Black, strength),
+        0.5f to lerp(Color.White, Color.Black, strength * 0.4f),
+        1f to Color.White,
+    ).let { if (fromTop) it else it.map { (at, color) -> 1f - at to color }.reversed().toTypedArray() }
+    drawRect(Brush.verticalGradient(*stops(EDGE_SCRIM_MULTIPLY)), alpha = shown, blendMode = BlendMode.Multiply)
+    drawRect(Brush.verticalGradient(*stops(EDGE_SCRIM_BURN)), alpha = shown, blendMode = BlendMode.ColorBurn)
+}
+
+/** The info boxes' and the FAB's margin from the screen's sides: close to the edge, like captions on a print. */
+private val InfoEdgeMargin = 12.dp
+
+/** Between the exposure card (and FAB) and the carousel below them. */
+private val InfoToCarouselGap = 10.dp
