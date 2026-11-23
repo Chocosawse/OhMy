@@ -858,7 +858,10 @@ private fun CarouselIndicator(
     // unfold before they cascade back in.
     val lastFrameExitDelay =
         if (onScreen.isEmpty()) 0 else cascadeDelayMillis(onScreen.first, onScreen.first, onScreen.last, showing = false)
-    val stripPop = animatePop(visible, if (visible) 0 else lastFrameExitDelay + MOTION_DURATION_MILLIS / 2)
+    // The strip, and every frame but the selected one, arrive without the overshoot (the whole
+    // carousel bouncing past its size read as a wobble under the photo); the selected frame keeps
+    // its bounce. All still leave on the usual curve.
+    val stripPop = animatePop(visible, if (visible) 0 else lastFrameExitDelay + MOTION_DURATION_MILLIS / 2, overshootIn = false)
 
     BoxWithConstraints(
         modifier = modifier
@@ -895,7 +898,7 @@ private fun CarouselIndicator(
         ) {
             // Cascade delays go by position in the strip, placeholders included.
             items(inFlightCount, key = { "placeholder-$it" }) { index ->
-                val placeholderPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible))
+                val placeholderPop = animatePop(visible, cascadeDelayMillis(index, onScreen.first, onScreen.last, showing = visible), overshootIn = false)
                 CarouselSlot(
                     film = film,
                     frameNumber = null,
@@ -938,7 +941,12 @@ private fun CarouselIndicator(
                     derivedStateOf { (growth().coerceIn(0f, 1f) * (BACKLIT_STEPS - 1)).roundToInt() }
                 }
                 val position = inFlightCount + index
-                val thumbPop = animatePop(visible, cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible))
+                // Only the selected frame bounces as it arrives; the rest ease in and settle.
+                val thumbPop = animatePop(
+                    visible,
+                    cascadeDelayMillis(position, onScreen.first, onScreen.last, showing = visible),
+                    overshootIn = index == currentIndex,
+                )
                 CarouselSlot(
                     film = film,
                     // Printed every tenth frame from 00, like the edge numbers on real film.
