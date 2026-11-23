@@ -7,6 +7,9 @@
     <!-- The home screen's title. -->
     <string name="home_title">Nikon Zf</string>
     <string name="home_select_photos">Select photos</string>
+    <string name="home_actions">Quick actions</string>
+    <string name="home_actions_close">Close quick actions</string>
+    <string name="home_scroll_to_top">Scroll to top</string>
     <string name="home_show_grid">Show as grid</string>
     <string name="home_show_list">Show as list</string>
 

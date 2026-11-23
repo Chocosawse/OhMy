@@ -102,6 +102,9 @@ fun ActionFabMenu(
     contentDescription: String,
     closeDescription: String,
     modifier: Modifier = Modifier,
+    /** The FAB's fill: the viewer's translucent dark by default, over the photo. */
+    containerColor: Color = InfoBoxColor,
+    contentColor: Color = Color.White,
 ) {
     val view = LocalView.current
     val latestActions by rememberUpdatedState(actions)
@@ -184,8 +187,8 @@ fun ActionFabMenu(
             // The small boxes' denser dark (the caption date's): still the photo's overlay rather
             // than a solid block on it, but firm enough to read as a button over a bright photo.
             // No shadow, which would show through the fill.
-            color = InfoBoxColor,
-            contentColor = Color.White,
+            color = containerColor,
+            contentColor = contentColor,
             modifier = Modifier
                 .pop { fabPop.value }
                 .onPlaced { fabCoordinates[0] = it }

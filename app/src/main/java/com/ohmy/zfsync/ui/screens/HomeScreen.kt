@@ -19,8 +19,10 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -36,9 +38,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -49,6 +51,9 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -74,9 +79,14 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalConfiguration
@@ -107,17 +117,22 @@ import com.ohmy.zfsync.core.model.ConnectionState
 import com.ohmy.zfsync.core.model.SavedCameraCredentials
 import com.ohmy.zfsync.core.model.SyncUiState
 import com.ohmy.zfsync.core.model.photosNewestFirst
+import com.ohmy.zfsync.ui.components.ActionFabMenu
 import com.ohmy.zfsync.ui.components.ActionPill
 import com.ohmy.zfsync.ui.components.ChevronDownIcon
 import com.ohmy.zfsync.ui.components.EyeIcon
 import com.ohmy.zfsync.ui.components.EyeOffIcon
+import com.ohmy.zfsync.ui.components.FabAction
+import com.ohmy.zfsync.ui.components.FastScrubber
 import com.ohmy.zfsync.ui.components.GridLayoutIcon
 import com.ohmy.zfsync.ui.components.HomePhotoGrid
 import com.ohmy.zfsync.ui.components.HomePhotoList
 import com.ohmy.zfsync.ui.components.ListLayoutIcon
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
+import com.ohmy.zfsync.ui.components.ScrubSection
 import com.ohmy.zfsync.ui.components.SelectIcon
 import com.ohmy.zfsync.ui.components.SettingsGearIcon
+import com.ohmy.zfsync.ui.components.asScrubTarget
 import com.ohmy.zfsync.ui.components.openRaws
 import com.ohmy.zfsync.ui.components.rememberHomeSelection
 import com.ohmy.zfsync.ui.components.rememberPhotoDragOut
@@ -137,19 +152,33 @@ import com.ohmy.zfsync.ui.home.rememberToday
 import com.ohmy.zfsync.ui.home.syncProgress
 import com.ohmy.zfsync.ui.theme.HomeTypography
 import com.ohmy.zfsync.ui.theme.LocalHomeColors
+import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.OvershootEasing
 import com.ohmy.zfsync.ui.theme.ScreenHorizontalPadding
 import com.ohmy.zfsync.ui.theme.animationsEnabled
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Gap between the floating pill and the bottom inset (navigation bar or keyboard). */
 private val PillBottomMargin = 24.dp
 
 /** Leaves room at the bottom of the content so the floating pill never covers the last photos. */
 private val PillClearance = 88.dp + PillBottomMargin
+
+/** The home screen's FAB: its margin from the bottom inset, and its size (as ActionFabMenu draws it). */
+private val FabBottomMargin = 16.dp
+private val FabSizeHome = 48.dp
+
+/** The scrubber's clearance from the pinned status row above it and the FAB below it. */
+private val ScrubberMargin = 12.dp
+
+/** How far a scroll must go (px per event) to hide or show the FAB, so a nudge doesn't flicker it. */
+private const val FAB_HIDE_SLOP = 2f
+
+/** Behind the FAB's open actions: everything else dimmed, as in the viewer. */
+private val FabDimColor = Color.Black.copy(alpha = 0.3f)
 
 /** The status row and progress rule, pinned at the top once the title has scrolled away. */
 private val PinnedHeight = 48.dp + 3.dp
@@ -244,6 +273,19 @@ fun HomeScreen(
     // The layout on screen: it follows [layout] once the photos have faded out (see below).
     var shownLayout by remember { mutableStateOf(layout) }
     val photosAlpha = remember { Animatable(1f) }
+
+    // The FAB: open or not, and hidden while scrolling down through the photos (back on
+    // scrolling up). Only finger scrolls count; the scrubber and "scroll to top" leave it be.
+    var fabExpanded by remember { mutableStateOf(false) }
+    var fabHidden by remember { mutableStateOf(false) }
+    val fabAutoHide = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -FAB_HIDE_SLOP) fabHidden = true else if (available.y > FAB_HIDE_SLOP) fabHidden = false
+                return Offset.Zero
+            }
+        }
+    }
     // Where the status row starts within the header, so it pins exactly as it reaches the top.
     val statusTop = remember { mutableIntStateOf(Int.MAX_VALUE) }
     val pinned by remember {
@@ -369,7 +411,7 @@ fun HomeScreen(
         val dragOut = rememberPhotoDragOut(ordered, selection)
         // Only the photos fade as the layout switches (see above); the rest stays put.
         val contentAlpha = { photosAlpha.value }
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().nestedScroll(fabAutoHide)) {
             when (shownLayout) {
                 HomeLayout.List -> HomePhotoList(
                     entries = entries,
@@ -399,6 +441,22 @@ fun HomeScreen(
                 )
             }
         }
+        // The fast scrubber along the right edge: below the pinned status row, and ending above
+        // the FAB so the two never overlap.
+        val scrubSections = entries.mapIndexedNotNull { index, entry ->
+            (entry as? HomeEntry.SectionHeader)?.let { ScrubSection(index, sectionTitle(it.title)) }
+        }
+        FastScrubber(
+            target = when (shownLayout) {
+                HomeLayout.List -> remember(listState) { listState.asScrubTarget() }
+                HomeLayout.Grid -> remember(gridState) { gridState.asScrubTarget() }
+            },
+            sections = scrubSections,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = PinnedHeight + ScrubberMargin, bottom = bottomInset + FabBottomMargin + FabSizeHome + ScrubberMargin),
+        )
+
         // On the page's own color, no shadow: the photos simply pass under it. It covers the
         // header's own row exactly as that reaches the top, so it simply takes over.
         if (pinned) {
@@ -412,6 +470,56 @@ fun HomeScreen(
                 ProgressRule(progress)
             }
         }
+
+        // With the FAB's actions open, everything else dims (a plain fade) and a touch anywhere
+        // on it closes them, as in the viewer.
+        val fabDim by animateFloatAsState(if (fabExpanded) 1f else 0f, tween(if (animate) MOTION_DURATION_MILLIS else 0), label = "fabDim")
+        if (fabExpanded || fabDim > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = fabDim }
+                    .background(FabDimColor)
+                    .pointerInput(fabExpanded) {
+                        if (!fabExpanded) return@pointerInput
+                        // Takes the whole gesture, so nothing beneath scrolls meanwhile.
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            do {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                            fabExpanded = false
+                        }
+                    },
+            )
+        }
+        // Solid, in the theme's primary: settings and back to the top. Out of the way while
+        // scrolling down through the photos, and while selecting (the pill has the bottom then).
+        ActionFabMenu(
+            actions = listOf(
+                FabAction(Icons.Default.Settings, stringResource(R.string.settings_title), onOpenSettings),
+                FabAction(Icons.Default.KeyboardArrowUp, stringResource(R.string.home_scroll_to_top)) {
+                    scope.launch {
+                        when (shownLayout) {
+                            HomeLayout.List -> listState.animateScrollToItem(0)
+                            HomeLayout.Grid -> gridState.animateScrollToItem(0)
+                        }
+                    }
+                },
+            ),
+            expanded = fabExpanded,
+            onExpandedChange = { fabExpanded = it },
+            visible = !fabHidden && !selection.active,
+            contentDescription = stringResource(R.string.home_actions),
+            closeDescription = stringResource(R.string.home_actions_close),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                .padding(end = ScreenHorizontalPadding, bottom = FabBottomMargin),
+        )
 
         ActionPill(
             visible = selection.active,
