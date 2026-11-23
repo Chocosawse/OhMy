@@ -142,7 +142,8 @@ fun ActionPill(
     }
 }
 
-private val PillBorderWidth = 1.5.dp
+/** The same 1dp outline as the home screen's Disconnect button. */
+private val PillBorderWidth = 1.dp
 
 private const val PULSE_SCALE = 1.06f
 private const val PULSE_EXPAND_MILLIS = 120

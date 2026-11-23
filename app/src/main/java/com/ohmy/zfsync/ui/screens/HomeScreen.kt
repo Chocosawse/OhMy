@@ -158,6 +158,9 @@ private val PinnedHeight = 48.dp + 3.dp
 private const val CARD_COLLAPSE_DELAY_MILLIS = 600L
 
 private const val CARD_MOTION_MILLIS = 200
+
+/** How long the pinned status row takes to fade in or out. */
+private const val PIN_FADE_MILLIS = 200
 /** Switching layout: the old one fades out, then the new one fades in. */
 private const val LAYOUT_FADE_OUT_MILLIS = 200
 private const val LAYOUT_FADE_IN_MILLIS = 350
@@ -314,7 +317,6 @@ fun HomeScreen(
             progress = progress,
             expanded = expanded,
             onToggleCard = toggleCard,
-            pinned = { pinned },
             onStatusPlaced = { statusTop.intValue = it },
             onOpenSettings = onOpenSettings,
             settingsOpen = settingsOpen,
@@ -387,7 +389,14 @@ fun HomeScreen(
             }
         }
         // On the page's own color, no shadow: the photos simply pass under it.
-        if (pinned) {
+        // Fades in as the status row reaches the top, and out as it scrolls back into place. The
+        // row in the header stays drawn under it, at the same spot at that moment, so the fade
+        // never shows a gap.
+        AnimatedVisibility(
+            visible = pinned,
+            enter = fadeIn(tween(if (animate) PIN_FADE_MILLIS else 0)),
+            exit = fadeOut(tween(if (animate) PIN_FADE_MILLIS else 0)),
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -488,7 +497,6 @@ private fun HomeHeader(
     progress: Float?,
     expanded: Boolean,
     onToggleCard: () -> Unit,
-    pinned: () -> Boolean,
     onStatusPlaced: (top: Int) -> Unit,
     onOpenSettings: () -> Unit,
     settingsOpen: Boolean,
@@ -528,10 +536,7 @@ private fun HomeHeader(
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.ink))
         Column(
-            modifier = Modifier
-                .onPlaced { onStatusPlaced(it.positionInParent().y.toInt()) }
-                // While pinned, its copy at the top stands in for it.
-                .graphicsLayer { alpha = if (pinned()) 0f else 1f },
+            modifier = Modifier.onPlaced { onStatusPlaced(it.positionInParent().y.toInt()) },
         ) {
             StatusRow(status, lastSyncMillis, today, expanded, onToggleCard)
             ProgressRule(progress)
