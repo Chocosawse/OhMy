@@ -74,6 +74,12 @@ private const val ACTION_CASCADE_STEP_MILLIS = 50
 
 /** Between Material's small and regular FABs: present without outweighing the photo. Matches the exposure card's height, so the two line up. */
 internal val FabSize = 48.dp
+/**
+ * The viewer's translucent dark fill for controls over the photo: the FAB, and the circles behind
+ * the close and info buttons. Dark enough for white icons on a bright photo, which shows through.
+ */
+internal val ViewerScrimColor = Color.Black.copy(alpha = 0.4f)
+
 /** Closed: Material's FAB shape, a rounded square (16dp corners). */
 private val FabClosedCorner = 16.dp
 
@@ -180,11 +186,10 @@ fun ActionFabMenu(
 
         Surface(
             shape = RoundedCornerShape(corner),
-            // The theme's primary pair: every theme sets it (cs-design palettes leave Material's
-            // usual FAB role, primaryContainer, at its stock lavender).
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shadowElevation = 4.dp,
+            // Translucent, like the close and info buttons' circles: part of the photo's overlay
+            // rather than a solid block on it. No shadow, which would show through the fill.
+            color = ViewerScrimColor,
+            contentColor = Color.White,
             modifier = Modifier
                 .pop { fabPop.value }
                 .onPlaced { fabCoordinates[0] = it }

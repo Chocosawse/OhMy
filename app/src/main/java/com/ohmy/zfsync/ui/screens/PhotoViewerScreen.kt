@@ -147,6 +147,7 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionFabMenu
+import com.ohmy.zfsync.ui.components.ViewerScrimColor
 import com.ohmy.zfsync.ui.components.CaptureTimeTag
 import com.ohmy.zfsync.ui.components.DateImprint
 import com.ohmy.zfsync.ui.components.DateStyle
@@ -458,7 +459,8 @@ fun PhotoViewerScreen(
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility))
                 .padding(8.dp)
-                .pop { closePop.value },
+                .pop { closePop.value }
+                .buttonScrim(),
         ) {
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
@@ -472,7 +474,8 @@ fun PhotoViewerScreen(
                 .align(Alignment.TopEnd)
                 .windowInsetsPadding(barInsets)
                 .padding(8.dp)
-                .pop { closePop.value },
+                .pop { closePop.value }
+                .buttonScrim(),
         ) {
             Icon(
                 // Always outlined, matching the close button's line weight; the info itself showing
@@ -1539,3 +1542,9 @@ private class ZoomGeometry(
             offset.coerceIn(screenExtent - center - extent / 2f, extent / 2f - center)
         }
 }
+
+/**
+ * A translucent dark circle behind a button, the same as the FAB's fill (ViewerScrimColor): the
+ * white icon stays legible on a bright photo, which still shows through.
+ */
+private fun Modifier.buttonScrim(): Modifier = drawBehind { drawCircle(ViewerScrimColor) }
