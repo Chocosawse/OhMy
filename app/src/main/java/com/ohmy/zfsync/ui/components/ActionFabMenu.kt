@@ -187,9 +187,10 @@ fun ActionFabMenu(
 
         Surface(
             shape = RoundedCornerShape(corner),
-            // Translucent, like the close and info buttons' circles: part of the photo's overlay
-            // rather than a solid block on it. No shadow, which would show through the fill.
-            color = ViewerScrimColor,
+            // The small boxes' denser dark (the caption date's): still the photo's overlay rather
+            // than a solid block on it, but firm enough to read as a button over a bright photo.
+            // No shadow, which would show through the fill.
+            color = InfoBoxColor,
             contentColor = Color.White,
             modifier = Modifier
                 .pop { fabPop.value }

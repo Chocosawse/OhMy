@@ -52,7 +52,7 @@ import kotlin.math.roundToInt
  */
 
 /** The boxes' fill: dark enough to read over any photo, light enough to stay part of it. */
-private val InfoBoxColor = Color.Black.copy(alpha = 0.72f)
+internal val InfoBoxColor = Color.Black.copy(alpha = 0.72f)
 
 /** The two left-hand boxes (title and exposure), larger, so a little lighter on the photo. */
 internal val LightInfoBoxColor = Color.Black.copy(alpha = 0.52f)
