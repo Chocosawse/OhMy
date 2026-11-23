@@ -73,8 +73,8 @@
     <string name="sync_notification_connected">Connected — %1$d photo(s) in album</string>
 
     <string name="viewer_close">Close</string>
-    <string name="viewer_show_info">Show photo info</string>
-    <string name="viewer_hide_info">Hide photo info</string>
+    <string name="viewer_show_info">Show info</string>
+    <string name="viewer_hide_info">Hide info</string>
     <string name="viewer_share">Share</string>
     <string name="viewer_share_chooser_title">Share photo</string>
     <string name="viewer_delete">Delete</string>
