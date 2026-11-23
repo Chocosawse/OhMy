@@ -205,6 +205,15 @@ fun HomeScreen(
 
     val status = homeStatus(state, hasSavedCamera = savedCredentials != null)
     var expanded by rememberSaveable { mutableStateOf(cardInitiallyExpanded ?: status.needsSetup) }
+    // While the card opens or closes (and a moment after), the photos below follow the header
+    // directly rather than sliding: see slidePhotos.
+    // Derived in composition, so it's already true on the very frame the card starts to move.
+    var cardSettled by remember { mutableStateOf(expanded) }
+    LaunchedEffect(expanded) {
+        delay(CARD_MOTION_MILLIS + CARD_FADE_MILLIS + 100L)
+        cardSettled = expanded
+    }
+    val cardMoving = expanded != cardSettled
     // Opens on its own when there's no camera to sync with; closes a moment after connecting.
     LaunchedEffect(status.needsSetup) { if (status.needsSetup) expanded = true }
     val connected = status is HomeStatus.Connected
@@ -373,6 +382,7 @@ fun HomeScreen(
                     photoTransition = photoTransition,
                     contentAlpha = contentAlpha,
                     onDragOut = dragOut,
+                    slidePhotos = !cardMoving,
                 )
                 HomeLayout.Grid -> HomePhotoGrid(
                     entries = entries,
@@ -385,6 +395,7 @@ fun HomeScreen(
                     photoTransition = photoTransition,
                     contentAlpha = contentAlpha,
                     onDragOut = dragOut,
+                    slidePhotos = !cardMoving,
                 )
             }
         }
