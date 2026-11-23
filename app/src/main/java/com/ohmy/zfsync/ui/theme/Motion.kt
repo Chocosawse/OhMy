@@ -74,11 +74,16 @@ fun cascadeDelayMillis(position: Int, first: Int, last: Int, showing: Boolean): 
     return step * if (showing) depth else maxDepth - depth
 }
 
-/** 0 = fully popped out, 1 = fully in; overshoots slightly past 1 on the way in. */
+/** 0 = fully popped out, 1 = fully in; overshoots slightly past 1 on the way in, unless not [overshootIn]. */
 @Composable
-fun animatePop(visible: Boolean, delayMillis: Int = 0): State<Float> = animateFloatAsState(
+fun animatePop(visible: Boolean, delayMillis: Int = 0, overshootIn: Boolean = true): State<Float> = animateFloatAsState(
     targetValue = if (visible) 1f else 0f,
-    animationSpec = if (visible) overshootSpec(delayMillis) else overshootExitSpec(delayMillis),
+    animationSpec = when {
+        !visible -> overshootExitSpec(delayMillis)
+        overshootIn -> overshootSpec(delayMillis)
+        // Arriving without the overshoot: eases in and settles, no bounce past full size.
+        else -> tween(MOTION_DURATION_MILLIS, delayMillis, FastOutSlowInEasing)
+    },
     label = "pop",
 )
 

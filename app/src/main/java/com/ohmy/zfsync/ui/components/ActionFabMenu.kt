@@ -4,7 +4,10 @@ import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -16,7 +19,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -52,6 +54,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.ohmy.zfsync.ui.theme.MOTION_DURATION_MILLIS
 import com.ohmy.zfsync.ui.theme.animatePop
 import com.ohmy.zfsync.ui.theme.overshootSpec
 import com.ohmy.zfsync.ui.theme.pop
@@ -71,7 +74,11 @@ private const val ACTION_CASCADE_STEP_MILLIS = 50
 
 /** Between Material's small and regular FABs: present without outweighing the photo. Matches the exposure card's height, so the two line up. */
 internal val FabSize = 48.dp
-private val FabShape = CircleShape
+/** Closed: Material's FAB shape, a rounded square (16dp corners). */
+private val FabClosedCorner = 16.dp
+
+/** Open: a circle (half the FAB's size). */
+private val FabOpenCorner = FabSize / 2
 
 /**
  * A speed dial (Material's "FAB menu"): a FAB that opens a short stack of [actions] above it.
@@ -128,6 +135,13 @@ fun ActionFabMenu(
         label = "fabScale",
     )
     val iconRotation by animateFloatAsState(if (expanded) 90f else 0f, overshootSpec(), label = "fabIconRotation")
+    // Rounds into a circle as the menu opens and back to a rounded square as it closes: smoothly,
+    // without the overshoot (corners past a circle can't be drawn, and short of the square would wobble).
+    val corner by animateDpAsState(
+        if (expanded && visible) FabOpenCorner else FabClosedCorner,
+        tween(MOTION_DURATION_MILLIS, easing = FastOutSlowInEasing),
+        label = "fabCorner",
+    )
 
     /** The action under [rootPosition], if any; generous sideways, so the finger needn't be exact. */
     fun actionAt(rootPosition: Offset): Int? = actionCoordinates.entries.firstOrNull { (_, coordinates) ->
@@ -165,7 +179,7 @@ fun ActionFabMenu(
         }
 
         Surface(
-            shape = FabShape,
+            shape = RoundedCornerShape(corner),
             // The theme's primary pair: every theme sets it (cs-design palettes leave Material's
             // usual FAB role, primaryContainer, at its stock lavender).
             color = MaterialTheme.colorScheme.primary,
