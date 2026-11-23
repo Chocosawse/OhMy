@@ -112,6 +112,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ohmy.zfsync.R
@@ -228,6 +229,8 @@ fun HomeScreen(
     onBrowseAlbums: () -> Unit,
     modifier: Modifier = Modifier,
     photoTransition: PhotoTransitionState? = null,
+    /** The FAB's height above the bottom inset: the viewer FAB's (fabBottomMargin), so the two line up. */
+    fabBottomMargin: Dp = 0.dp,
     /** Whether Settings is showing over this screen: the gear turns as it opens and closes. */
     settingsOpen: Boolean = false,
     today: LocalDate = rememberToday(),
@@ -410,6 +413,8 @@ fun HomeScreen(
     // the gesture's zone reaches higher, and a hold-and-slide starting in it goes home instead.
     val fabBottomInset = WindowInsets.safeDrawing.union(WindowInsets.mandatorySystemGestures)
         .only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
+    // Level with the viewer's FAB (above its carousel), unless that's within the home gesture.
+    val fabBottom = maxOf(bottomInset + fabBottomMargin, fabBottomInset + FabBottomMargin)
 
     // Keeps the pill's count steady while it animates out after the selection is cleared,
     // instead of flashing "0 selected".
@@ -469,7 +474,7 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(
                     top = PinnedHeight + ScrubberTopMargin,
-                    bottom = fabBottomInset + FabBottomMargin + FabSize + ScrubberMargin,
+                    bottom = fabBottom + FabSize + ScrubberMargin,
                 ),
         )
 
@@ -533,7 +538,7 @@ fun HomeScreen(
             contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = FabEndMargin, bottom = fabBottomInset + FabBottomMargin),
+                .padding(end = FabEndMargin, bottom = fabBottom),
         )
 
         ActionPill(

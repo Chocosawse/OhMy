@@ -641,7 +641,7 @@ fun PhotoViewerScreen(
                 .safeDrawingPadding()
                 .padding(
                     end = InfoEdgeMargin,
-                    bottom = 24.dp + (if (carouselStyle.filmLook != null) FilmStripHeight else CarouselHeight) + InfoToCarouselGap,
+                    bottom = fabBottomMargin(carouselStyle),
                 ),
         )
     }
@@ -1212,6 +1212,12 @@ private val SelectionShift = (SelectedThumbnailSize - ThumbnailSize) / 2 + (Sele
 
 /** Leaves room above and below the current thumbnail for its grow animation to overshoot. */
 private val CarouselHeight = 60.dp
+
+/**
+ * The FAB's height above the bottom inset: the bottom column's margin, the carousel and the gap
+ * above it. The home screen's FAB sits at the same height, so the two line up.
+ */
+fun fabBottomMargin(style: CarouselStyle): Dp = 24.dp + (if (style.filmLook != null) FilmStripHeight else CarouselHeight) + InfoToCarouselGap
 
 // Film strip (v2): tall enough for the perforated edges around the frames; the selected frame
 // grows over them.

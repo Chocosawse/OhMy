@@ -36,6 +36,7 @@ import com.ohmy.zfsync.ui.screens.AlbumsScreen
 import com.ohmy.zfsync.ui.screens.HomeScreen
 import com.ohmy.zfsync.ui.screens.PhotoViewerScreen
 import com.ohmy.zfsync.ui.screens.SettingsScreen
+import com.ohmy.zfsync.ui.screens.fabBottomMargin
 import com.ohmy.zfsync.ui.theme.overshootExitSpec
 import com.ohmy.zfsync.ui.theme.overshootSpec
 
@@ -111,6 +112,7 @@ fun NikonSyncApp(viewModel: CameraViewModel = viewModel()) {
                     onBrowseAlbums = { showAlbums = true },
                     photoTransition = photoTransition,
                     settingsOpen = showSettings,
+                    fabBottomMargin = fabBottomMargin(carouselStyle),
                     modifier = Modifier.windowInsetsPadding(ScreenInsets),
                 )
             }
