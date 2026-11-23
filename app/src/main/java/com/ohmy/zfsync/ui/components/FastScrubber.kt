@@ -104,7 +104,10 @@ private val HandleTouchWidth = 40.dp
 private val HandleTouchHeight = 64.dp
 
 /** From the screen's edge to the track's line. */
-private val TrackInset = 8.dp
+private val TrackInset = 16.dp
+
+/** The track's line. */
+private val TrackWidth = 2.dp
 
 /** A section's mark: a short rule on the content side of the track. */
 private val TickLength = 6.dp
@@ -120,7 +123,7 @@ private const val FADE_MILLIS = 200
 private const val MIN_SCREENS = 3
 
 /**
- * A fast scroller along the right edge, Material You's pattern set editorially: a 1dp track,
+ * A fast scroller along the right edge, Material You's pattern set editorially: a 2dp track,
  * an 8dp rectangular handle in the accent color that grows a little while dragged, a tick for
  * each of [sections], and while dragging the current section's title beside the handle. It
  * shows while the content scrolls and fades out shortly after; only for content several screens
@@ -191,13 +194,15 @@ internal fun FastScrubber(target: ScrubTarget, sections: List<ScrubSection>, mod
 
         // The track and the sections' ticks.
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val line = 1.dp.toPx()
+            val line = TrackWidth.toPx()
             drawRect(colors.ink.copy(alpha = 0.25f), topLeft = Offset(trackX - line / 2, 0f), size = Size(line, size.height))
             val tick = TickLength.toPx()
             val last = lastIndex().toFloat()
             for (section in latestSections) {
                 val y = (section.index / last).coerceIn(0f, 1f) * travelPx + handleHeightPx / 2
-                drawRect(colors.ink.copy(alpha = 0.4f), topLeft = Offset(trackX - tick - line, y), size = Size(tick, line))
+                // A hairline, finer than the track it hangs off.
+                val hair = 1.dp.toPx()
+                drawRect(colors.ink.copy(alpha = 0.4f), topLeft = Offset(trackX - line / 2 - tick, y - hair / 2), size = Size(tick, hair))
             }
         }
 

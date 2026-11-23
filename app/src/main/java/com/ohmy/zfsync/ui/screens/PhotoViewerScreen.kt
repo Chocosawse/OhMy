@@ -154,6 +154,7 @@ import com.ohmy.zfsync.ui.components.DateStyle
 import com.ohmy.zfsync.ui.components.ExposureCard
 import com.ohmy.zfsync.ui.components.ExposureLabels
 import com.ohmy.zfsync.ui.components.FabAction
+import com.ohmy.zfsync.ui.components.FabSize
 import com.ohmy.zfsync.ui.components.PhotoGeometry
 import com.ohmy.zfsync.ui.components.PhotoTitleCard
 import com.ohmy.zfsync.ui.components.PhotoTransitionState
@@ -556,7 +557,7 @@ fun PhotoViewerScreen(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         // Clear of the FAB: its margin, its 48dp, and the same again between.
-                        .padding(start = InfoEdgeMargin, end = InfoEdgeMargin + 48.dp + InfoEdgeMargin)
+                        .padding(start = InfoEdgeMargin, end = InfoEdgeMargin + FabSize + InfoEdgeMargin)
                         .graphicsLayer { alpha = infoAlpha.value },
                 )
             }

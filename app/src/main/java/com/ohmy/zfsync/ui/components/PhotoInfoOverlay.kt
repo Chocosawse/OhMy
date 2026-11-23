@@ -156,8 +156,8 @@ fun ExposureCard(exposure: ExposureInfo?, labels: ExposureLabels, modifier: Modi
         modifier = modifier
             .fitWidth()
             .background(LightInfoBoxColor)
-            // 6 + 14 (label) + 22 (value) + 6 = 48dp, the FAB's height, so the two line up exactly.
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            // 10 + 14 (label) + 22 (value) + 10 = 56dp, the FAB's height, so the two line up exactly.
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         for ((label, value) in readings) {

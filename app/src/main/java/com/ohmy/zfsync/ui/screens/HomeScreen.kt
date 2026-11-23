@@ -87,6 +87,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalConfiguration
@@ -123,6 +124,7 @@ import com.ohmy.zfsync.ui.components.ChevronDownIcon
 import com.ohmy.zfsync.ui.components.EyeIcon
 import com.ohmy.zfsync.ui.components.EyeOffIcon
 import com.ohmy.zfsync.ui.components.FabAction
+import com.ohmy.zfsync.ui.components.FabSize
 import com.ohmy.zfsync.ui.components.FastScrubber
 import com.ohmy.zfsync.ui.components.GridLayoutIcon
 import com.ohmy.zfsync.ui.components.HomePhotoGrid
@@ -167,11 +169,10 @@ private val PillBottomMargin = 24.dp
 /** Leaves room at the bottom of the content so the floating pill never covers the last photos. */
 private val PillClearance = 88.dp + PillBottomMargin
 
-/** The home screen's FAB: its margin from the bottom inset, and its size (as ActionFabMenu draws it). */
+/** The home screen's FAB: its margin from the bottom inset. */
 private val FabBottomMargin = 16.dp
-private val FabSizeHome = 48.dp
 
-/** The scrubber's clearance from the pinned status row above it and the FAB below it. */
+/** The scrubber's clearance from the FAB below it. */
 private val ScrubberMargin = 12.dp
 
 /** How far a scroll must go (px per event) to hide or show the FAB, so a nudge doesn't flicker it. */
@@ -443,6 +444,15 @@ fun HomeScreen(
         }
         // The fast scrubber along the right edge: below the pinned status row, and ending above
         // the FAB so the two never overlap.
+        /** Where the photos start on screen: just below the header while it shows, never above the pinned row. */
+        fun scrubberTop(): Int {
+            val pinnedPx = with(density) { PinnedHeight.roundToPx() }
+            val headerBottom = when (shownLayout) {
+                HomeLayout.List -> listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == 0 }?.let { it.offset + it.size }
+                HomeLayout.Grid -> gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == 0 }?.let { it.offset.y + it.size.height }
+            } ?: 0
+            return maxOf(pinnedPx, headerBottom)
+        }
         val scrubSections = entries.mapIndexedNotNull { index, entry ->
             (entry as? HomeEntry.SectionHeader)?.let { ScrubSection(index, sectionTitle(it.title)) }
         }
@@ -452,9 +462,18 @@ fun HomeScreen(
                 HomeLayout.Grid -> remember(gridState) { gridState.asScrubTarget() }
             },
             sections = scrubSections,
+            // From where the photos start (the first section heading, or under the pinned status
+            // row once the header has scrolled away) down to just above the FAB. Read in layout,
+            // so following the scroll only re-places it.
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = PinnedHeight + ScrubberMargin, bottom = bottomInset + FabBottomMargin + FabSizeHome + ScrubberMargin),
+                .layout { measurable, constraints ->
+                    val top = scrubberTop().coerceIn(0, constraints.maxHeight)
+                    val bottom = (bottomInset + FabBottomMargin + FabSize + ScrubberMargin).roundToPx()
+                    val height = (constraints.maxHeight - top - bottom).coerceAtLeast(0)
+                    val placeable = measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
+                    layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(0, top) }
+                },
         )
 
         // On the page's own color, no shadow: the photos simply pass under it. It covers the

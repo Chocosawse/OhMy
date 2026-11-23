@@ -72,8 +72,8 @@ private const val ACTION_HOVER_SCALE = 1.08f
 /** Stagger between actions popping in (nearest the FAB first) or out (farthest first). */
 private const val ACTION_CASCADE_STEP_MILLIS = 50
 
-/** Between Material's small and regular FABs: present without outweighing the photo. Matches the exposure card's height, so the two line up. */
-internal val FabSize = 48.dp
+/** Material's regular FAB size. The viewer's exposure card matches its height, so the two line up. */
+internal val FabSize = 56.dp
 
 /** Closed: Material's FAB shape, a rounded square (16dp corners). */
 private val FabClosedCorner = 16.dp
