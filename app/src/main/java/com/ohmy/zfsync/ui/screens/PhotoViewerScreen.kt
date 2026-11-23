@@ -448,44 +448,26 @@ fun PhotoViewerScreen(
         flight?.let { FlyingPhoto(it, progress) }
 
         // Shown and hidden with the other controls.
-        // Legibility for the controls along the top, solved once at the edge rather than per
-        // button: a soft dark gradient from the top of the screen, there only with the controls.
+        // Legibility for the controls along the top and bottom, solved once at the edges rather
+        // than per button: a gentle burn into the photo along each, there only with the controls.
         // The buttons themselves stay bare icons; only the information is boxed.
-        val topScrimAlpha by animateFloatAsState(if (controlsShown) 1f else 0f, fadeSpec(), label = "topScrim")
+        val edgeScrimAlpha by animateFloatAsState(if (controlsShown) 1f else 0f, fadeSpec(), label = "edgeScrim")
         val topInset = WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility).asPaddingValues().calculateTopPadding()
+        val bottomInset = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+        // Top and bottom alike, so the controls along each edge sit in the same quiet frame.
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .height(topInset + TopScrimHeight)
-                .drawBehind {
-                    val alpha = topScrimAlpha
-                    if (alpha > 0f) {
-                        // Burned into the photo, like a burn layer in an image editor, rather than
-                        // laid over it as grey. Two passes, each fading to white (no change) at
-                        // the bottom: a multiply, which darkens even highlights (so the icons
-                        // read over a white wall), then a color burn, which deepens and
-                        // saturates the mid-tones like darkroom burning-in.
-                        drawRect(
-                            Brush.verticalGradient(
-                                0f to lerp(Color.White, Color.Black, TOP_SCRIM_MULTIPLY),
-                                0.5f to lerp(Color.White, Color.Black, TOP_SCRIM_MULTIPLY * 0.45f),
-                                1f to Color.White,
-                            ),
-                            alpha = alpha,
-                            blendMode = BlendMode.Multiply,
-                        )
-                        drawRect(
-                            Brush.verticalGradient(
-                                0f to lerp(Color.White, Color.Black, TOP_SCRIM_BURN),
-                                0.6f to lerp(Color.White, Color.Black, TOP_SCRIM_BURN * 0.35f),
-                                1f to Color.White,
-                            ),
-                            alpha = alpha,
-                            blendMode = BlendMode.ColorBurn,
-                        )
-                    }
-                },
+                .height(topInset + EdgeScrimHeight)
+                .edgeBurn(fromTop = true) { edgeScrimAlpha },
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .height(bottomInset + EdgeScrimHeight)
+                .edgeBurn(fromTop = false) { edgeScrimAlpha },
         )
         val closePop = animatePop(controlsShown)
         IconButton(
@@ -1581,14 +1563,32 @@ private class ZoomGeometry(
         }
 }
 
-/** How far the top-edge scrim reaches below the status bar: past the buttons and the title card's top. */
-private val TopScrimHeight = 140.dp
+/** How far the edge scrims reach in from the system bars: past the buttons at the top, the carousel at the bottom. */
+private val EdgeScrimHeight = 140.dp
 
-/** How much the top-edge scrim's multiply pass darkens at the very top (0 none, 1 black), fading to none at its bottom. */
-private const val TOP_SCRIM_MULTIPLY = 0.5f
+/** How much the edge scrims' multiply pass darkens right at the edge (0 none, 1 black), fading to none inward. */
+private const val EDGE_SCRIM_MULTIPLY = 0.3f
 
-/** How strong the top-edge scrim's color burn is at the very top, fading to none at its bottom. */
-private const val TOP_SCRIM_BURN = 0.3f
+/** How strong the edge scrims' color burn is right at the edge, fading to none inward. */
+private const val EDGE_SCRIM_BURN = 0.1f
+
+/**
+ * A scrim burned into the photo along one edge, like a burn layer in an image editor, rather than
+ * laid over it as grey: a multiply that darkens even highlights (so white icons read over a white
+ * wall), then a light color burn that deepens the mid-tones, both strongest at the edge and fading
+ * to nothing inward, and both scaled by [alpha] (shown with the controls).
+ */
+private fun Modifier.edgeBurn(fromTop: Boolean, alpha: () -> Float): Modifier = drawBehind {
+    val shown = alpha()
+    if (shown <= 0f) return@drawBehind
+    fun stops(strength: Float) = arrayOf(
+        0f to lerp(Color.White, Color.Black, strength),
+        0.5f to lerp(Color.White, Color.Black, strength * 0.4f),
+        1f to Color.White,
+    ).let { if (fromTop) it else it.map { (at, color) -> 1f - at to color }.reversed().toTypedArray() }
+    drawRect(Brush.verticalGradient(*stops(EDGE_SCRIM_MULTIPLY)), alpha = shown, blendMode = BlendMode.Multiply)
+    drawRect(Brush.verticalGradient(*stops(EDGE_SCRIM_BURN)), alpha = shown, blendMode = BlendMode.ColorBurn)
+}
 
 /** The info boxes' and the FAB's margin from the screen's sides: close to the edge, like captions on a print. */
 private val InfoEdgeMargin = 12.dp
