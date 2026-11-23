@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -147,7 +148,6 @@ import com.ohmy.zfsync.R
 import com.ohmy.zfsync.core.model.ExposureInfo
 import com.ohmy.zfsync.core.model.SyncedPhoto
 import com.ohmy.zfsync.ui.components.ActionFabMenu
-import com.ohmy.zfsync.ui.components.ViewerScrimColor
 import com.ohmy.zfsync.ui.components.CaptureTimeTag
 import com.ohmy.zfsync.ui.components.DateImprint
 import com.ohmy.zfsync.ui.components.DateStyle
@@ -448,6 +448,29 @@ fun PhotoViewerScreen(
         flight?.let { FlyingPhoto(it, progress) }
 
         // Shown and hidden with the other controls.
+        // Legibility for the controls along the top, solved once at the edge rather than per
+        // button: a soft dark gradient from the top of the screen, there only with the controls.
+        // The buttons themselves stay bare icons; only the information is boxed.
+        val topScrimAlpha by animateFloatAsState(if (controlsShown) 1f else 0f, fadeSpec(), label = "topScrim")
+        val topInset = WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility).asPaddingValues().calculateTopPadding()
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .height(topInset + TopScrimHeight)
+                .drawBehind {
+                    val alpha = topScrimAlpha
+                    if (alpha > 0f) {
+                        drawRect(
+                            Brush.verticalGradient(
+                                0f to Color.Black.copy(alpha = TOP_SCRIM_ALPHA * alpha),
+                                0.5f to Color.Black.copy(alpha = TOP_SCRIM_ALPHA * 0.45f * alpha),
+                                1f to Color.Transparent,
+                            ),
+                        )
+                    }
+                },
+        )
         val closePop = animatePop(controlsShown)
         IconButton(
             onClick = ::requestClose,
@@ -459,8 +482,7 @@ fun PhotoViewerScreen(
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.safeDrawing.union(WindowInsets.statusBarsIgnoringVisibility))
                 .padding(8.dp)
-                .pop { closePop.value }
-                .buttonScrim(),
+                .pop { closePop.value },
         ) {
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.viewer_close), tint = Color.White)
         }
@@ -474,8 +496,7 @@ fun PhotoViewerScreen(
                 .align(Alignment.TopEnd)
                 .windowInsetsPadding(barInsets)
                 .padding(8.dp)
-                .pop { closePop.value }
-                .buttonScrim(),
+                .pop { closePop.value },
         ) {
             Icon(
                 // Always outlined, matching the close button's line weight; the info itself showing
@@ -1543,8 +1564,8 @@ private class ZoomGeometry(
         }
 }
 
-/**
- * A translucent dark circle behind a button, the same as the FAB's fill (ViewerScrimColor): the
- * white icon stays legible on a bright photo, which still shows through.
- */
-private fun Modifier.buttonScrim(): Modifier = drawBehind { drawCircle(ViewerScrimColor) }
+/** How far the top-edge scrim reaches below the status bar: past the buttons and the title card's top. */
+private val TopScrimHeight = 140.dp
+
+/** How dark the top-edge scrim is at the very top, fading to nothing at its bottom. */
+private const val TOP_SCRIM_ALPHA = 0.4f

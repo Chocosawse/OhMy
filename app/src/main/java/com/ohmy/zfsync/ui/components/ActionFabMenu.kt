@@ -74,12 +74,6 @@ private const val ACTION_CASCADE_STEP_MILLIS = 50
 
 /** Between Material's small and regular FABs: present without outweighing the photo. Matches the exposure card's height, so the two line up. */
 internal val FabSize = 48.dp
-/**
- * The viewer's translucent dark fill for controls over the photo: the FAB, and the circles behind
- * the close and info buttons. The same as the title and exposure labels' boxes, so the overlay
- * reads as one layer over the photo.
- */
-internal val ViewerScrimColor = LightInfoBoxColor
 
 /** Closed: Material's FAB shape, a rounded square (16dp corners). */
 private val FabClosedCorner = 16.dp
