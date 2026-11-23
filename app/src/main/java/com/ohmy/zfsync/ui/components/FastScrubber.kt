@@ -109,8 +109,8 @@ private val TrackInset = 16.dp
 /** The track's line. */
 private val TrackWidth = 2.dp
 
-/** A section's mark: a short rule on the content side of the track. */
-private val TickLength = 6.dp
+/** A section's mark: a dot on the track. */
+private val SectionDotSize = 4.dp
 
 /** The current section's name sits this far from the handle, on the content side. */
 private val LabelGap = 12.dp
@@ -124,7 +124,7 @@ private const val MIN_SCREENS = 3
 
 /**
  * A fast scroller along the right edge, Material You's pattern set editorially: a 2dp track,
- * an 8dp rectangular handle in the accent color that grows a little while dragged, a tick for
+ * an 8dp rectangular handle in the accent color that grows a little while dragged, a dot for
  * each of [sections], and while dragging the current section's title beside the handle. It
  * shows while the content scrolls and fades out shortly after; only for content several screens
  * long. Fills the space it's given, the track running its full height.
@@ -192,17 +192,16 @@ internal fun FastScrubber(target: ScrubTarget, sections: List<ScrubSection>, mod
             derivedStateOf { if (dragging) dragFraction else (target.position / lastIndex()).coerceIn(0f, 1f) }
         }
 
-        // The track and the sections' ticks.
+        // The track and the sections' dots.
         Canvas(modifier = Modifier.fillMaxSize()) {
             val line = TrackWidth.toPx()
             drawRect(colors.ink.copy(alpha = 0.25f), topLeft = Offset(trackX - line / 2, 0f), size = Size(line, size.height))
-            val tick = TickLength.toPx()
+            val dot = SectionDotSize.toPx()
             val last = lastIndex().toFloat()
             for (section in latestSections) {
                 val y = (section.index / last).coerceIn(0f, 1f) * travelPx + handleHeightPx / 2
-                // A hairline, finer than the track it hangs off.
-                val hair = 1.dp.toPx()
-                drawRect(colors.ink.copy(alpha = 0.4f), topLeft = Offset(trackX - line / 2 - tick, y - hair / 2), size = Size(tick, hair))
+                // A dot on the track, in ink.
+                drawCircle(colors.ink, radius = dot / 2, center = Offset(trackX, y))
             }
         }
 
