@@ -8,6 +8,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -267,11 +268,14 @@ fun ActionFabMenu(
 @Composable
 private fun ActionRow(action: FabAction, hovered: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val scale by animateFloatAsState(if (hovered) ACTION_HOVER_SCALE else 1f, overshootSpec(), label = "actionHover")
+    // Highlighted in the FAB's colors; otherwise dark, to read over any photo.
+    val textColor = if (hovered) MaterialTheme.colorScheme.onPrimary else Color.White
     Surface(
         shape = RoundedCornerShape(50),
-        // Highlighted in the FAB's colors; otherwise dark, to read over any photo.
         color = if (hovered) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.6f),
-        contentColor = if (hovered) MaterialTheme.colorScheme.onPrimary else Color.White,
+        contentColor = textColor,
+        // Outlined in its own text color, like the selection pill.
+        border = BorderStroke(1.dp, textColor),
         modifier = modifier
             .graphicsLayer {
                 scaleX = scale
