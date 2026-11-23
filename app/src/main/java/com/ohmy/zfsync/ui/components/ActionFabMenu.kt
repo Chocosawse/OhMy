@@ -76,6 +76,9 @@ private const val ACTION_CASCADE_STEP_MILLIS = 50
 /** Material's regular FAB size. The viewer's exposure card matches its height, so the two line up. */
 internal val FabSize = 56.dp
 
+/** The FAB's drop shadow: a bit, not the full 6dp of Material's resting FAB. */
+private val FabShadow = 3.dp
+
 /** Closed: Material's FAB shape, a rounded square (16dp corners). */
 private val FabClosedCorner = 16.dp
 
@@ -185,11 +188,13 @@ fun ActionFabMenu(
 
         Surface(
             shape = RoundedCornerShape(corner),
-            // The small boxes' denser dark (the caption date's): still the photo's overlay rather
-            // than a solid block on it, but firm enough to read as a button over a bright photo.
-            // No shadow, which would show through the fill.
+            // In the viewer, the small boxes' denser dark (the caption date's): still the photo's
+            // overlay rather than a solid block on it, but firm enough to read as a button over a
+            // bright photo. On the home screen, the theme's primary.
             color = containerColor,
             contentColor = contentColor,
+            // A little lift off what's beneath, short of Material's resting FAB elevation.
+            shadowElevation = FabShadow,
             modifier = Modifier
                 .pop { fabPop.value }
                 .onPlaced { fabCoordinates[0] = it }
