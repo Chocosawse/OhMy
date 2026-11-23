@@ -616,6 +616,11 @@ fun PhotoViewerScreen(
                 FabAction(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.viewer_open_raw)) {
                     openRaws(context, listOf(photos[pagerState.currentPage]))
                 }.takeIf { currentPhoto.rawUri != null },
+                // The same as the info button at the top right.
+                FabAction(
+                    Icons.Outlined.Info,
+                    stringResource(if (showInfo) R.string.viewer_hide_info else R.string.viewer_show_info),
+                ) { onShowInfoChange(!showInfo) },
                 FabAction(Icons.Default.Delete, stringResource(R.string.viewer_delete)) {
                     val photo = photos[pagerState.currentPage]
                     if (confirmDelete) pendingDelete = photo else deletePhoto(photo)

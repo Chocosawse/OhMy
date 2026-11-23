@@ -110,7 +110,7 @@ private val TrackInset = 16.dp
 private val TrackWidth = 2.dp
 
 /** A section's mark: a dot on the track. */
-private val SectionDotSize = 4.dp
+private val SectionDotSize = 8.dp
 
 /** The current section's name sits this far from the handle, on the content side. */
 private val LabelGap = 12.dp

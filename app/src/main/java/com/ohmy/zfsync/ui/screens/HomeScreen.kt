@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.mandatorySystemGestures
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -44,6 +45,7 @@ import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -171,6 +173,9 @@ private val PillClearance = 88.dp + PillBottomMargin
 
 /** The home screen's FAB: its margin from the bottom inset. */
 private val FabBottomMargin = 16.dp
+
+/** The scrubber's margin below where the photos start. */
+private val ScrubberTopMargin = 16.dp
 
 /** The scrubber's clearance from the FAB below it. */
 private val ScrubberMargin = 12.dp
@@ -399,6 +404,10 @@ fun HomeScreen(
     }
     val bottomInset = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
     val bottomPadding = bottomInset + if (selection.active) PillClearance else 0.dp
+    // The FAB clears the system's home gesture too, not just the navigation bar it's drawn over:
+    // the gesture's zone reaches higher, and a hold-and-slide starting in it goes home instead.
+    val fabBottomInset = WindowInsets.safeDrawing.union(WindowInsets.mandatorySystemGestures)
+        .only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
 
     // Keeps the pill's count steady while it animates out after the selection is cleared,
     // instead of flashing "0 selected".
@@ -468,8 +477,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .layout { measurable, constraints ->
-                    val top = scrubberTop().coerceIn(0, constraints.maxHeight)
-                    val bottom = (bottomInset + FabBottomMargin + FabSize + ScrubberMargin).roundToPx()
+                    val top = (scrubberTop() + ScrubberTopMargin.roundToPx()).coerceIn(0, constraints.maxHeight)
+                    val bottom = (fabBottomInset + FabBottomMargin + FabSize + ScrubberMargin).roundToPx()
                     val height = (constraints.maxHeight - top - bottom).coerceAtLeast(0)
                     val placeable = measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
                     layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(0, top) }
@@ -536,8 +545,7 @@ fun HomeScreen(
             contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-                .padding(end = ScreenHorizontalPadding, bottom = FabBottomMargin),
+                .padding(end = ScreenHorizontalPadding, bottom = fabBottomInset + FabBottomMargin),
         )
 
         ActionPill(
