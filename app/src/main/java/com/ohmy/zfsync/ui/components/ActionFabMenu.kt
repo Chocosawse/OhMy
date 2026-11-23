@@ -4,6 +4,7 @@ import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -143,7 +144,10 @@ fun ActionFabMenu(
     val showActions by remember(count) { derivedStateOf { latestExpanded || pops.any { it.value > 0f } } }
 
     val fabPop = animatePop(visible)
-    val fabFade = animateFloatAsState(if (visible) 1f else 0f, fadeSpec(), label = "fabFade")
+    // Starts transparent, so an FAB visible from its first frame (the viewer opening over the
+    // home screen's) still fades in, rather than starting where it's headed.
+    val fabFade = remember { Animatable(0f) }
+    LaunchedEffect(visible) { fabFade.animateTo(if (visible) 1f else 0f, fadeSpec()) }
     val fabScale by animateFloatAsState(
         if (visible && (expanded || pressed)) FAB_EXPANDED_SCALE else 1f,
         overshootSpec(),
